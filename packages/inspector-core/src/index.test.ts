@@ -10,7 +10,14 @@ import {
   buildSemanticSummary,
   buildSiblingSummary,
   createBrowserDomAdapter,
+  createClassAddCommand,
+  createClassRemoveCommand,
+  createClassReplaceCommand,
+  createStyleEditCommand,
+  createTextEditCommand,
   redactInspectorSummary,
+  validateCssProperty,
+  validateCssValue,
 } from "./index.js";
 
 const SECRET = "VC_SECRET_SHOULD_NOT_EXPORT";
@@ -216,5 +223,122 @@ describe("inspector data builders", () => {
 
     expect(serialized).not.toContain(SECRET);
     expect(serialized).not.toContain("sk_test_VC_SECRET_KEY");
+  });
+});
+
+describe("command factories", () => {
+  const target = { runtimeId: "runtime-1", selector: "#submit" };
+  const timestamp = 1234567890123;
+
+  it("creates a StyleEditCommand with runtime:false", () => {
+    const op = createStyleEditCommand(target, "padding", "16px", "8px", {
+      id: "op-style-0001",
+      timestamp,
+    });
+
+    expect(op.kind).toBe("style-edit");
+    expect(op.target.runtimeId).toBe("runtime-1");
+    expect(op.target.selector).toBe("#submit");
+    expect(op.property).toBe("padding");
+    expect(op.value).toBe("16px");
+    expect(op.previousValue).toBe("8px");
+    expect(op.important).toBe(false);
+    expect(op.runtime).toBe(false);
+    expect(op.timestamp).toBe(timestamp);
+    expect(op.id).toBe("op-style-0001");
+  });
+
+  it("creates a ClassAddCommand", () => {
+    const op = createClassAddCommand(target, "btn-primary", { id: "op-add-0001", timestamp });
+
+    expect(op.kind).toBe("class-add");
+    expect(op.className).toBe("btn-primary");
+    expect(op.runtime).toBe(false);
+  });
+
+  it("creates a ClassRemoveCommand", () => {
+    const op = createClassRemoveCommand(target, "btn-secondary", {
+      id: "op-remove-0001",
+      timestamp,
+    });
+
+    expect(op.kind).toBe("class-remove");
+    expect(op.className).toBe("btn-secondary");
+    expect(op.runtime).toBe(false);
+  });
+
+  it("creates a ClassReplaceCommand", () => {
+    const op = createClassReplaceCommand(target, "old", "new", {
+      id: "op-replace-0001",
+      timestamp,
+    });
+
+    expect(op.kind).toBe("class-replace");
+    expect(op.oldClassName).toBe("old");
+    expect(op.newClassName).toBe("new");
+    expect(op.runtime).toBe(false);
+  });
+
+  it("creates a TextEditCommand", () => {
+    const op = createTextEditCommand(target, "Save changes", "Save", {
+      id: "op-text-0001",
+      timestamp,
+    });
+
+    expect(op.kind).toBe("text-edit");
+    expect(op.newText).toBe("Save changes");
+    expect(op.previousText).toBe("Save");
+    expect(op.runtime).toBe(false);
+  });
+
+  it("omits optional previousValue when undefined", () => {
+    const op = createStyleEditCommand(target, "color", "red", undefined, {
+      id: "op-style-0002",
+      timestamp,
+    });
+
+    expect(op.previousValue).toBeUndefined();
+  });
+});
+
+describe("css validation", () => {
+  it("accepts known MVP properties", () => {
+    expect(validateCssProperty("padding")).toBe(true);
+    expect(validateCssProperty("color")).toBe(true);
+    expect(validateCssProperty("display")).toBe(true);
+  });
+
+  it("rejects unknown properties", () => {
+    expect(validateCssProperty("paddding")).toBe(false);
+    expect(validateCssProperty("")).toBe(false);
+  });
+
+  it("accepts valid length and percentage values", () => {
+    expect(validateCssValue("padding", "16px").valid).toBe(true);
+    expect(validateCssValue("padding", "1rem").valid).toBe(true);
+    expect(validateCssValue("padding", "50%").valid).toBe(true);
+    expect(validateCssValue("padding", "0").valid).toBe(true);
+  });
+
+  it("accepts valid colors", () => {
+    expect(validateCssValue("color", "red").valid).toBe(true);
+    expect(validateCssValue("color", "#ff0000").valid).toBe(true);
+    expect(validateCssValue("background-color", "rgb(255, 0, 0)").valid).toBe(true);
+    expect(validateCssValue("color", "hsl(0, 100%, 50%)").valid).toBe(true);
+  });
+
+  it("rejects invalid values", () => {
+    expect(validateCssValue("padding", "abc").valid).toBe(false);
+    expect(validateCssValue("color", "16px").valid).toBe(false);
+    expect(validateCssValue("display", "blocky").valid).toBe(false);
+  });
+
+  it("rejects empty values", () => {
+    expect(validateCssValue("padding", "").valid).toBe(false);
+  });
+
+  it("validates border shorthand", () => {
+    expect(validateCssValue("border", "1px solid red").valid).toBe(true);
+    expect(validateCssValue("border", "solid").valid).toBe(false);
   });
 });

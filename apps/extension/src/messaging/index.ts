@@ -16,6 +16,7 @@ export {
 } from "./frame-discovery.js";
 export {
   createConnectionStateMessage,
+  createEditorCommandMessage,
   createSelectElementMessage,
   createSelectionSummaryMessage,
   createSessionUpdateMessage,

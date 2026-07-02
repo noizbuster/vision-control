@@ -2,7 +2,15 @@ export { buildAttributes } from "./attributes.js";
 export { buildBoxModelSummary } from "./box-model.js";
 export { buildBreadcrumb } from "./breadcrumb.js";
 export { buildClassList } from "./class-list.js";
+export {
+  createClassAddCommand,
+  createClassRemoveCommand,
+  createClassReplaceCommand,
+  createStyleEditCommand,
+  createTextEditCommand,
+} from "./commands.js";
 export { buildComputedStyleSummary } from "./computed-style-summary.js";
+export { validateCssProperty, validateCssValue } from "./css-validation.js";
 export {
   type ComputedStyleSnapshot,
   createBrowserDomAdapter,

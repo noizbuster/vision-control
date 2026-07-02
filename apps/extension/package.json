@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@vision-control/change-ir": "workspace:*",
     "@vision-control/daemon-client": "workspace:*",
     "@vision-control/element-identity": "workspace:*",
     "@vision-control/geometry": "workspace:*",

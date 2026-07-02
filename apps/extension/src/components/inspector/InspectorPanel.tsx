@@ -1,6 +1,14 @@
+import type {
+  ClassAddOperation,
+  ClassRemoveOperation,
+  ClassReplaceOperation,
+  StyleEditOperation,
+  TextEditOperation,
+} from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import type { ReactElement } from "react";
-
+import type { EditorMode } from "../../hooks/useEditor.js";
+import { ClassEditor, EditorToolbar, StyleEditor, TextEditor } from "../editors/index.js";
 import { Attributes } from "./Attributes.js";
 import { BoxModel } from "./BoxModel.js";
 import { Breadcrumb } from "./Breadcrumb.js";
@@ -13,6 +21,17 @@ import { SourceConfidence } from "./SourceConfidence.js";
 interface InspectorPanelProps {
   readonly summary: SelectionSummary | null;
   readonly onSelectElement: (selector: string) => void;
+  readonly editorMode: EditorMode;
+  readonly onChangeEditorMode: (mode: EditorMode) => void;
+  readonly onEditorCommand: (
+    command:
+      | StyleEditOperation
+      | ClassAddOperation
+      | ClassRemoveOperation
+      | ClassReplaceOperation
+      | TextEditOperation,
+  ) => void;
+  readonly onValidationError: (error: string | null) => void;
 }
 
 interface SectionProps {
@@ -29,7 +48,14 @@ function Section({ title, children }: SectionProps): ReactElement {
   );
 }
 
-export function InspectorPanel({ summary, onSelectElement }: InspectorPanelProps): ReactElement {
+export function InspectorPanel({
+  summary,
+  onSelectElement,
+  editorMode,
+  onChangeEditorMode,
+  onEditorCommand,
+  onValidationError,
+}: InspectorPanelProps): ReactElement {
   if (summary === null) {
     return (
       <div className="inspector-panel">
@@ -51,6 +77,25 @@ export function InspectorPanel({ summary, onSelectElement }: InspectorPanelProps
             <SourceConfidence confidence={summary.sourceConfidence} />
           </div>
         </div>
+      </Section>
+
+      <Section title="Editors">
+        <EditorToolbar activeMode={editorMode} onChangeMode={onChangeEditorMode} />
+        {editorMode === "style" && (
+          <StyleEditor
+            summary={summary}
+            onCommand={onEditorCommand}
+            onValidationError={onValidationError}
+          />
+        )}
+        {editorMode === "class" && <ClassEditor summary={summary} onCommand={onEditorCommand} />}
+        {editorMode === "text" && (
+          <TextEditor
+            summary={summary}
+            onCommand={onEditorCommand}
+            onClose={() => onChangeEditorMode(null)}
+          />
+        )}
       </Section>
 
       <Section title="Breadcrumb">

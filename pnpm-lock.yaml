@@ -153,6 +153,9 @@ importers:
 
   apps/extension:
     dependencies:
+      '@vision-control/change-ir':
+        specifier: workspace:*
+        version: link:../../packages/change-ir
       '@vision-control/daemon-client':
         specifier: workspace:*
         version: link:../../packages/daemon-client

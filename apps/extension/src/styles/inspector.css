@@ -297,3 +297,187 @@
   background: rgba(207, 34, 46, 0.12);
   color: var(--vc-error);
 }
+
+.editor-toolbar {
+  display: flex;
+  gap: var(--vc-space-2);
+  margin-bottom: var(--vc-space-3);
+}
+
+.editor-toolbar__button {
+  flex: 1;
+  padding: var(--vc-space-2) var(--vc-space-3);
+  border: 1px solid var(--vc-border);
+  border-radius: var(--vc-radius-md);
+  background: var(--vc-bg-1);
+  color: var(--vc-text-2);
+  font-size: var(--vc-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.editor-toolbar__button:hover {
+  border-color: var(--vc-accent);
+  color: var(--vc-accent);
+}
+
+.editor-toolbar__button--active {
+  background: var(--vc-accent);
+  border-color: var(--vc-accent);
+  color: var(--vc-accent-text);
+}
+
+.editor-toolbar__button--active:hover {
+  color: var(--vc-accent-text);
+}
+
+.style-editor__hint {
+  margin: 0 0 var(--vc-space-3);
+  color: var(--vc-text-3);
+  font-size: var(--vc-text-xs);
+}
+
+.style-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vc-space-2);
+}
+
+.style-editor__row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: var(--vc-space-2);
+  align-items: center;
+}
+
+.style-editor__property {
+  font-family: var(--vc-font-mono);
+  font-size: var(--vc-text-xs);
+  color: var(--vc-text-2);
+  word-break: break-all;
+}
+
+.style-editor__input {
+  padding: var(--vc-space-1) var(--vc-space-2);
+  border: 1px solid var(--vc-border);
+  border-radius: var(--vc-radius-sm);
+  background: var(--vc-bg-1);
+  color: var(--vc-text-1);
+  font-family: var(--vc-font-mono);
+  font-size: var(--vc-text-sm);
+}
+
+.style-editor__input--error {
+  border-color: var(--vc-error);
+}
+
+.style-editor__error {
+  grid-column: 1 / -1;
+  color: var(--vc-error);
+  font-size: var(--vc-text-xs);
+}
+
+.class-editor__add-row {
+  display: flex;
+  gap: var(--vc-space-2);
+  margin-bottom: var(--vc-space-3);
+}
+
+.class-editor__input {
+  flex: 1;
+  padding: var(--vc-space-1) var(--vc-space-2);
+  border: 1px solid var(--vc-border);
+  border-radius: var(--vc-radius-sm);
+  background: var(--vc-bg-1);
+  color: var(--vc-text-1);
+  font-family: var(--vc-font-mono);
+  font-size: var(--vc-text-sm);
+}
+
+.class-editor__add-button {
+  padding: var(--vc-space-1) var(--vc-space-3);
+  border: 1px solid var(--vc-accent);
+  border-radius: var(--vc-radius-sm);
+  background: var(--vc-accent);
+  color: var(--vc-accent-text);
+  font-size: var(--vc-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.class-editor__add-button:hover {
+  opacity: 0.9;
+}
+
+.class-editor__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vc-space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.class-editor__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vc-space-1);
+  padding: var(--vc-space-1) var(--vc-space-2);
+  border-radius: var(--vc-radius-sm);
+  background: var(--vc-bg-3);
+  border: 1px solid var(--vc-border);
+  font-family: var(--vc-font-mono);
+  font-size: var(--vc-text-xs);
+}
+
+.class-editor__chip-name {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vc-text-1);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.class-editor__chip-name:hover {
+  color: var(--vc-accent);
+}
+
+.class-editor__chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: var(--vc-radius-sm);
+  background: transparent;
+  color: var(--vc-text-3);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.class-editor__chip-remove:hover {
+  background: var(--vc-error);
+  color: var(--vc-accent-text);
+}
+
+.class-editor__chip-input {
+  padding: var(--vc-space-1) var(--vc-space-2);
+  border: 1px solid var(--vc-accent);
+  border-radius: var(--vc-radius-sm);
+  background: var(--vc-bg-1);
+  color: var(--vc-text-1);
+  font-family: var(--vc-font-mono);
+  font-size: var(--vc-text-xs);
+}
+
+.class-editor__empty {
+  margin: 0;
+  color: var(--vc-text-3);
+  font-size: var(--vc-text-sm);
+  font-style: italic;
+}

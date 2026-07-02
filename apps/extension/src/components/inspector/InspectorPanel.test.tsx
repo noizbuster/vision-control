@@ -71,21 +71,42 @@ function makeSummary(): SelectionSummary {
   };
 }
 
+function makeProps(
+  overrides: {
+    summary?: SelectionSummary | null;
+    onSelectElement?: (selector: string) => void;
+    editorMode?: "style" | "class" | "text" | null;
+    onChangeEditorMode?: (mode: "style" | "class" | "text" | null) => void;
+    onEditorCommand?: (command: unknown) => void;
+    onValidationError?: (error: string | null) => void;
+  } = {},
+) {
+  return {
+    summary: "summary" in overrides ? overrides.summary : makeSummary(),
+    onSelectElement: overrides.onSelectElement ?? vi.fn(),
+    editorMode: overrides.editorMode ?? null,
+    onChangeEditorMode: overrides.onChangeEditorMode ?? vi.fn(),
+    onEditorCommand: overrides.onEditorCommand ?? vi.fn(),
+    onValidationError: overrides.onValidationError ?? vi.fn(),
+  };
+}
+
 describe("InspectorPanel", () => {
   afterEach(() => {
     cleanup();
   });
 
   it("renders an empty state when summary is null", () => {
-    render(<InspectorPanel summary={null} onSelectElement={vi.fn()} />);
+    render(<InspectorPanel {...makeProps({ summary: null })} />);
 
     expect(screen.getByText("Select an element to inspect.")).toBeDefined();
   });
 
   it("renders all summary sections", () => {
-    render(<InspectorPanel summary={makeSummary()} onSelectElement={vi.fn()} />);
+    render(<InspectorPanel {...makeProps()} />);
 
     expect(screen.getAllByText("Identity").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Editors").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Breadcrumb").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Semantic").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Box Model").length).toBeGreaterThan(0);
@@ -96,18 +117,48 @@ describe("InspectorPanel", () => {
   });
 
   it("displays the source confidence badge", () => {
-    render(<InspectorPanel summary={makeSummary()} onSelectElement={vi.fn()} />);
+    render(<InspectorPanel {...makeProps()} />);
 
     expect(screen.getAllByText("high").length).toBeGreaterThan(0);
   });
 
   it("renders the breadcrumb and calls onSelectElement when clicked", () => {
     const onSelect = vi.fn();
-    render(<InspectorPanel summary={makeSummary()} onSelectElement={onSelect} />);
+    render(<InspectorPanel {...makeProps({ onSelectElement: onSelect })} />);
 
     const bodyButtons = screen.getAllByRole("button", { name: /body/i });
     bodyButtons[0]?.click();
 
     expect(onSelect).toHaveBeenCalledWith("body");
+  });
+
+  it("toggles the style editor when the toolbar button is clicked", () => {
+    const onChangeMode = vi.fn();
+    render(
+      <InspectorPanel {...makeProps({ editorMode: null, onChangeEditorMode: onChangeMode })} />,
+    );
+
+    const styleButton = screen.getByRole("button", { name: "Edit Style" });
+    styleButton.click();
+
+    expect(onChangeMode).toHaveBeenCalledWith("style");
+  });
+
+  it("renders the style editor when mode is style", () => {
+    render(<InspectorPanel {...makeProps({ editorMode: "style" })} />);
+
+    expect(screen.getByText(/Edit a value and press Enter/i)).toBeDefined();
+  });
+
+  it("renders the class editor when mode is class", () => {
+    render(<InspectorPanel {...makeProps({ editorMode: "class" })} />);
+
+    expect(screen.getByPlaceholderText("Add a class…")).toBeDefined();
+  });
+
+  it("renders the text editor when mode is text", () => {
+    render(<InspectorPanel {...makeProps({ editorMode: "text" })} />);
+
+    expect(document.querySelector("[data-vc-text-editor-host]")).not.toBeNull();
   });
 });

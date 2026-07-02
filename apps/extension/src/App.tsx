@@ -4,6 +4,7 @@ import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
 import { useConnectionState } from "./hooks/useConnectionState.js";
+import { useEditor } from "./hooks/useEditor.js";
 import { useFrameTree } from "./hooks/useFrameTree.js";
 import { useInspectedTab } from "./hooks/useInspectedTab.js";
 import { usePanelBus } from "./hooks/usePanelBus.js";
@@ -11,6 +12,7 @@ import { useSelectionSummary } from "./hooks/useSelectionSummary.js";
 import { useSession } from "./hooks/useSession.js";
 import { useTheme } from "./hooks/useTheme.js";
 import type { FrameInfo } from "./messaging/index.js";
+import { createEditorCommandMessage } from "./messaging/index.js";
 import "./styles/variables.css";
 import "./styles/inspector.css";
 
@@ -34,6 +36,14 @@ export function App(): ReactElement {
   const session = useSession(bus, tabId);
   const frames = useFrameTree(bus, tabId);
   const { summary, selectElement } = useSelectionSummary(bus);
+  const editor = useEditor();
+
+  const handleEditorCommand = (command: Parameters<typeof createEditorCommandMessage>[0]): void => {
+    editor.actions.addPendingOperation(command);
+    if (bus !== undefined) {
+      bus.send("background", createEditorCommandMessage(command));
+    }
+  };
 
   return (
     <ErrorBoundary>
@@ -72,7 +82,14 @@ export function App(): ReactElement {
               </ul>
             )}
           </section>
-          <InspectorPanel summary={summary} onSelectElement={selectElement} />
+          <InspectorPanel
+            summary={summary}
+            onSelectElement={selectElement}
+            editorMode={editor.state.mode}
+            onChangeEditorMode={editor.actions.setMode}
+            onEditorCommand={handleEditorCommand}
+            onValidationError={editor.actions.setValidationError}
+          />
         </main>
       </div>
     </ErrorBoundary>

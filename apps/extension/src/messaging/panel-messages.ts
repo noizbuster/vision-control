@@ -1,3 +1,4 @@
+import type { Operation } from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 
 import type { BusMessage, ConnectionState, TabSession } from "./types.js";
@@ -42,6 +43,17 @@ export function createConnectionStateMessage(state: ConnectionState): BusMessage
     messageType: "connection-state",
     targetRoute: "panel",
     payload: { state },
+    timestamp: Date.now(),
+  };
+}
+
+export function createEditorCommandMessage(operation: Operation): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `editor-command-${Date.now()}`,
+    messageType: "editor-command",
+    targetRoute: "background",
+    payload: operation,
     timestamp: Date.now(),
   };
 }

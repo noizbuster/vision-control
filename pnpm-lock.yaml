@@ -156,6 +156,9 @@ importers:
       '@vision-control/change-ir':
         specifier: workspace:*
         version: link:../../packages/change-ir
+      '@vision-control/change-journal':
+        specifier: workspace:*
+        version: link:../../packages/change-journal
       '@vision-control/daemon-client':
         specifier: workspace:*
         version: link:../../packages/daemon-client
@@ -168,6 +171,9 @@ importers:
       '@vision-control/inspector-core':
         specifier: workspace:*
         version: link:../../packages/inspector-core
+      '@vision-control/preview-engine':
+        specifier: workspace:*
+        version: link:../../packages/preview-engine
       '@vision-control/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol

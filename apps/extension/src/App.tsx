@@ -1,12 +1,14 @@
 import type { ReactElement } from "react";
-
 import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
+import { ChangeJournal } from "./components/journal/ChangeJournal.js";
 import { useConnectionState } from "./hooks/useConnectionState.js";
 import { useEditor } from "./hooks/useEditor.js";
 import { useFrameTree } from "./hooks/useFrameTree.js";
 import { useInspectedTab } from "./hooks/useInspectedTab.js";
+import { useJournal } from "./hooks/useJournal.js";
+import { useJournalPersistence } from "./hooks/useJournalPersistence.js";
 import { usePanelBus } from "./hooks/usePanelBus.js";
 import { useSelectionSummary } from "./hooks/useSelectionSummary.js";
 import { useSession } from "./hooks/useSession.js";
@@ -15,6 +17,7 @@ import type { FrameInfo } from "./messaging/index.js";
 import { createEditorCommandMessage } from "./messaging/index.js";
 import "./styles/variables.css";
 import "./styles/inspector.css";
+import "./styles/journal.css";
 
 function FrameTreeItem({ frame }: { readonly frame: FrameInfo }): ReactElement {
   return (
@@ -37,9 +40,16 @@ export function App(): ReactElement {
   const frames = useFrameTree(bus, tabId);
   const { summary, selectElement } = useSelectionSummary(bus);
   const editor = useEditor();
+  const journal = useJournal({ connectionState });
+  useJournalPersistence({
+    journal: journal.journal,
+    client: null,
+    onRestore: journal.replaceJournal,
+  });
 
   const handleEditorCommand = (command: Parameters<typeof createEditorCommandMessage>[0]): void => {
     editor.actions.addPendingOperation(command);
+    journal.record(command);
     if (bus !== undefined) {
       bus.send("background", createEditorCommandMessage(command));
     }
@@ -89,6 +99,15 @@ export function App(): ReactElement {
             onChangeEditorMode={editor.actions.setMode}
             onEditorCommand={handleEditorCommand}
             onValidationError={editor.actions.setValidationError}
+          />
+          <ChangeJournal
+            entries={journal.entries}
+            canUndo={journal.canUndo}
+            canRedo={journal.canRedo}
+            pendingCount={journal.pendingCount}
+            onUndo={journal.undo}
+            onRedo={journal.redo}
+            onClear={journal.clear}
           />
         </main>
       </div>

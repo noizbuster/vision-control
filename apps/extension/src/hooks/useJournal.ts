@@ -1,0 +1,157 @@
+import type { Operation } from "@vision-control/change-ir";
+import {
+  appendEntry,
+  canRedoJournal,
+  canUndoJournal,
+  clear as clearJournal,
+  createJournal,
+  type Journal,
+  type JournalEntry,
+  markEntryCommitted,
+  redo as redoEntry,
+  undo as undoEntry,
+} from "@vision-control/change-journal";
+import type { PreviewManager } from "@vision-control/preview-engine";
+import { useCallback, useMemo, useState } from "react";
+
+import type { ConnectionState } from "../messaging/index.js";
+
+export interface UseJournalOptions {
+  readonly previewEngine?: PreviewManager | null;
+  readonly connectionState?: ConnectionState;
+}
+
+export interface UseJournalResult {
+  readonly journal: Journal;
+  readonly entries: readonly JournalEntry[];
+  readonly canUndo: boolean;
+  readonly canRedo: boolean;
+  readonly pendingCount: number;
+  readonly isConnected: boolean;
+  readonly record: (operation: Operation) => JournalEntry;
+  readonly commitEntry: (entryId: string) => void;
+  readonly undo: () => void;
+  readonly redo: () => void;
+  readonly clear: () => void;
+  readonly replaceJournal: (next: Journal) => void;
+}
+
+const newId = (): string => globalThis.crypto.randomUUID();
+
+/**
+ * Run a single operation as a committed preview transaction. Returns true only
+ * when the transaction reached commit — the signal the journal uses to mark an
+ * entry "committed". Any failure leaves the entry "pending" (state unknown),
+ * honouring the commit-status contract.
+ */
+function applyCommitted(engine: PreviewManager, operation: Operation): boolean {
+  try {
+    const tx = engine.beginTransaction();
+    tx.begin();
+    tx.apply(operation);
+    tx.commit();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
+  const { previewEngine = null, connectionState = "disconnected" } = options;
+  const [journal, setJournal] = useState<Journal>(createJournal);
+  const [changeSetId] = useState<string>(newId);
+
+  const record = useCallback(
+    (operation: Operation): JournalEntry => {
+      const id = newId();
+      const committed =
+        previewEngine !== null && previewEngine !== undefined
+          ? applyCommitted(previewEngine, operation)
+          : false;
+      const entry: JournalEntry = {
+        id,
+        changeSetId,
+        operation,
+        appliedAt: Date.now(),
+        status: committed ? "committed" : "pending",
+        beforeSnapshot: null,
+        afterSnapshot: null,
+      };
+      setJournal((current) => appendEntry(current, entry));
+      return entry;
+    },
+    [previewEngine, changeSetId],
+  );
+
+  const commitEntry = useCallback((entryId: string): void => {
+    setJournal((current) => markEntryCommitted(current, entryId));
+  }, []);
+
+  const undo = useCallback((): void => {
+    if (previewEngine !== null && previewEngine !== undefined) {
+      setJournal((current) => {
+        if (!canUndoJournal(current)) return current;
+        const { journal: next, inverse } = undoEntry(current);
+        applyCommitted(previewEngine, inverse);
+        return next;
+      });
+    } else {
+      setJournal((current) => {
+        if (!canUndoJournal(current)) return current;
+        return undoEntry(current).journal;
+      });
+    }
+  }, [previewEngine]);
+
+  const redo = useCallback((): void => {
+    if (previewEngine !== null && previewEngine !== undefined) {
+      setJournal((current) => {
+        if (!canRedoJournal(current)) return current;
+        const { journal: next, operation } = redoEntry(current);
+        applyCommitted(previewEngine, operation);
+        return next;
+      });
+    } else {
+      setJournal((current) => {
+        if (!canRedoJournal(current)) return current;
+        return redoEntry(current).journal;
+      });
+    }
+  }, [previewEngine]);
+
+  const clear = useCallback((): void => {
+    if (previewEngine !== null && previewEngine !== undefined) {
+      previewEngine.clearAll();
+    }
+    setJournal(clearJournal());
+  }, [previewEngine]);
+
+  const replaceJournal = useCallback((next: Journal): void => {
+    setJournal(next);
+  }, []);
+
+  const entries = useMemo<readonly JournalEntry[]>(
+    () => [...journal.entries].reverse(),
+    [journal.entries],
+  );
+
+  const pendingCount = useMemo(
+    () => journal.entries.filter((e) => e.status === "pending").length,
+    [journal.entries],
+  );
+
+  return {
+    journal,
+    entries,
+    canUndo: canUndoJournal(journal),
+    canRedo: canRedoJournal(journal),
+    pendingCount,
+    isConnected: connectionState === "connected",
+    record,
+    commitEntry,
+    undo,
+    redo,
+    clear,
+    replaceJournal,
+  };
+}

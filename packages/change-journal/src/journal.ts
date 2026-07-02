@@ -18,13 +18,23 @@ import {
 
 const ID = z.string().regex(OPERATION_ID_PATTERN);
 
-export const JournalEntryStatusSchema = z.enum(["pending", "applied", "rolled-back"]);
+/**
+ * Commit status of a journal entry, mirroring the preview transaction
+ * lifecycle. The journal NEVER marks an entry "committed" unless the preview
+ * transaction for that entry ended in commit; while a preview is still active
+ * or its outcome is unknown, the entry stays "pending".
+ *
+ * - "pending": preview transaction still active or commit state unknown.
+ * - "committed": preview transaction ended in commit (the edit is live).
+ * - "rolled-back": preview transaction was rolled back (an undo).
+ */
+export const JournalEntryStatusSchema = z.enum(["pending", "committed", "rolled-back"]);
 
 export type JournalEntryStatus = z.infer<typeof JournalEntryStatusSchema>;
 
 /**
  * One recorded operation in the event-sourced journal. Carries the operation,
- * its apply status, before/after snapshots (typed `unknown` until the snapshot
+ * its commit status, before/after snapshots (typed `unknown` until the snapshot
  * format lands in a later task), and links back to its changeset.
  *
  * The inverse of the operation is NOT stored on the entry — it is computed on
@@ -43,6 +53,11 @@ export const JournalEntrySchema = z.object({
 
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 
+export const UndoRedoStacksSchema = z.object({
+  undo: z.array(ID),
+  redo: z.array(ID),
+});
+
 /**
  * Immutable journal state: the recorded entries plus the undo/redo stacks of
  * entry ids. All journal functions return a new Journal; none mutate.
@@ -51,6 +66,11 @@ export interface Journal {
   readonly entries: readonly JournalEntry[];
   readonly stacks: UndoRedoStacks;
 }
+
+export const JournalSchema = z.object({
+  entries: z.array(JournalEntrySchema),
+  stacks: UndoRedoStacksSchema,
+});
 
 export const createJournal = (): Journal => ({ entries: [], stacks: createStacks() });
 
@@ -113,7 +133,7 @@ export interface RedoOutcome {
 
 /**
  * Redo an entry: validate it is the current top of the redo stack, move it back
- * to the undo stack, mark it applied, and return the operation to re-apply.
+ * to the undo stack, mark it committed, and return the operation to re-apply.
  *
  * Throws if the redo stack is empty or `entryId` is not the top.
  */
@@ -128,9 +148,45 @@ export const redo = (journal: Journal, entryId?: string): RedoOutcome => {
   if (entry === undefined) throw new Error(`redo: entry ${target} not found`);
   const { stacks } = transferRedoToUndo(journal.stacks);
   const entries = journal.entries.map((e) =>
-    e.id === target ? { ...e, status: "applied" as const } : e,
+    e.id === target ? { ...e, status: "committed" as const } : e,
   );
   return { journal: { entries, stacks }, operation: entry.operation };
+};
+
+/**
+ * Report the commit status of an entry. Throws if the entry id is unknown —
+ * that is a caller bug, not a recoverable parse failure.
+ */
+export const commitStatus = (journal: Journal, entryId: string): JournalEntryStatus => {
+  const entry = journal.entries.find((e) => e.id === entryId);
+  if (entry === undefined) throw new Error(`commitStatus: entry ${entryId} not found`);
+  return entry.status;
+};
+
+/**
+ * Mark an entry committed. Call this ONLY when the preview transaction for the
+ * entry ended in commit — never speculatively. Returns a new Journal.
+ */
+export const markEntryCommitted = (journal: Journal, entryId: string): Journal => {
+  const exists = journal.entries.some((e) => e.id === entryId);
+  if (!exists) throw new Error(`markEntryCommitted: entry ${entryId} not found`);
+  const entries = journal.entries.map((e) =>
+    e.id === entryId ? { ...e, status: "committed" as const } : e,
+  );
+  return { entries, stacks: journal.stacks };
+};
+
+/**
+ * Mark an entry rolled-back. Returns a new Journal. Used when a preview
+ * transaction is rolled back outside the standard undo path.
+ */
+export const markEntryRolledBack = (journal: Journal, entryId: string): Journal => {
+  const exists = journal.entries.some((e) => e.id === entryId);
+  if (!exists) throw new Error(`markEntryRolledBack: entry ${entryId} not found`);
+  const entries = journal.entries.map((e) =>
+    e.id === entryId ? { ...e, status: "rolled-back" as const } : e,
+  );
+  return { entries, stacks: journal.stacks };
 };
 
 /** Reset the journal to empty (clears entries and both stacks). */

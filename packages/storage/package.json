@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Isomorphic library skeleton for @vision-control/storage.",
+  "description": "SQLite persistence layer for Vision Control (node-only runtime; better-sqlite3).",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -15,7 +15,12 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "better-sqlite3": "catalog:",
+    "zod": "catalog:"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

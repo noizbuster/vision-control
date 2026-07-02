@@ -3,12 +3,16 @@
   "name": "storage",
   "sourceRoot": "packages/storage/src",
   "projectType": "library",
-  "tags": ["platform:isomorphic", "type:library", "scope:storage"],
+  "tags": ["platform:node", "type:library", "scope:storage"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsc -p tsconfig.build.json",
+        "commands": [
+          "tsc -p tsconfig.build.json",
+          "mkdir -p dist/migrations && cp src/migrations/*.sql dist/migrations/"
+        ],
+        "parallel": false,
         "cwd": "packages/storage"
       },
       "outputs": ["{projectRoot}/dist"]

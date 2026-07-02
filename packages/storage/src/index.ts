@@ -1,1 +1,47 @@
-export const PACKAGE_NAME = "@vision-control/storage";
+export {
+  listAppliedMigrations,
+  loadMigrationFiles,
+  type MigrationFile,
+  type MigrationResult,
+  runMigrations,
+} from "./migrator.js";
+export { type ArtifactInsert, ArtifactRepository } from "./repositories/artifact.js";
+export {
+  AuditEventImmutableError,
+  type AuditInsert,
+  AuditRepository,
+} from "./repositories/audit.js";
+export {
+  type ChangesetInsert,
+  ChangesetRepository,
+  type ChangesetUpdate,
+} from "./repositories/changeset.js";
+export { type JournalInsert, JournalRepository } from "./repositories/journal.js";
+export { type SessionInsert, SessionRepository } from "./repositories/session.js";
+export {
+  isWorkspaceRelativePath,
+  type SourceRegistryInsert,
+  SourceRegistryRepository,
+} from "./repositories/source-registry.js";
+export {
+  type VerificationInsert,
+  VerificationRepository,
+} from "./repositories/verification.js";
+export {
+  type WorkspaceInsert,
+  WorkspaceRepository,
+  type WorkspaceUpdate,
+} from "./repositories/workspace.js";
+export type {
+  ArtifactRow,
+  AuditRow,
+  ChangesetRow,
+  JournalRow,
+  MigrationRecord,
+  SessionRow,
+  SourceRange,
+  SourceRegistryRow,
+  SqliteBoolean,
+  VerificationRow,
+  WorkspaceRow,
+} from "./schema.js";

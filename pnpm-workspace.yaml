@@ -8,15 +8,18 @@ packages:
 # Approve the tools whose postinstall we trust.
 allowBuilds:
   nx: true
+  better-sqlite3: true
 
 # Shared external dependency versions. Every workspace package references
 # these via the `catalog:` protocol so a version bump lives in exactly one
 # place. Add new shared externals here, never inline version ranges.
 catalog:
   "@biomejs/biome": "2.5.2"
+  "@types/better-sqlite3": "7.6.13"
   "@types/node": "26.1.0"
   "@types/react": "19.2.17"
   "@types/react-dom": "19.2.3"
+  better-sqlite3: "12.11.1"
   nx: "23.0.1"
   playwright: "1.61.1"
   react: "19.2.7"

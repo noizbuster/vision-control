@@ -1,19 +1,40 @@
 import type { ContentScriptDefinition } from "wxt";
 import { defineContentScript } from "wxt/utils/define-content-script";
+import { createRuntimeBus } from "../src/messaging/index.js";
 
 const contentScript: ContentScriptDefinition = defineContentScript({
-  // Vision Control only operates on the loopback daemon.
   matches: ["http://localhost/*", "http://127.0.0.1/*", "http://[::1]/*"],
   world: "ISOLATED",
 
   main() {
-    // Bridge stub: real content-script message bridge lands in task 11.
-    // The overlay (task 14) is responsible for hit-testing; this script
-    // intentionally does not participate in selection/pointer handling.
-    const channel = new BroadcastChannel("vision-control-content-stub");
-    channel.onmessage = (event) => {
-      channel.postMessage({ ok: true, stub: true, echo: event.data });
+    const bus = createRuntimeBus("content");
+
+    bus.on("select-element", (message) => {
+      const payload = message.payload as { readonly selector?: string } | undefined;
+      // Element selection is handled by the overlay (task 14); this stub
+      // acknowledges the message so the routing layer can be tested now.
+      void payload;
+    });
+
+    bus.on("edit-request", (message) => {
+      const payload = message.payload as { readonly operation?: unknown } | undefined;
+      // Edit application is handled by the overlay (task 14); this stub
+      // acknowledges the message so the routing layer can be tested now.
+      void payload;
+    });
+
+    const helloPayload = {
+      url: window.location.href,
+      origin: window.location.origin,
     };
+
+    bus.send("background", {
+      protocolVersion: "1.0.0",
+      messageId: `frame-hello-${Date.now()}`,
+      messageType: "frame-hello",
+      payload: helloPayload,
+      timestamp: Date.now(),
+    });
   },
 });
 

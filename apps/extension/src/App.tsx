@@ -2,19 +2,40 @@ import type { ReactElement } from "react";
 
 import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
+import { useConnectionState } from "./hooks/useConnectionState.js";
+import { useFrameTree } from "./hooks/useFrameTree.js";
 import { useInspectedTab } from "./hooks/useInspectedTab.js";
+import { usePanelBus } from "./hooks/usePanelBus.js";
+import { useSession } from "./hooks/useSession.js";
 import { useTheme } from "./hooks/useTheme.js";
+import type { FrameInfo } from "./messaging/index.js";
+
+function FrameTreeItem({ frame }: { readonly frame: FrameInfo }): ReactElement {
+  return (
+    <li
+      className={`frame-tree__item frame-tree__item--${frame.routeable ? "routeable" : "opaque"}`}
+    >
+      <span className="frame-tree__frame-id">{frame.frameId}</span>
+      <span className="frame-tree__origin">{frame.origin || "unknown"}</span>
+      <span className="frame-tree__routeable">{frame.routeable ? "routeable" : "opaque"}</span>
+    </li>
+  );
+}
 
 export function App(): ReactElement {
   const { theme } = useTheme();
   const { tabId, title, url } = useInspectedTab();
+  const bus = usePanelBus();
+  const connectionState = useConnectionState(bus);
+  const session = useSession(bus, tabId);
+  const frames = useFrameTree(bus, tabId);
 
   return (
     <ErrorBoundary>
       <div className={`app app--${theme}`}>
         <header className="app__header">
           <h1 className="app__title">Vision Control</h1>
-          <ConnectionStatus status="disconnected" />
+          <ConnectionStatus status={connectionState} />
           <p className="app__target" data-testid="inspected-url">
             Inspecting: {url ?? "unknown"}
           </p>
@@ -29,8 +50,22 @@ export function App(): ReactElement {
             </ul>
           </section>
           <section className="app__section">
-            <h2>Document summary</h2>
-            <p>Document summary placeholder</p>
+            <h2>Session</h2>
+            <p data-testid="session-id">
+              {session?.sessionId ?? "Waiting for background session…"}
+            </p>
+          </section>
+          <section className="app__section">
+            <h2>Frame tree</h2>
+            {frames.length === 0 ? (
+              <p>No frames reported yet.</p>
+            ) : (
+              <ul className="frame-tree">
+                {frames.map((frame) => (
+                  <FrameTreeItem key={frame.frameId} frame={frame} />
+                ))}
+              </ul>
+            )}
           </section>
         </main>
       </div>

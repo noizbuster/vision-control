@@ -1,9 +1,9 @@
 import type { ReactElement } from "react";
 
-type ConnectionStatusValue = "connected" | "connecting" | "disconnected";
+import type { ConnectionState } from "../messaging/index.js";
 
 interface ConnectionStatusProps {
-  readonly status: ConnectionStatusValue;
+  readonly status: ConnectionState;
 }
 
 export function ConnectionStatus({ status }: ConnectionStatusProps): ReactElement {

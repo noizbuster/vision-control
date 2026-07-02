@@ -21,7 +21,17 @@ function setupChromeStubs(theme: "dark" | "light") {
       devtools: {
         inspectedWindow: { tabId: 42 },
       },
-      runtime: { lastError: undefined },
+      runtime: {
+        lastError: undefined,
+        sendMessage: () => Promise.resolve(),
+        onMessage: { addListener: () => {}, removeListener: () => {} },
+        connect: () => ({
+          onMessage: { addListener: () => {}, removeListener: () => {} },
+          onDisconnect: { addListener: () => {}, removeListener: () => {} },
+          disconnect: () => {},
+          postMessage: () => {},
+        }),
+      },
       tabs: {
         get: (_tabId: number, callback: (tab: { title?: string; url?: string }) => void) => {
           callback({ title: "Test page", url: "http://localhost:3000/" });

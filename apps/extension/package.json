@@ -14,6 +14,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@vision-control/daemon-client": "workspace:*",
+    "@vision-control/protocol": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

@@ -1,30 +1,153 @@
+import { DaemonClient, parsePairingUrl } from "@vision-control/daemon-client";
 import type { BackgroundDefinition } from "wxt";
 import { defineBackground } from "wxt/utils/define-background";
+import {
+  createBackgroundBus,
+  createChromeRouterTransport,
+  createConnectionStateMessage,
+  createSessionUpdateMessage,
+  createWebNavigationFrameProvider,
+  discoverFrames,
+  MessageRouter,
+  ReconnectManager,
+  TabSessionStore,
+} from "../src/messaging/index.js";
+import type { BusMessage, ConnectionState, TabSession } from "../src/messaging/types.js";
+
+function isLoopbackUrl(url: string | undefined): boolean {
+  if (url === undefined) {
+    return false;
+  }
+  return (
+    url.startsWith("http://localhost") ||
+    url.startsWith("http://127.0.0.1") ||
+    url.startsWith("http://[::1]")
+  );
+}
+
+function broadcastToPanel(message: BusMessage): void {
+  if (typeof chrome === "undefined" || chrome.runtime?.sendMessage === undefined) {
+    return;
+  }
+  void chrome.runtime.sendMessage(message).catch(() => {
+    // no-excuse-ok: catch — panel may not be open; dropped messages are expected.
+  });
+}
 
 const background: BackgroundDefinition = defineBackground(() => {
-  chrome.runtime.onInstalled.addListener((details) => {
-    console.log("Vision Control installed:", details.reason);
+  const store = new TabSessionStore({
+    storage: chrome.storage?.session,
+    generateSessionId: () => crypto.randomUUID(),
+    handlers: {
+      onSessionCreated(tabId: number, session: TabSession) {
+        broadcastToPanel(createSessionUpdateMessage(tabId, session));
+      },
+      onSessionUpdated(tabId: number, session: TabSession) {
+        broadcastToPanel(createSessionUpdateMessage(tabId, session));
+      },
+    },
   });
 
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // Routing stub: real message bus lands in task 11.
-    sendResponse({
-      ok: true,
-      stub: true,
-      message,
-      sender: {
-        tabId: sender.tab?.id,
-        frameId: sender.frameId,
-      },
+  void store.restore();
+
+  const router = new MessageRouter({
+    transport: createChromeRouterTransport(),
+    tabSessionStore: store,
+    logger: console,
+  });
+  router.start();
+
+  const backgroundBus = createBackgroundBus();
+  let reconnectManager: ReconnectManager | undefined;
+
+  function broadcastConnectionState(state: ConnectionState): void {
+    broadcastToPanel(createConnectionStateMessage(state));
+  }
+
+  backgroundBus.on("frame-hello", (message, sender) => {
+    const tabId = sender.tabId ?? message.tabId;
+    if (tabId === undefined || sender.frameId === undefined) {
+      return;
+    }
+    const session = store.ensure(tabId);
+    const existing = session.frameTree.find((frame) => frame.frameId === sender.frameId);
+    if (existing !== undefined) {
+      return;
+    }
+    const payload = message.payload as
+      | { readonly origin?: string; readonly url?: string }
+      | undefined;
+    const origin = payload?.origin ?? "";
+    const url = payload?.url ?? "";
+    const topFrame = session.frameTree.find((frame) => frame.frameId === 0);
+    const topOrigin = topFrame?.origin ?? origin;
+    const frame = {
+      frameId: sender.frameId,
+      url,
+      origin,
+      routeable: origin.length > 0 && origin === topOrigin,
+    };
+    store.updateFrameTree(tabId, [...session.frameTree, frame]);
+  });
+
+  backgroundBus.on("daemon-connect", (message) => {
+    const payload = message.payload as { readonly pairingUrl: string } | undefined;
+    const pairingUrl = payload?.pairingUrl;
+    if (pairingUrl === undefined) {
+      return;
+    }
+    const parsed = parsePairingUrl(pairingUrl);
+    if (!parsed.success) {
+      broadcastConnectionState("disconnected");
+      return;
+    }
+    reconnectManager?.disconnect();
+    const client = new DaemonClient({ target: parsed.target });
+    reconnectManager = new ReconnectManager({
+      client,
+      onStateChange: broadcastConnectionState,
     });
-    return true;
+    void reconnectManager.connect().catch(() => {});
+  });
+
+  backgroundBus.on("daemon-disconnect", () => {
+    reconnectManager?.disconnect();
+    reconnectManager = undefined;
+  });
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (!isLoopbackUrl(tab.url)) {
+      return;
+    }
+    if (changeInfo.status === "loading") {
+      store.resetForReload(tabId);
+      return;
+    }
+    if (changeInfo.status === "complete") {
+      store.ensure(tabId);
+      void discoverFrames(tabId, createWebNavigationFrameProvider()).then((frames) => {
+        store.updateFrameTree(tabId, [...frames]);
+      });
+    }
+  });
+
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    store.remove(tabId);
   });
 
   chrome.runtime.onConnect.addListener((port) => {
-    // Long-lived connection stub: real lifecycle management lands in task 11.
-    port.onMessage.addListener((message) => {
-      port.postMessage({ ok: true, stub: true, echo: message });
-    });
+    if (port.name !== "vision-control-panel") {
+      return;
+    }
+    const tabId = port.sender?.tab?.id;
+    if (tabId !== undefined) {
+      store.setInspected(tabId, true);
+    }
+    const session = tabId === undefined ? undefined : store.get(tabId);
+    if (tabId !== undefined && session !== undefined) {
+      port.postMessage(createSessionUpdateMessage(tabId, session));
+    }
+    port.postMessage(createConnectionStateMessage(reconnectManager?.getState() ?? "disconnected"));
   });
 });
 

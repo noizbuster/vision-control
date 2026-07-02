@@ -24,3 +24,13 @@ catalog:
   typescript: "6.0.3"
   vitest: "4.1.9"
   zod: "4.4.3"
+
+# pnpm 11 ships a built-in `minimumReleaseAge` supply-chain policy (~1 day).
+# Every external above is exact-pinned in the catalog, so the policy only adds
+# flakiness (freshly-pinned releases flip-flop across the cutoff by seconds)
+# without adding safety -> disabled repo-wide. NOTE: a non-frozen `pnpm install`
+# may re-add a `minimumReleaseAgeExclude` block here for any package still inside
+# the window (pre-existing pnpm 11 auto-management, see learnings #3); remove it
+# or rely on `--frozen-lockfile` (CI), which does not trigger the rewrite.
+# Rationale: decisions D6 / D12.
+minimumReleaseAge: 0

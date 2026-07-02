@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Isomorphic library skeleton for @vision-control/testing.",
+  "description": "Shared testing harness: Vitest preset, Playwright extension loader, daemon process helper, evidence writer, fake clock/UUID, fixture builders.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -17,6 +17,7 @@
   ],
   "devDependencies": {
     "@types/node": "catalog:",
+    "playwright": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

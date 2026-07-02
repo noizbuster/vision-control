@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: check / typecheck / test / build / e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Enable corepack
+        run: corepack enable
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+      - name: Derive Nx base
+        id: nx-base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=origin/master" >> "$GITHUB_OUTPUT"
+          elif git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            echo "base=HEAD~1" >> "$GITHUB_OUTPUT"
+          else
+            # First commit ever: diff against the empty tree so everything runs.
+            echo "base=$(git hash-object -t tree /dev/null)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Biome check
+        run: pnpm check
+
+      - name: Package boundaries
+        run: pnpm boundaries
+
+      - name: Affected typecheck / test / build
+        run: pnpm nx affected -t typecheck test build --base=${{ steps.nx-base.outputs.base }} --head=HEAD
+
+      - name: Detect e2e-relevant changes
+        id: e2e
+        run: |
+          base="${{ steps.nx-base.outputs.base }}"
+          if git diff --name-only "${base}...HEAD" | grep -qE '(^|/)(e2e/|.*\.e2e\.ts$)|^apps/extension/|^apps/playground-react-vite/|^packages/testing/|^integrations/'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Playwright Chromium
+        if: steps.e2e.outputs.run == 'true'
+        run: pnpm --filter @vision-control/testing exec playwright install --with-deps chromium
+
+      - name: Affected e2e smoke
+        if: steps.e2e.outputs.run == 'true'
+        run: pnpm nx affected -t e2e --base=${{ steps.nx-base.outputs.base }} --head=HEAD
+
+      - name: Validate extension artifact
+        if: steps.e2e.outputs.run == 'true'
+        run: |
+          # Hardens to a real assertion once the extension packager lands (task 5+).
+          if [ -d apps/extension/dist ]; then
+            if [ ! -f apps/extension/dist/manifest.json ]; then
+              echo "note: apps/extension/dist/manifest.json not produced yet (extension packager is task 5+)."
+            fi
+          fi

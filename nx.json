@@ -30,6 +30,9 @@
     "test": {
       "inputs": ["default", "^production"],
       "cache": true
+    },
+    "e2e": {
+      "cache": true
     }
   },
   "defaultBase": "master"

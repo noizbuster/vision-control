@@ -10,6 +10,9 @@ build/
 .turbo/
 coverage/
 
+# daemon runtime data (SQLite db + artifacts) created under a workspace root
+.vision-control/
+
 # nx - the entire runtime dir (cache, workspace-data, install) is derived
 # from nx.json + the project files, so it is never committed.
 .nx/

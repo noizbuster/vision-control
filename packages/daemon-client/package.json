@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Isomorphic library skeleton for @vision-control/daemon-client.",
+  "description": "Isomorphic browser/Node client that connects to the Vision Control daemon over native WebSocket.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -15,6 +15,10 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@vision-control/protocol": "workspace:*",
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:",

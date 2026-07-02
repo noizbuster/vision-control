@@ -1,9 +1,178 @@
+import { PROTOCOL_VERSION } from "@vision-control/protocol";
 import { describe, expect, it } from "vitest";
+import { computeBackoffDelay, DaemonClient, type WebSocketLike } from "./client.js";
+import { parsePairingUrl, toWebSocketUrl } from "./pairing.js";
 
-import { PACKAGE_NAME } from "./index.js";
+const TARGET = { token: "tok-abc", host: "127.0.0.1", port: 4321 };
 
-describe("daemon-client", () => {
-  it("exposes the package name sentinel", () => {
-    expect(PACKAGE_NAME).toBe("@vision-control/daemon-client");
+describe("parsePairingUrl", () => {
+  it("parses a valid vision-control://pair URL", () => {
+    const result = parsePairingUrl("vision-control://pair?token=abc&port=8080&host=127.0.0.1");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.target.token).toBe("abc");
+      expect(result.target.port).toBe(8080);
+      expect(result.target.host).toBe("127.0.0.1");
+    }
+  });
+
+  it("fails on a wrong scheme", () => {
+    expect(parsePairingUrl("https://pair?token=abc&port=8080").success).toBe(false);
+  });
+
+  it("fails when the token is missing", () => {
+    expect(parsePairingUrl("vision-control://pair?port=8080").success).toBe(false);
+  });
+
+  it("fails on an invalid port", () => {
+    expect(parsePairingUrl("vision-control://pair?token=x&port=abc").success).toBe(false);
+  });
+});
+
+describe("toWebSocketUrl", () => {
+  it("builds a ws:// url with the token query", () => {
+    expect(toWebSocketUrl(TARGET)).toBe("ws://127.0.0.1:4321/?token=tok-abc");
+  });
+});
+
+describe("computeBackoffDelay", () => {
+  it("starts at the initial delay (with deterministic jitter)", () => {
+    const delay = computeBackoffDelay(0, {
+      initialMs: 1000,
+      maxMs: 30_000,
+      jitter: 0,
+      random: () => 0,
+    });
+    expect(delay).toBe(1000);
+  });
+
+  it("doubles each attempt up to the cap", () => {
+    const opts = { initialMs: 1000, maxMs: 30_000, jitter: 0, random: () => 0 };
+    expect(computeBackoffDelay(0, opts)).toBe(1000);
+    expect(computeBackoffDelay(1, opts)).toBe(2000);
+    expect(computeBackoffDelay(2, opts)).toBe(4000);
+    expect(computeBackoffDelay(5, opts)).toBe(30_000);
+  });
+
+  it("applies jitter within the ±20% band", () => {
+    const base = computeBackoffDelay(0, { initialMs: 1000, jitter: 0.2, random: () => 0 });
+    expect(base).toBeGreaterThanOrEqual(800);
+    expect(base).toBeLessThanOrEqual(1200);
+  });
+});
+
+/** Drives DaemonClient through the handshake + reconnect without the network. */
+class FakeWebSocket implements WebSocketLike {
+  readonly OPEN = 1;
+  readyState = 1;
+  onopen: ((this: WebSocketLike) => void) | null = null;
+  onmessage: ((this: WebSocketLike, ev: { readonly data: string }) => void) | null = null;
+  onclose:
+    | ((this: WebSocketLike, ev: { readonly code?: number; readonly reason?: string }) => void)
+    | null = null;
+  onerror: ((this: WebSocketLike) => void) | null = null;
+  readonly sent: string[] = [];
+
+  emitOpen(): void {
+    this.onopen?.call(this);
+  }
+  emitMessage(data: string): void {
+    this.onmessage?.call(this, { data });
+  }
+  emitClose(code?: number): void {
+    this.readyState = 3;
+    this.onclose?.call(this, code !== undefined ? { code } : {});
+  }
+  send(data: string): void {
+    this.sent.push(data);
+  }
+  close(): void {
+    this.readyState = 3;
+  }
+}
+
+describe("DaemonClient handshake + reconnect", () => {
+  it("completes the hello/welcome handshake", async () => {
+    const fake = new FakeWebSocket();
+    const timers: Array<() => void> = [];
+    const client = new DaemonClient({
+      target: TARGET,
+      factory: () => fake,
+      uuid: () => "client-msg-0001",
+      setTimeout: (fn) => {
+        timers.push(fn);
+        return 0 as never;
+      },
+      clearTimeout: () => {},
+    });
+
+    const handshake = client.connect();
+    fake.emitOpen();
+    const hello = JSON.parse(fake.sent[0] ?? "{}");
+    expect(hello.payload.type).toBe("hello");
+    const welcome = {
+      protocolVersion: PROTOCOL_VERSION,
+      messageId: "server-welcome-01",
+      messageType: "welcome",
+      payload: {
+        type: "welcome",
+        serverVersion: PROTOCOL_VERSION,
+        serverCapabilities: ["page-events"],
+        sessionId: "sess-aaa",
+        sessionToken: "st-xyz",
+      },
+      timestamp: 1,
+    };
+    fake.emitMessage(JSON.stringify(welcome));
+
+    const result = await handshake;
+    expect(result.sessionId).toBe("sess-aaa");
+    expect(client.state).toBe("connected");
+  });
+
+  it("schedules a reconnect with backoff when the socket closes", async () => {
+    const fake = new FakeWebSocket();
+    const scheduled: number[] = [];
+    let delayCapture = 0;
+    const client = new DaemonClient({
+      target: TARGET,
+      factory: () => fake,
+      uuid: () => "client-msg-0002",
+      setTimeout: (_fn, ms) => {
+        scheduled.push(ms);
+        delayCapture = ms;
+        return 0 as never;
+      },
+      clearTimeout: () => {},
+    });
+
+    const handshake = client.connect();
+    fake.emitOpen();
+    fake.emitMessage(
+      JSON.stringify({
+        protocolVersion: PROTOCOL_VERSION,
+        messageId: "welcome-msg-0001",
+        messageType: "welcome",
+        payload: {
+          type: "welcome",
+          serverVersion: PROTOCOL_VERSION,
+          serverCapabilities: [],
+          sessionId: "sess-bbb",
+          sessionToken: "st",
+        },
+        timestamp: 1,
+      }),
+    );
+    await handshake;
+    expect(client.state).toBe("connected");
+
+    fake.emitClose(1006);
+    expect(client.state).toBe("reconnecting");
+    expect(scheduled).toHaveLength(1);
+    expect(delayCapture).toBeGreaterThanOrEqual(800);
+    expect(delayCapture).toBeLessThanOrEqual(1200);
+
+    client.disconnect();
+    expect(client.state).toBe("disconnected");
   });
 });

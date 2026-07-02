@@ -25,7 +25,16 @@
       "options": {
         "command": "vitest run",
         "cwd": "apps/daemon"
-      }
+      },
+      "dependsOn": ["build"]
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node dist/index.js",
+        "cwd": "apps/daemon"
+      },
+      "dependsOn": ["build"]
     }
   }
 }

@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Node library skeleton for @vision-control/daemon.",
+  "description": "Authenticated loopback daemon for Vision Control (node-only runtime).",
+  "bin": {
+    "vision-control-daemon": "./dist/index.js"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -15,8 +18,20 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@vision-control/daemon-core": "workspace:*",
+    "@vision-control/logger": "workspace:*",
+    "@vision-control/protocol": "workspace:*",
+    "@vision-control/security": "workspace:*",
+    "@vision-control/storage": "workspace:*",
+    "better-sqlite3": "catalog:",
+    "ws": "catalog:",
+    "zod": "catalog:"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
+    "@types/ws": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

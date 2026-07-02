@@ -3,7 +3,7 @@
   "name": "daemon-core",
   "sourceRoot": "packages/daemon-core/src",
   "projectType": "library",
-  "tags": ["platform:isomorphic", "type:library", "scope:daemon-core"],
+  "tags": ["platform:node", "type:library", "scope:daemon-core"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",

@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "extension",
+  "sourceRoot": "apps/extension/src",
+  "projectType": "application",
+  "tags": ["platform:browser", "type:app", "scope:extension"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p tsconfig.build.json",
+        "cwd": "apps/extension"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p tsconfig.json",
+        "cwd": "apps/extension"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "apps/extension"
+      }
+    }
+  }
+}

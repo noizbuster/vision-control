@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "security",
+  "sourceRoot": "packages/security/src",
+  "projectType": "library",
+  "tags": ["platform:isomorphic", "type:library", "scope:security"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p tsconfig.build.json",
+        "cwd": "packages/security"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p tsconfig.json",
+        "cwd": "packages/security"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/security"
+      }
+    }
+  }
+}

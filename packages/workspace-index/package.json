@@ -1,0 +1,23 @@
+{
+  "name": "@vision-control/workspace-index",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Isomorphic library skeleton for @vision-control/workspace-index.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

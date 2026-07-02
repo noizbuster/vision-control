@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "daemon-core",
+  "sourceRoot": "packages/daemon-core/src",
+  "projectType": "library",
+  "tags": ["platform:isomorphic", "type:library", "scope:daemon-core"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p tsconfig.build.json",
+        "cwd": "packages/daemon-core"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p tsconfig.json",
+        "cwd": "packages/daemon-core"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/daemon-core"
+      }
+    }
+  }
+}

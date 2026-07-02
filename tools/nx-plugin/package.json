@@ -1,0 +1,23 @@
+{
+  "name": "@vision-control/nx-plugin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Nx plugin: package-skeleton generators and workspace boundary conformance checker for Vision Control.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

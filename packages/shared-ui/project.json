@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "shared-ui",
+  "sourceRoot": "packages/shared-ui/src",
+  "projectType": "library",
+  "tags": ["platform:browser", "type:library", "scope:shared-ui"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p tsconfig.build.json",
+        "cwd": "packages/shared-ui"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p tsconfig.json",
+        "cwd": "packages/shared-ui"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/shared-ui"
+      }
+    }
+  }
+}

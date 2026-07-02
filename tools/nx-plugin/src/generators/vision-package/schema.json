@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "title": "Vision Package Generator",
+  "description": "Scaffold an isomorphic library (platform:isomorphic, type:library) consumable from both browser and Node.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Package directory name (last path segment), e.g. 'protocol'.",
+      "$default": { "$source": "argv", "index": 0 }
+    },
+    "directory": {
+      "type": "string",
+      "description": "Repo-root-relative output directory, e.g. 'packages/protocol'.",
+      "alias": "d"
+    },
+    "description": { "type": "string" },
+    "scope": { "type": "string" }
+  },
+  "required": ["name", "directory"]
+}

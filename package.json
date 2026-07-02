@@ -21,6 +21,7 @@
     "test:e2e": "nx run-many -t e2e",
     "affected": "nx affected -t typecheck,test,build",
     "graph": "nx graph",
+    "boundaries": "nx run tools-nx-plugin:boundaries",
     "doctor": "nx report"
   },
   "devDependencies": {

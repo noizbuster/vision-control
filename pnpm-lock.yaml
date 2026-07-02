@@ -33,7 +33,343 @@ importers:
         specifier: 'catalog:'
         version: 23.0.1
 
-  packages/protocol-placeholder:
+  apps/daemon:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  apps/extension:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  apps/playground-react-vite:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  integrations/vite-react:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/change-ir:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/change-journal:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/cli:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/context-compiler:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/daemon-client:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/daemon-core:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/element-identity:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/geometry:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/inspector-core:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/interaction-machine:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/layout-engine:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/logger:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/mcp-server:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/overlay-ui:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/preview-engine:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/protocol:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/security:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/shared-ui:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/source-registry:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/source-resolver:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/storage:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/testing:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/verification-engine:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  packages/workspace-index:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(vite@8.1.2(@types/node@26.1.0)(yaml@2.9.0))
+
+  tools/nx-plugin:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

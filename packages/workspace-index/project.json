@@ -3,7 +3,7 @@
   "name": "workspace-index",
   "sourceRoot": "packages/workspace-index/src",
   "projectType": "library",
-  "tags": ["platform:isomorphic", "type:library", "scope:workspace-index"],
+  "tags": ["platform:node", "type:library", "scope:workspace-index"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",

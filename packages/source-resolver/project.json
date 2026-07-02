@@ -3,7 +3,7 @@
   "name": "source-resolver",
   "sourceRoot": "packages/source-resolver/src",
   "projectType": "library",
-  "tags": ["platform:isomorphic", "type:library", "scope:source-resolver"],
+  "tags": ["platform:node", "type:library", "scope:source-resolver"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Isomorphic library skeleton for @vision-control/source-resolver.",
+  "description": "Resolves a selection identity to a source candidate using source markers, CSS tokens, and fallback search.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -15,6 +15,12 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@vision-control/element-identity": "workspace:*",
+    "@vision-control/source-registry": "workspace:*",
+    "@vision-control/workspace-index": "workspace:*",
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:",

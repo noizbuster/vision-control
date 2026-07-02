@@ -6,9 +6,21 @@ settings:
 
 catalogs:
   default:
+    '@babel/parser':
+      specifier: 7.29.7
+      version: 7.29.7
+    '@babel/traverse':
+      specifier: 7.29.7
+      version: 7.29.7
+    '@babel/types':
+      specifier: 7.29.7
+      version: 7.29.7
     '@biomejs/biome':
       specifier: 2.5.2
       version: 2.5.2
+    '@types/babel__traverse':
+      specifier: 7.28.0
+      version: 7.28.0
     '@types/better-sqlite3':
       specifier: 7.6.13
       version: 7.6.13
@@ -39,6 +51,12 @@ catalogs:
     better-sqlite3:
       specifier: 12.11.1
       version: 12.11.1
+    jsdom:
+      specifier: 29.1.1
+      version: 29.1.1
+    magic-string:
+      specifier: 0.30.21
+      version: 0.30.21
     nx:
       specifier: 23.0.1
       version: 23.0.1
@@ -223,16 +241,41 @@ importers:
         version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@6.3.5(@types/node@26.1.0)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
 
   integrations/vite-react:
+    dependencies:
+      '@babel/parser':
+        specifier: 'catalog:'
+        version: 7.29.7
+      '@babel/traverse':
+        specifier: 'catalog:'
+        version: 7.29.7
+      '@babel/types':
+        specifier: 'catalog:'
+        version: 7.29.7
+      '@vision-control/source-registry':
+        specifier: workspace:*
+        version: link:../../packages/source-registry
+      magic-string:
+        specifier: 'catalog:'
+        version: 0.30.21
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
+      '@types/babel__traverse':
+        specifier: 'catalog:'
+        version: 7.28.0
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 6.3.5(@types/node@26.1.0)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
+        version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@6.3.5(@types/node@26.1.0)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
 
   packages/change-ir:
     dependencies:
@@ -388,10 +431,26 @@ importers:
         version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
 
   packages/inspector-core:
+    dependencies:
+      '@vision-control/change-ir':
+        specifier: workspace:*
+        version: link:../change-ir
+      '@vision-control/element-identity':
+        specifier: workspace:*
+        version: link:../element-identity
+      '@vision-control/geometry':
+        specifier: workspace:*
+        version: link:../geometry
+      '@vision-control/overlay-ui':
+        specifier: workspace:*
+        version: link:../overlay-ui
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.0
+      jsdom:
+        specifier: 'catalog:'
+        version: 29.1.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -472,10 +531,23 @@ importers:
         version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
 
   packages/overlay-ui:
+    dependencies:
+      '@vision-control/change-ir':
+        specifier: workspace:*
+        version: link:../change-ir
+      '@vision-control/element-identity':
+        specifier: workspace:*
+        version: link:../element-identity
+      '@vision-control/geometry':
+        specifier: workspace:*
+        version: link:../geometry
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.0
+      jsdom:
+        specifier: 'catalog:'
+        version: 29.1.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -540,6 +612,10 @@ importers:
         version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
 
   packages/source-registry:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

@@ -16,7 +16,11 @@ allowBuilds:
 # these via the `catalog:` protocol so a version bump lives in exactly one
 # place. Add new shared externals here, never inline version ranges.
 catalog:
+  "@babel/parser": "7.29.7"
+  "@babel/traverse": "7.29.7"
+  "@babel/types": "7.29.7"
   "@biomejs/biome": "2.5.2"
+  "@types/babel__traverse": "7.28.0"
   "@types/better-sqlite3": "7.6.13"
   "@types/chrome": "0.2.2"
   "@types/node": "26.1.0"
@@ -27,6 +31,8 @@ catalog:
   "@wxt-dev/module-react": "1.2.2"
   autoprefixer: "10.4.21"
   better-sqlite3: "12.11.1"
+  jsdom: "29.1.1"
+  magic-string: "0.30.21"
   nx: "23.0.1"
   playwright: "1.61.1"
   postcss: "8.5.3"

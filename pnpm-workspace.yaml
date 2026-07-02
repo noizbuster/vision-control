@@ -1,0 +1,26 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "integrations/*"
+  - "tools/*"
+
+# pnpm 11 runs a dependency's lifecycle scripts only when explicitly allowed.
+# Approve the tools whose postinstall we trust.
+allowBuilds:
+  nx: true
+
+# Shared external dependency versions. Every workspace package references
+# these via the `catalog:` protocol so a version bump lives in exactly one
+# place. Add new shared externals here, never inline version ranges.
+catalog:
+  "@biomejs/biome": "2.5.2"
+  "@types/node": "26.1.0"
+  "@types/react": "19.2.17"
+  "@types/react-dom": "19.2.3"
+  nx: "23.0.1"
+  playwright: "1.61.1"
+  react: "19.2.7"
+  react-dom: "19.2.7"
+  typescript: "6.0.3"
+  vitest: "4.1.9"
+  zod: "4.4.3"

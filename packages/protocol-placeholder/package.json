@@ -1,0 +1,23 @@
+{
+  "name": "@vision-control/protocol-placeholder",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Placeholder library so the monorepo toolchain has a project to run on. Replaced by the real `protocol` package in a later task.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

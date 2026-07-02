@@ -1,0 +1,30 @@
+{
+  "name": "vision-control",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Vision Control monorepo root (pnpm workspaces + Nx + Biome).",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "nx run-many -t dev --parallel=6",
+    "build": "nx run-many -t build",
+    "check": "biome check",
+    "lint": "biome check",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "typecheck": "nx run-many -t typecheck",
+    "test": "nx run-many -t test",
+    "test:e2e": "nx run-many -t e2e",
+    "affected": "nx affected -t typecheck,test,build",
+    "graph": "nx graph",
+    "doctor": "nx report"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "nx": "catalog:"
+  }
+}

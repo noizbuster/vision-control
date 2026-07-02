@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+build/
+.next/
+.nuxt/
+.output/
+.turbo/
+coverage/
+
+# nx - the entire runtime dir (cache, workspace-data, install) is derived
+# from nx.json + the project files, so it is never committed.
+.nx/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# env
+.env
+.env.*
+!.env.example
+
+# `.omo/` orchestration state is INTENTIONALLY committed: evidence, notepads,
+# plans, and boulder state are durable project artifacts.
+# Only ephemeral per-agent session logs are ignored (regenerable runtime).
+.omo/run-continuation/
+.omo/start-work/

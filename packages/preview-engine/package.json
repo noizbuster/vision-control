@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Isomorphic library skeleton for @vision-control/preview-engine.",
+  "description": "Reversible runtime preview engine with transaction lifecycle and reconciliation fallback.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -15,8 +15,14 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@vision-control/change-ir": "workspace:*",
+    "@vision-control/element-identity": "workspace:*",
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
+    "jsdom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

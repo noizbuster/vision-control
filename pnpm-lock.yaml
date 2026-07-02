@@ -574,10 +574,23 @@ importers:
         version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
 
   packages/preview-engine:
+    dependencies:
+      '@vision-control/change-ir':
+        specifier: workspace:*
+        version: link:../change-ir
+      '@vision-control/element-identity':
+        specifier: workspace:*
+        version: link:../element-identity
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.0
+      jsdom:
+        specifier: 'catalog:'
+        version: 29.1.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

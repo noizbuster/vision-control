@@ -15,6 +15,9 @@
   },
   "dependencies": {
     "@vision-control/daemon-client": "workspace:*",
+    "@vision-control/element-identity": "workspace:*",
+    "@vision-control/geometry": "workspace:*",
+    "@vision-control/inspector-core": "workspace:*",
     "@vision-control/protocol": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"

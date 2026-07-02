@@ -2,13 +2,17 @@ import type { ReactElement } from "react";
 
 import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
+import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
 import { useConnectionState } from "./hooks/useConnectionState.js";
 import { useFrameTree } from "./hooks/useFrameTree.js";
 import { useInspectedTab } from "./hooks/useInspectedTab.js";
 import { usePanelBus } from "./hooks/usePanelBus.js";
+import { useSelectionSummary } from "./hooks/useSelectionSummary.js";
 import { useSession } from "./hooks/useSession.js";
 import { useTheme } from "./hooks/useTheme.js";
 import type { FrameInfo } from "./messaging/index.js";
+import "./styles/variables.css";
+import "./styles/inspector.css";
 
 function FrameTreeItem({ frame }: { readonly frame: FrameInfo }): ReactElement {
   return (
@@ -29,6 +33,7 @@ export function App(): ReactElement {
   const connectionState = useConnectionState(bus);
   const session = useSession(bus, tabId);
   const frames = useFrameTree(bus, tabId);
+  const { summary, selectElement } = useSelectionSummary(bus);
 
   return (
     <ErrorBoundary>
@@ -67,6 +72,7 @@ export function App(): ReactElement {
               </ul>
             )}
           </section>
+          <InspectorPanel summary={summary} onSelectElement={selectElement} />
         </main>
       </div>
     </ErrorBoundary>

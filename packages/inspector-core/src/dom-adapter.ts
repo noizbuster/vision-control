@@ -16,6 +16,29 @@ export interface ComputedStyleSnapshot {
   readonly flexDirection: string;
   readonly justifyContent: string;
   readonly alignItems: string;
+  readonly flexBasis: string;
+  readonly flexGrow: string;
+  readonly width: string;
+  readonly height: string;
+  readonly paddingTop: string;
+  readonly paddingRight: string;
+  readonly paddingBottom: string;
+  readonly paddingLeft: string;
+  readonly marginTop: string;
+  readonly marginRight: string;
+  readonly marginBottom: string;
+  readonly marginLeft: string;
+  readonly borderTopWidth: string;
+  readonly borderRightWidth: string;
+  readonly borderBottomWidth: string;
+  readonly borderLeftWidth: string;
+  readonly borderTopStyle: string;
+  readonly borderTopColor: string;
+  readonly color: string;
+  readonly backgroundColor: string;
+  readonly fontSize: string;
+  readonly fontWeight: string;
+  readonly lineHeight: string;
 }
 
 /** All DOM-derived data the inspector needs for a single element. */
@@ -98,6 +121,29 @@ function getComputedStyle(element: Element): ComputedStyleSnapshot {
     flexDirection: style.flexDirection,
     justifyContent: style.justifyContent,
     alignItems: style.alignItems,
+    flexBasis: style.flexBasis,
+    flexGrow: style.flexGrow,
+    width: style.width,
+    height: style.height,
+    paddingTop: style.paddingTop,
+    paddingRight: style.paddingRight,
+    paddingBottom: style.paddingBottom,
+    paddingLeft: style.paddingLeft,
+    marginTop: style.marginTop,
+    marginRight: style.marginRight,
+    marginBottom: style.marginBottom,
+    marginLeft: style.marginLeft,
+    borderTopWidth: style.borderTopWidth,
+    borderRightWidth: style.borderRightWidth,
+    borderBottomWidth: style.borderBottomWidth,
+    borderLeftWidth: style.borderLeftWidth,
+    borderTopStyle: style.borderTopStyle,
+    borderTopColor: style.borderTopColor,
+    color: style.color,
+    backgroundColor: style.backgroundColor,
+    fontSize: style.fontSize,
+    fontWeight: style.fontWeight,
+    lineHeight: style.lineHeight,
   };
 }
 

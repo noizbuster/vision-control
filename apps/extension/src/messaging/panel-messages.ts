@@ -1,4 +1,28 @@
+import type { SelectionSummary } from "@vision-control/inspector-core";
+
 import type { BusMessage, ConnectionState, TabSession } from "./types.js";
+
+export function createSelectionSummaryMessage(summary: SelectionSummary): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `selection-summary-${Date.now()}`,
+    messageType: "selection-summary",
+    targetRoute: "panel",
+    payload: summary,
+    timestamp: Date.now(),
+  };
+}
+
+export function createSelectElementMessage(selector: string): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `select-element-${Date.now()}`,
+    messageType: "select-element",
+    targetRoute: "background",
+    payload: { selector },
+    timestamp: Date.now(),
+  };
+}
 
 export function createSessionUpdateMessage(tabId: number, session: TabSession): BusMessage {
   return {

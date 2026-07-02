@@ -220,7 +220,7 @@ export function createInspector(options: InspectorOptions): Inspector {
         selector,
       }),
     });
-    const summary = buildSelectionSummary(elementData, selector);
+    const summary = buildSelectionSummary(target, domAdapter, identity);
     bus.sendSelection(identity, summary);
   }
 

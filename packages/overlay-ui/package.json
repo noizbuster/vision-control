@@ -15,8 +15,14 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@vision-control/change-ir": "workspace:*",
+    "@vision-control/element-identity": "workspace:*",
+    "@vision-control/geometry": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
+    "jsdom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

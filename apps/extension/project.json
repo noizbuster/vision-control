@@ -8,10 +8,17 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsc -p tsconfig.build.json",
+        "command": "wxt build",
         "cwd": "apps/extension"
       },
-      "outputs": ["{projectRoot}/dist"]
+      "outputs": ["{projectRoot}/.output"]
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "wxt",
+        "cwd": "apps/extension"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",

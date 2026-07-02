@@ -8,6 +8,7 @@
       "!**/.output",
       "!**/coverage",
       "!**/.nx",
+      "!**/.wxt",
       "!**/node_modules",
       "!**/generated",
       "!**/.git",

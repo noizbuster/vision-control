@@ -2,9 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
-    "types": ["node"],
+    "rootDir": ".",
+    "types": ["node", "chrome"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "noEmit": false
   },
-  "include": ["src"]
+  "include": ["src", "entrypoints"]
 }

@@ -14,6 +14,9 @@ coverage/
 # from nx.json + the project files, so it is never committed.
 .nx/
 
+# wxt generated types and config
+.wxt/
+
 # logs
 *.log
 npm-debug.log*

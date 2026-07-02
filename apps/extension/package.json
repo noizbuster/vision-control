@@ -3,21 +3,30 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Browser library skeleton for @vision-control/extension.",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+  "description": "Chromium extension for Vision Control (WXT + React).",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
   },
-  "files": [
-    "dist"
-  ],
+  "dependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
   "devDependencies": {
+    "@testing-library/react": "16.3.2",
+    "@types/chrome": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@wxt-dev/module-react": "catalog:",
+    "jsdom": "29.1.1",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "wxt": "catalog:"
   }
 }

@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .shadow-host {
+    @apply inline-block rounded border-2 border-dashed border-slate-400 p-4;
+  }
+}
+
+@layer utilities {
+  .vc-transformed-host {
+    transform: translate(80px, 40px) rotate(3deg) scale(1.05);
+  }
+}

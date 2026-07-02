@@ -1,9 +1,12 @@
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { PACKAGE_NAME } from "./index.js";
+import { PrivateFields } from "./fixtures/PrivateFields.js";
 
-describe("playground-react-vite", () => {
-  it("exposes the package name sentinel", () => {
-    expect(PACKAGE_NAME).toBe("@vision-control/playground-react-vite");
+describe("PrivateFields fixture", () => {
+  it("renders the secret string in its output", () => {
+    const html = renderToString(createElement(PrivateFields));
+    expect(html).toContain("VC_SECRET_SHOULD_NOT_EXPORT");
   });
 });

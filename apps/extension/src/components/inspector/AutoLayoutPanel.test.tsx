@@ -83,7 +83,7 @@ describe("AutoLayoutPanel — supported container", () => {
 
   it("shows the container role label", () => {
     render(<AutoLayoutPanel summary={makeSummary("flex", "row")} onCommand={vi.fn()} />);
-    expect(screen.getByText("flex-row")).toBeDefined();
+    expect(screen.getByText("flex-container")).toBeDefined();
   });
 
   it("shows direction control for flex containers", () => {

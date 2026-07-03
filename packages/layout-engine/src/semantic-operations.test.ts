@@ -4,8 +4,8 @@ import { classifySemanticIntent, type SemanticInput } from "./index.js";
 
 const base = (over: Partial<SemanticInput>): SemanticInput => ({
   sameParent: false,
-  sourceParentRole: "block",
-  targetParentRole: "block",
+  sourceParentRole: "normal-flow-block",
+  targetParentRole: "normal-flow-block",
   validContentModel: true,
   ...over,
 });
@@ -32,8 +32,8 @@ describe("classifySemanticIntent", () => {
     }
   });
 
-  it("returns unsupported-grid for a grid context", () => {
-    const intent = classifySemanticIntent(base({ targetParentRole: "grid" }));
+  it("returns unsupported-grid for a grid-container context", () => {
+    const intent = classifySemanticIntent(base({ targetParentRole: "grid-container" }));
     expect(intent.kind).toBe("unsupported-grid");
   });
 
@@ -41,12 +41,20 @@ describe("classifySemanticIntent", () => {
   // position:absolute source intent. It returns reorder/reparent, never an
   // absolute-positioning instruction. unsupported-free-move is only ever a
   // DIAGNOSTIC for an already-positioned context.
-  it("NEVER returns unsupported-free-move for a normal-flow block drag", () => {
+  it("NEVER returns unsupported-free-move for a normal-flow drag", () => {
     const same = classifySemanticIntent(
-      base({ sameParent: true, sourceParentRole: "block", targetParentRole: "block" }),
+      base({
+        sameParent: true,
+        sourceParentRole: "normal-flow-block",
+        targetParentRole: "normal-flow-block",
+      }),
     );
     const cross = classifySemanticIntent(
-      base({ sameParent: false, sourceParentRole: "flex-column", targetParentRole: "flex-column" }),
+      base({
+        sameParent: false,
+        sourceParentRole: "flex-container",
+        targetParentRole: "flex-container",
+      }),
     );
     expect(same.kind).not.toBe("unsupported-free-move");
     expect(cross.kind).not.toBe("unsupported-free-move");
@@ -58,14 +66,17 @@ describe("classifySemanticIntent", () => {
     const intent = classifySemanticIntent(base({ targetContextPositioned: true }));
     expect(intent.kind).toBe("unsupported-free-move");
     if (intent.kind === "unsupported-free-move") {
-      // Diagnostic message, not a "set position: absolute" instruction.
       expect(intent.message).not.toMatch(/position:\s*absolute/i);
     }
   });
 
-  it("does not treat a flex-row drag as a free move", () => {
+  it("does not treat a flex-container drag as a free move", () => {
     const intent = classifySemanticIntent(
-      base({ sameParent: true, sourceParentRole: "flex-row", targetParentRole: "flex-row" }),
+      base({
+        sameParent: true,
+        sourceParentRole: "flex-container",
+        targetParentRole: "flex-container",
+      }),
     );
     expect(intent.kind).toBe("reorder-child");
   });

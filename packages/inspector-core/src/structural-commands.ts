@@ -35,7 +35,7 @@ type AttributeMap = Readonly<Record<string, string>>;
 
 /** True for roles that establish a positioned (out-of-flow or sticky) context. */
 const isPositionedRole = (role: LayoutRole): boolean =>
-  role === "absolute" || role === "fixed" || role === "sticky";
+  role === "absolute-positioned" || role === "fixed-positioned";
 
 function asElementRef(target: ElementRef | { readonly runtimeId: string }): ElementRef {
   return toElementRef(target);

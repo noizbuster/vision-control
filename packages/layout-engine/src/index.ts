@@ -22,6 +22,7 @@ export {
 export {
   classifyLayoutRole,
   isFlexContainerRole,
+  isGridRole,
   isNormalFlowRole,
   LAYOUT_ROLES,
   type LayoutComputedStyle,

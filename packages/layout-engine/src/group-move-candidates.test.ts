@@ -4,8 +4,8 @@ import { classifyGroupMove, type GroupMoveInput } from "./group-move-candidates.
 
 const base = (over: Partial<GroupMoveInput>): GroupMoveInput => ({
   sameParent: false,
-  sourceParentRole: "block",
-  targetParentRole: "block",
+  sourceParentRole: "normal-flow-block",
+  targetParentRole: "normal-flow-block",
   validContentModel: true,
   ...over,
 });
@@ -13,19 +13,23 @@ const base = (over: Partial<GroupMoveInput>): GroupMoveInput => ({
 describe("classifyGroupMove — same-parent sibling reorder (always allowed)", () => {
   it("classifies a same-parent normal-flow group drag as group-reorder", () => {
     const candidate = classifyGroupMove(
-      base({ sameParent: true, sourceParentRole: "flex-row", targetParentRole: "flex-row" }),
+      base({
+        sameParent: true,
+        sourceParentRole: "flex-container",
+        targetParentRole: "flex-container",
+      }),
     );
     expect(candidate.kind).toBe("group-reorder");
   });
 
-  it("classifies a block-flow same-parent group drag as group-reorder", () => {
+  it("classifies a normal-flow-block same-parent group drag as group-reorder", () => {
     const candidate = classifyGroupMove(base({ sameParent: true }));
     expect(candidate.kind).toBe("group-reorder");
   });
 
   it("never returns an unsupported candidate for a normal-flow same-parent drag", () => {
     const candidate = classifyGroupMove(
-      base({ sameParent: true, sourceParentRole: "flex-column", targetParentRole: "flex-column" }),
+      base({ sameParent: true, sourceParentRole: "flex-item", targetParentRole: "flex-item" }),
     );
     expect(candidate.kind).not.toBe("unsupported-group-free-move");
     expect(candidate.kind).not.toBe("unsupported-group-grid");
@@ -72,8 +76,8 @@ describe("classifyGroupMove — positioned-context group free-move (opt-in only)
   it("allows free-move when context is positioned AND user explicitly opts in", () => {
     const candidate = classifyGroupMove(
       base({
-        sourceParentRole: "absolute",
-        targetParentRole: "absolute",
+        sourceParentRole: "absolute-positioned",
+        targetParentRole: "absolute-positioned",
         sourceContextPositioned: true,
         targetContextPositioned: true,
         userIntent: "free-move",
@@ -88,8 +92,8 @@ describe("classifyGroupMove — positioned-context group free-move (opt-in only)
   it("allows free-move for a fixed-position context with explicit opt-in", () => {
     const candidate = classifyGroupMove(
       base({
-        sourceParentRole: "fixed",
-        targetParentRole: "fixed",
+        sourceParentRole: "fixed-positioned",
+        targetParentRole: "fixed-positioned",
         sourceContextPositioned: true,
         targetContextPositioned: true,
         userIntent: "free-move",
@@ -101,8 +105,8 @@ describe("classifyGroupMove — positioned-context group free-move (opt-in only)
   it("rejects positioned-context free-move WITHOUT explicit user intent", () => {
     const candidate = classifyGroupMove(
       base({
-        sourceParentRole: "absolute",
-        targetParentRole: "absolute",
+        sourceParentRole: "absolute-positioned",
+        targetParentRole: "absolute-positioned",
         sourceContextPositioned: true,
         targetContextPositioned: true,
       }),
@@ -118,8 +122,8 @@ describe("classifyGroupMove — normal-flow group free-move is REJECTED (PRD con
     const candidate = classifyGroupMove(
       base({
         sameParent: true,
-        sourceParentRole: "flex-row",
-        targetParentRole: "flex-row",
+        sourceParentRole: "flex-container",
+        targetParentRole: "flex-container",
         userIntent: "free-move",
       }),
     );
@@ -132,8 +136,8 @@ describe("classifyGroupMove — normal-flow group free-move is REJECTED (PRD con
   it("rejects a free-move attempt in a normal-flow block context", () => {
     const candidate = classifyGroupMove(
       base({
-        sourceParentRole: "block",
-        targetParentRole: "block",
+        sourceParentRole: "normal-flow-block",
+        targetParentRole: "normal-flow-block",
         userIntent: "free-move",
       }),
     );
@@ -143,8 +147,8 @@ describe("classifyGroupMove — normal-flow group free-move is REJECTED (PRD con
   it("rejects a free-move attempt when only one side is positioned (ambiguous)", () => {
     const candidate = classifyGroupMove(
       base({
-        sourceParentRole: "absolute",
-        targetParentRole: "block",
+        sourceParentRole: "absolute-positioned",
+        targetParentRole: "normal-flow-block",
         sourceContextPositioned: true,
         targetContextPositioned: false,
         userIntent: "free-move",
@@ -156,8 +160,8 @@ describe("classifyGroupMove — normal-flow group free-move is REJECTED (PRD con
 
 describe("classifyGroupMove — grid context", () => {
   it("returns unsupported-group-grid when either parent is a grid", () => {
-    const source = classifyGroupMove(base({ sourceParentRole: "grid" }));
-    const target = classifyGroupMove(base({ targetParentRole: "grid" }));
+    const source = classifyGroupMove(base({ sourceParentRole: "grid-container" }));
+    const target = classifyGroupMove(base({ targetParentRole: "grid-container" }));
     expect(source.kind).toBe("unsupported-group-grid");
     expect(target.kind).toBe("unsupported-group-grid");
   });

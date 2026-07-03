@@ -1,6 +1,11 @@
 import type { ElementRef } from "@vision-control/element-identity";
 
-import { classifyLayoutRole, type LayoutComputedStyle, type LayoutRole } from "./layout-role.js";
+import {
+  classifyLayoutRole,
+  isGridRole,
+  type LayoutComputedStyle,
+  type LayoutRole,
+} from "./layout-role.js";
 
 /**
  * CSS dimension properties a resize gesture may target (PRD section 9.5). Aligned
@@ -69,21 +74,20 @@ const BOX_CANDIDATES: readonly ResizeCandidate[] = [
   { property: "aspect-ratio", rationale: "couples width and height for proportional resize" },
 ];
 
-const isFlexItem = (computedStyle: LayoutComputedStyle): boolean => {
-  const parent = computedStyle.parentDisplay;
-  return parent !== undefined && parent.trim().toLowerCase() === "flex";
-};
+const isFlexItemRole = (role: LayoutRole): boolean => role === "flex-item";
 
 /**
  * Generate resize candidate operations for `target` given its layout role and
  * computed style (PRD section 9.5).
  *
- * - flex items → `flex-basis` / `flex-grow` (never `width`/`height`, which would
+ * - flex-item → `flex-basis` / `flex-grow` (never `width`/`height`, which would
  *   be overridden by the flex algorithm and break the layout).
- * - block / absolute / fixed / sticky / table-cell → `width` / `height`.
- * - grid → unsupported (grid span editing is out of MVP scope).
+ * - grid-container / grid-item → unsupported (grid span editing is out of MVP
+ *   scope).
  * - inline / inline-block → unsupported (no independently resizable box).
  * - unknown → unsupported (do not emit candidates for an unclassifiable box).
+ * - normal-flow-block / flex-container / absolute-positioned / fixed-positioned
+ *   / replaced-element / svg-element → `width` / `height` (box candidates).
  *
  * `target` is echoed in the result so a caller batching many elements can
  * correlate each candidate set to its element.
@@ -91,9 +95,8 @@ const isFlexItem = (computedStyle: LayoutComputedStyle): boolean => {
 export const generateResizeCandidates = (
   target: ElementRef,
   layoutRole: LayoutRole,
-  computedStyle: LayoutComputedStyle,
 ): ResizeCandidateSet => {
-  if (layoutRole === "grid") {
+  if (isGridRole(layoutRole)) {
     return {
       supported: false,
       target,
@@ -118,8 +121,7 @@ export const generateResizeCandidates = (
     };
   }
 
-  // A block child of a flex container is a flex item: prefer flex properties.
-  if (isFlexItem(computedStyle)) {
+  if (isFlexItemRole(layoutRole)) {
     return { supported: true, target, candidates: FLEX_ITEM_CANDIDATES };
   }
 
@@ -133,5 +135,4 @@ export const generateResizeCandidates = (
 export const classifyAndGenerateResizeCandidates = (
   target: ElementRef,
   computedStyle: LayoutComputedStyle,
-): ResizeCandidateSet =>
-  generateResizeCandidates(target, classifyLayoutRole(computedStyle), computedStyle);
+): ResizeCandidateSet => generateResizeCandidates(target, classifyLayoutRole(computedStyle));

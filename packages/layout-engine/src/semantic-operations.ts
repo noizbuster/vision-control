@@ -1,5 +1,5 @@
 import { GRID_AWARE_FLOW_POINTER } from "./grid/index.js";
-import type { LayoutRole } from "./layout-role.js";
+import { isGridRole, type LayoutRole } from "./layout-role.js";
 
 /**
  * Classify the semantic intent of a drag from one location to another (PRD
@@ -36,7 +36,7 @@ export type SemanticIntent =
   | { readonly kind: "unsupported-free-move"; readonly message: string }
   | { readonly kind: "unsupported-grid"; readonly message: string };
 
-const isGridRole = (role: LayoutRole): boolean => role === "grid";
+const isGridParentRole = (role: LayoutRole): boolean => isGridRole(role);
 
 /**
  * Classify a drag's semantic intent. Decision order:
@@ -52,7 +52,7 @@ const isGridRole = (role: LayoutRole): boolean => role === "grid";
  *    content-model validity).
  */
 export const classifySemanticIntent = (input: SemanticInput): SemanticIntent => {
-  if (isGridRole(input.sourceParentRole) || isGridRole(input.targetParentRole)) {
+  if (isGridParentRole(input.sourceParentRole) || isGridParentRole(input.targetParentRole)) {
     return {
       kind: "unsupported-grid",
       message: GRID_AWARE_FLOW_POINTER,

@@ -7,22 +7,22 @@ import {
 import type { AutoLayoutCommand } from "./auto-layout-commands.js";
 
 const flexRow: AutoLayoutContainerContext = {
-  layoutRole: "flex-row",
+  layoutRole: "flex-container",
   display: "flex",
   flexDirection: "row",
 };
 const flexColumn: AutoLayoutContainerContext = {
-  layoutRole: "flex-column",
+  layoutRole: "flex-container",
   display: "flex",
   flexDirection: "column",
 };
 const block: AutoLayoutContainerContext = {
-  layoutRole: "block",
+  layoutRole: "normal-flow-block",
   display: "block",
   flexDirection: "row",
 };
 const grid: AutoLayoutContainerContext = {
-  layoutRole: "grid",
+  layoutRole: "grid-container",
   display: "grid",
   flexDirection: "row",
 };
@@ -38,7 +38,7 @@ const unknown: AutoLayoutContainerContext = {
 };
 
 describe("isAutoLayoutSupported", () => {
-  it("supports flex-row, flex-column, block, and grid containers", () => {
+  it("supports flex-container (row/column), normal-flow-block, and grid-container containers", () => {
     expect(isAutoLayoutSupported(flexRow)).toBe(true);
     expect(isAutoLayoutSupported(flexColumn)).toBe(true);
     expect(isAutoLayoutSupported(block)).toBe(true);

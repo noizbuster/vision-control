@@ -41,14 +41,20 @@ const container = (
   runtimeId: string,
   tagName: string,
   r: Rect,
-  layoutRole: "block" | "flex-column" = "block",
-  overrides: Omit<Partial<ReparentElementDescriptor>, "ref" | "tagName"> = {},
-): CandidateContainer => ({
-  parent: makeDescriptor(runtimeId, tagName, overrides),
-  layoutRole,
-  rect: r,
-  children: [],
-});
+  layoutRole: "normal-flow-block" | "flex-container" = "normal-flow-block",
+  overrides: Omit<Partial<ReparentElementDescriptor>, "ref" | "tagName"> & {
+    readonly flexDirection?: string;
+  } = {},
+): CandidateContainer => {
+  const { flexDirection, ...rest } = overrides;
+  return {
+    parent: makeDescriptor(runtimeId, tagName, rest),
+    layoutRole,
+    ...(flexDirection !== undefined ? { flexDirection } : {}),
+    rect: r,
+    children: [],
+  };
+};
 
 describe("beginReparent", () => {
   it("captures source identity and starts in drag-pending", () => {
@@ -116,13 +122,14 @@ describe("evaluateDropTarget", () => {
     expect(evaluation.validity).toBe("valid");
   });
 
-  it("computes insertion index inside flex-column container", () => {
+  it("computes insertion index inside a column-direction flex-container", () => {
     const element = makeDescriptor("el-1", "div");
     const sourceParent = makeDescriptor("parent-1", "section");
     const session = beginReparent(pointerId, element, sourceParent, 0);
     const target: CandidateContainer = {
       parent: makeDescriptor("target-1", "section"),
-      layoutRole: "flex-column",
+      layoutRole: "flex-container",
+      flexDirection: "column",
       rect: rect(0, 0, 200, 300),
       children: [
         { rect: rect(0, 0, 200, 50) },
@@ -144,7 +151,7 @@ describe("evaluateDropTarget", () => {
     });
     const sourceParent = makeDescriptor("parent-1", "section", { sourceFile: "src/Portal.tsx" });
     const session = beginReparent(pointerId, element, sourceParent, 0);
-    const target = container("target-1", "section", rect(0, 0, 200, 200), "block", {
+    const target = container("target-1", "section", rect(0, 0, 200, 200), "normal-flow-block", {
       sourceFile: "src/Header.tsx",
     });
 
@@ -169,7 +176,7 @@ describe("evaluateDropTarget", () => {
     const element = makeDescriptor("el-1", "div");
     const sourceParent = makeDescriptor("parent-1", "section");
     const session = beginReparent(pointerId, element, sourceParent, 0);
-    const target = container("target-1", "section", rect(0, 0, 200, 200), "block", {
+    const target = container("target-1", "section", rect(0, 0, 200, 200), "normal-flow-block", {
       isProvider: true,
     });
 
@@ -194,7 +201,7 @@ describe("evaluateDropTarget", () => {
     const element = makeDescriptor("el-1", "div", { sourceFile: "src/App.tsx" });
     const sourceParent = makeDescriptor("parent-1", "section", { sourceFile: "src/App.tsx" });
     const session = beginReparent(pointerId, element, sourceParent, 0);
-    const target = container("target-1", "section", rect(0, 0, 200, 200), "block", {
+    const target = container("target-1", "section", rect(0, 0, 200, 200), "normal-flow-block", {
       sourceFile: "src/Header.tsx",
     });
 

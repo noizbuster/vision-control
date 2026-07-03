@@ -167,7 +167,7 @@ export function createReparentController(options: ReparentControllerOptions): Re
         : toHighlightState(
             findContainer(candidateContainers, evaluation.target.parent.runtimeId) ?? {
               parent: { ref: evaluation.target.parent, tagName: evaluation.target.tagName },
-              layoutRole: "block",
+              layoutRole: "normal-flow-block",
               rect: { x: pointerX, y: pointerY, width: 0, height: 0 },
               children: [],
             },

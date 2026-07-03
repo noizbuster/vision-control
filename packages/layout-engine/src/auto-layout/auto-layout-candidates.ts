@@ -12,7 +12,7 @@
  * No invalid CSS is ever emitted for those contexts.
  */
 
-import type { LayoutRole } from "../layout-role.js";
+import { isGridRole, type LayoutRole } from "../layout-role.js";
 import type { AutoLayoutCommand, BoxSide, PaddingMode } from "./auto-layout-commands.js";
 import {
   resolveHugFillFixed,
@@ -223,12 +223,19 @@ const fromWrap = (value: string): ContainerPropertyCandidate => ({
 
 /**
  * Derive the parent context for a child from the container's layout context.
- * A child of a flex-row container is a flex item whose main axis is horizontal.
+ * A child of a flex-container whose direction is row is a flex-row item; a
+ * column-direction flex-container yields a flex-column item. The
+ * `SizingParentContext` is an internal auto-layout concern (distinct from
+ * `LayoutRole`) that distinguishes main-axis direction for Hug/Fill/Fixed
+ * resolution.
  */
 const deriveChildParentContext = (container: AutoLayoutContainerContext): ChildParentContext => {
-  if (container.layoutRole === "flex-row") return "flex-row";
-  if (container.layoutRole === "flex-column") return "flex-column";
-  if (container.layoutRole === "grid") return "grid";
+  if (container.layoutRole === "flex-container") {
+    return container.flexDirection.trim().toLowerCase().startsWith("column")
+      ? "flex-column"
+      : "flex-row";
+  }
+  if (isGridRole(container.layoutRole)) return "grid";
   return "block";
 };
 

@@ -24,7 +24,7 @@ test.describe("@alignment-distribution unit", () => {
   test("all ten commands resolve to a semantic candidate for a flex-row group of three", () => {
     for (const command of ALIGNMENT_COMMANDS) {
       const candidate = resolveAlignmentCandidate({
-        parentRole: "flex-row",
+        parentRole: "flex-container",
         command,
         memberCount: 3,
       });
@@ -36,7 +36,7 @@ test.describe("@alignment-distribution unit", () => {
 
   test("equalize-gap on three flex-row buttons produces a parent gap intent (not a transform)", () => {
     const candidate = resolveAlignmentCandidate({
-      parentRole: "flex-row",
+      parentRole: "flex-container",
       command: "equal-gap",
       memberCount: 3,
       computedGap: "16px",
@@ -51,7 +51,7 @@ test.describe("@alignment-distribution unit", () => {
 
   test("align-left on a flex-row group produces justify-content: flex-start", () => {
     const candidate = resolveAlignmentCandidate({
-      parentRole: "flex-row",
+      parentRole: "flex-container",
       command: "align-left",
       memberCount: 3,
     });
@@ -64,7 +64,7 @@ test.describe("@alignment-distribution unit", () => {
 
   test("distribute-horizontal on a flex-row group produces justify-content: space-between", () => {
     const candidate = resolveAlignmentCandidate({
-      parentRole: "flex-row",
+      parentRole: "flex-container",
       command: "distribute-horizontal",
       memberCount: 3,
     });
@@ -77,7 +77,7 @@ test.describe("@alignment-distribution unit", () => {
 
   test("match width on a flex-row group produces a child flex:1 intent (main axis)", () => {
     const candidate = resolveAlignmentCandidate({
-      parentRole: "flex-row",
+      parentRole: "flex-container",
       command: "match-size",
       matchAxis: "width",
       memberCount: 3,
@@ -91,7 +91,7 @@ test.describe("@alignment-distribution unit", () => {
 
   test("normal-flow pixel transform is structurally impossible (no absolute/translate intent)", () => {
     const candidate = resolveAlignmentCandidate({
-      parentRole: "flex-row",
+      parentRole: "flex-container",
       command: "align-center",
       memberCount: 3,
     });
@@ -104,7 +104,7 @@ test.describe("@alignment-distribution unit", () => {
 
   test("positioned-context coordinate alignment requires explicit free-move opt-in (Task 6 rule)", () => {
     const withoutOptIn = resolveAlignmentCandidate({
-      parentRole: "absolute",
+      parentRole: "absolute-positioned",
       contextPositioned: true,
       command: "align-left",
       memberCount: 3,
@@ -112,7 +112,7 @@ test.describe("@alignment-distribution unit", () => {
     expect(withoutOptIn.kind).toBe("unsupported-normal-flow-pixel-transform");
 
     const withOptIn = resolveAlignmentCandidate({
-      parentRole: "absolute",
+      parentRole: "absolute-positioned",
       contextPositioned: true,
       userIntent: "free-move",
       command: "align-left",

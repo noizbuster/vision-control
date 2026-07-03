@@ -110,8 +110,8 @@ test.describe("@group-move unit", () => {
   test("normal-flow group free-move is REJECTED (D41, no silent absolute positioning)", () => {
     const candidate = classifyGroupMove({
       sameParent: true,
-      sourceParentRole: "flex-row",
-      targetParentRole: "flex-row",
+      sourceParentRole: "flex-container",
+      targetParentRole: "flex-container",
       validContentModel: true,
       userIntent: "free-move",
     });
@@ -124,8 +124,8 @@ test.describe("@group-move unit", () => {
   test("positioned-context group free-move requires explicit opt-in", () => {
     const withoutOptIn = classifyGroupMove({
       sameParent: true,
-      sourceParentRole: "absolute",
-      targetParentRole: "absolute",
+      sourceParentRole: "absolute-positioned",
+      targetParentRole: "absolute-positioned",
       sourceContextPositioned: true,
       targetContextPositioned: true,
     });
@@ -133,8 +133,8 @@ test.describe("@group-move unit", () => {
 
     const withOptIn = classifyGroupMove({
       sameParent: true,
-      sourceParentRole: "absolute",
-      targetParentRole: "absolute",
+      sourceParentRole: "absolute-positioned",
+      targetParentRole: "absolute-positioned",
       sourceContextPositioned: true,
       targetContextPositioned: true,
       userIntent: "free-move",
@@ -145,8 +145,8 @@ test.describe("@group-move unit", () => {
   test("group reparent carries an ownership-risk warning when source-origins differ", () => {
     const candidate = classifyGroupMove({
       sameParent: false,
-      sourceParentRole: "flex-row",
-      targetParentRole: "flex-row",
+      sourceParentRole: "flex-container",
+      targetParentRole: "flex-container",
       validContentModel: true,
       ownershipRisk: true,
     });

@@ -18,8 +18,8 @@ test.describe("risk: drag semantic collapse (unit)", () => {
   test("same-parent in-flow drag classifies as reorder-child", () => {
     const result = classifySemanticIntent({
       sameParent: true,
-      sourceParentRole: "flex-column",
-      targetParentRole: "flex-column",
+      sourceParentRole: "flex-container",
+      targetParentRole: "flex-container",
       validContentModel: true,
     });
     expect(result.kind).toBe("reorder-child");
@@ -28,8 +28,8 @@ test.describe("risk: drag semantic collapse (unit)", () => {
   test("cross-parent in-flow drag classifies as reparent-element", () => {
     const result = classifySemanticIntent({
       sameParent: false,
-      sourceParentRole: "block",
-      targetParentRole: "block",
+      sourceParentRole: "normal-flow-block",
+      targetParentRole: "normal-flow-block",
       validContentModel: true,
     });
     expect(result.kind).toBe("reparent-element");
@@ -41,8 +41,8 @@ test.describe("risk: drag semantic collapse (unit)", () => {
   test("in-flow drag NEVER returns unsupported-free-move", () => {
     const result = classifySemanticIntent({
       sameParent: true,
-      sourceParentRole: "flex-row",
-      targetParentRole: "flex-row",
+      sourceParentRole: "flex-container",
+      targetParentRole: "flex-container",
       validContentModel: true,
     });
     expect(result.kind).not.toBe("unsupported-free-move");
@@ -51,8 +51,8 @@ test.describe("risk: drag semantic collapse (unit)", () => {
   test("positioned context returns unsupported-free-move (diagnostic, not absolute)", () => {
     const result = classifySemanticIntent({
       sameParent: false,
-      sourceParentRole: "absolute",
-      targetParentRole: "block",
+      sourceParentRole: "absolute-positioned",
+      targetParentRole: "normal-flow-block",
       validContentModel: true,
       targetContextPositioned: true,
     });
@@ -67,8 +67,8 @@ test.describe("risk: drag semantic collapse (unit)", () => {
   test("grid context returns unsupported-grid", () => {
     const result = classifySemanticIntent({
       sameParent: true,
-      sourceParentRole: "grid",
-      targetParentRole: "grid",
+      sourceParentRole: "grid-container",
+      targetParentRole: "grid-container",
       validContentModel: true,
     });
     expect(result.kind).toBe("unsupported-grid");
@@ -77,8 +77,8 @@ test.describe("risk: drag semantic collapse (unit)", () => {
   test("block-flow drag is reorder-child (not absolute)", () => {
     const result = classifySemanticIntent({
       sameParent: true,
-      sourceParentRole: "block",
-      targetParentRole: "block",
+      sourceParentRole: "normal-flow-block",
+      targetParentRole: "normal-flow-block",
       validContentModel: true,
     });
     expect(result.kind).toBe("reorder-child");
@@ -87,8 +87,8 @@ test.describe("risk: drag semantic collapse (unit)", () => {
   test("invalid content model lowers reparent confidence but still not absolute", () => {
     const result = classifySemanticIntent({
       sameParent: false,
-      sourceParentRole: "block",
-      targetParentRole: "block",
+      sourceParentRole: "normal-flow-block",
+      targetParentRole: "normal-flow-block",
       validContentModel: false,
     });
     expect(result.kind).toBe("reparent-element");

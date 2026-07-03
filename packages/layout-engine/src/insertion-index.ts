@@ -34,16 +34,27 @@ const axisStart = (rect: Rect, axis: "x" | "y"): number => (axis === "x" ? rect.
 const axisEnd = (rect: Rect, axis: "x" | "y"): number =>
   axis === "x" ? rect.x + rect.width : rect.y + rect.height;
 
-const flowAxis = (role: LayoutRole): "x" | "y" => (role === "flex-row" ? "x" : "y");
+const flowAxis = (role: LayoutRole, flexDirection: string): "x" | "y" => {
+  if (role === "flex-container" && !normalize(flexDirection).startsWith("column")) {
+    return "x";
+  }
+  return "y";
+};
+
+const normalize = (value: string): string => value.trim().toLowerCase();
 
 /**
  * Compute the insertion index for a pointer inside a container (PRD section
  * 9.3 "Insertion Index 결정").
  *
  * Algorithm (midpoint comparison):
- * - flex-row → compare pointer X to child midpoints (horizontal flow).
- * - flex-column / block / others → compare pointer Y to child midpoints
- *   (vertical flow, the default for normal-flow block layout).
+ * - flex-container with row direction → compare pointer X to child midpoints
+ *   (horizontal flow).
+ * - everything else (column flex, block flow, grid) → compare pointer Y to
+ *   child midpoints (vertical flow, the default for normal-flow block layout).
+ *
+ * `flexDirection` carries the CSS `flex-direction` value so the axis can be
+ * derived for a `flex-container` role (direction is not encoded in the role).
  *
  * The insertion index is the count of children whose midpoint is strictly less
  * than the pointer coordinate: a pointer in the upper/leading half of a child
@@ -61,8 +72,9 @@ export const computeInsertionIndex = (
   pointerX: number,
   pointerY: number,
   layoutRole: LayoutRole,
+  flexDirection: string = "",
 ): InsertionResult => {
-  const axis = flowAxis(layoutRole);
+  const axis = flowAxis(layoutRole, flexDirection);
   const pointer = axis === "x" ? pointerX : pointerY;
 
   let index = 0;

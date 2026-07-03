@@ -166,7 +166,7 @@ export class ReorderController {
       return null;
     }
 
-    const role = this.getParentLayoutRole() ?? "block";
+    const role = this.getParentLayoutRole() ?? "normal-flow-block";
     const candidate = classifyGroupMove({
       sameParent: true,
       sourceParentRole: role,
@@ -416,6 +416,7 @@ export class ReorderController {
     if (this.parentElement === null || this.parentRuntimeId === null) {
       return null;
     }
+    const parentStyle = window.getComputedStyle(this.parentElement);
     const children = Array.from(this.parentElement.children).map((child) => {
       const rect = child.getBoundingClientRect();
       return { rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height } };
@@ -427,6 +428,7 @@ export class ReorderController {
       },
       children,
       layoutRole: role,
+      flexDirection: parentStyle.flexDirection,
     };
   }
 

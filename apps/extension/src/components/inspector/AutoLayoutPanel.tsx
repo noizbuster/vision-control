@@ -30,16 +30,17 @@ interface AutoLayoutPanelProps {
 function deriveContainerContext(summary: SelectionSummary): AutoLayoutContainerContext {
   const display = summary.computedStyle.display;
   const flexDirection = summary.computedStyle.flexDirection;
-  if (display === "flex") {
-    const role = flexDirection.startsWith("column") ? "flex-column" : "flex-row";
-    return { layoutRole: role, display, flexDirection };
+  if (display === "flex" || display === "inline-flex") {
+    return { layoutRole: "flex-container", display, flexDirection };
   }
-  if (display === "grid") return { layoutRole: "grid", display, flexDirection };
+  if (display === "grid" || display === "inline-grid") {
+    return { layoutRole: "grid-container", display, flexDirection };
+  }
   if (display === "inline" || display === "inline-block") {
     return { layoutRole: display as "inline" | "inline-block", display, flexDirection };
   }
   if (display === "block" || display === "list-item" || display === "flow-root") {
-    return { layoutRole: "block", display, flexDirection };
+    return { layoutRole: "normal-flow-block", display, flexDirection };
   }
   return { layoutRole: "unknown", display, flexDirection };
 }
@@ -140,7 +141,7 @@ export function AutoLayoutPanel({
     );
   }
 
-  const isFlex = container.layoutRole === "flex-row" || container.layoutRole === "flex-column";
+  const isFlex = container.layoutRole === "flex-container";
 
   const handleDirection = (dir: AutoLayoutDirection): void => {
     setDirection(dir);

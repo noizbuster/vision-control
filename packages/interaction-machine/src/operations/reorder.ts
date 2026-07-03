@@ -41,6 +41,11 @@ export interface ReorderLayoutContext {
   readonly children: readonly ChildBox[];
   /** Classified role of the parent container. */
   readonly layoutRole: LayoutRole;
+  /**
+   * The parent's CSS `flex-direction`. Needed to derive the flow axis for a
+   * `flex-container` role (direction is not encoded in the role).
+   */
+  readonly flexDirection?: string;
 }
 
 /**
@@ -106,7 +111,14 @@ const computeInsertion = (
   pointerY: number,
   context: ReorderLayoutContext,
 ): InsertionResult =>
-  computeInsertionIndex(context.parent, context.children, pointerX, pointerY, context.layoutRole);
+  computeInsertionIndex(
+    context.parent,
+    context.children,
+    pointerX,
+    pointerY,
+    context.layoutRole,
+    context.flexDirection ?? "",
+  );
 
 /**
  * Begin a same-parent reorder gesture. The returned state is `drag-pending`;

@@ -1,4 +1,4 @@
-import type { LayoutRole } from "./layout-role.js";
+import { isGridRole, type LayoutRole } from "./layout-role.js";
 
 /**
  * The user's explicit opt-in for free-move within a positioned context. Only
@@ -66,7 +66,7 @@ export type GroupMoveCandidate =
   | { readonly kind: "unsupported-group-free-move"; readonly message: string }
   | { readonly kind: "unsupported-group-grid"; readonly message: string };
 
-const isGridRole = (role: LayoutRole): boolean => role === "grid";
+const isGridParentRole = (role: LayoutRole): boolean => isGridRole(role);
 
 const FREE_MOVE_REJECT_MESSAGE =
   "group free-move in normal flow is unsupported; drag kept as a diagnostic, not applied";
@@ -93,7 +93,7 @@ const FREE_MOVE_OPT_IN_MESSAGE =
  * machine can build the matching operation directly.
  */
 export const classifyGroupMove = (input: GroupMoveInput): GroupMoveCandidate => {
-  if (isGridRole(input.sourceParentRole) || isGridRole(input.targetParentRole)) {
+  if (isGridParentRole(input.sourceParentRole) || isGridParentRole(input.targetParentRole)) {
     return {
       kind: "unsupported-group-grid",
       message: "group move in a grid context is not supported in V1 (see task 9)",

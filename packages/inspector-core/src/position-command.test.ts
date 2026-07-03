@@ -8,13 +8,13 @@ const timestamp = 1234567890123;
 const ref = (id: string) => ({ runtimeId: id });
 
 const normalFlowContext = {
-  currentRole: "block" as const,
+  currentRole: "normal-flow-block" as const,
   hasPositionedAncestor: false,
   currentPosition: "static",
 };
 
 const positionedContext = {
-  currentRole: "absolute" as const,
+  currentRole: "absolute-positioned" as const,
   hasPositionedAncestor: true,
   currentPosition: "absolute",
 };
@@ -133,13 +133,15 @@ describe("createPositionCommand — adversarial D41 guard", () => {
    * throw here is proof the intent is never emitted.
    */
   const normalFlowRoles = [
-    "block",
+    "normal-flow-block",
     "inline",
     "inline-block",
-    "flex-row",
-    "flex-column",
-    "grid",
-    "table-cell",
+    "flex-container",
+    "flex-item",
+    "grid-container",
+    "grid-item",
+    "replaced-element",
+    "svg-element",
   ] as const;
   const outOfFlowPositioning = ["absolute", "fixed"] as const;
 

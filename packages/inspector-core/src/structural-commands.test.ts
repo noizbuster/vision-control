@@ -209,7 +209,7 @@ describe("create stack / flex container", () => {
 describe("move to front / back", () => {
   it("moveToFront sets z-index on a positioned element", () => {
     const op = createMoveToFrontCommand(
-      { target: ref("el-1"), zIndex: "10", currentRole: "absolute", previousZIndex: "1" },
+      { target: ref("el-1"), zIndex: "10", currentRole: "absolute-positioned", previousZIndex: "1" },
       { id: "op-front-001", timestamp },
     );
 
@@ -221,7 +221,11 @@ describe("move to front / back", () => {
 
   it("moveToFront rejects a normal-flow element (positioned context only)", () => {
     expect(() =>
-      createMoveToFrontCommand({ target: ref("el-1"), zIndex: "10", currentRole: "block" }),
+      createMoveToFrontCommand({
+        target: ref("el-1"),
+        zIndex: "10",
+        currentRole: "normal-flow-block",
+      }),
     ).toThrowError(UnsupportedLayoutError);
   });
 
@@ -231,9 +235,9 @@ describe("move to front / back", () => {
     ).toThrowError(UnsupportedLayoutError);
   });
 
-  it("moveToBack sets z-index on a sticky element", () => {
+  it("moveToBack sets z-index on a fixed-positioned element", () => {
     const op = createMoveToBackCommand(
-      { target: ref("el-1"), zIndex: "0", currentRole: "sticky" },
+      { target: ref("el-1"), zIndex: "0", currentRole: "fixed-positioned" },
       { id: "op-back-001", timestamp },
     );
     expect(op.kind).toBe("style-edit");

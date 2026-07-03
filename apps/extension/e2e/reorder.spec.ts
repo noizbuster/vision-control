@@ -43,7 +43,8 @@ test.describe("@reorder unit", () => {
       children,
       50,
       75,
-      "flex-column",
+      "flex-container",
+      "column",
     );
     expect(result.index).toBe(1);
   });

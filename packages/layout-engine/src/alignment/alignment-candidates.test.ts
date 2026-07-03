@@ -7,7 +7,8 @@ import {
 } from "./alignment-candidates.js";
 
 const base = (over: Partial<AlignmentInput>): AlignmentInput => ({
-  parentRole: "flex-row",
+  parentRole: "flex-container",
+  parentFlexDirection: "row",
   command: "align-center",
   memberCount: 3,
   ...over,
@@ -26,7 +27,7 @@ const asParentProperty = (
   };
 };
 
-describe("resolveAlignmentCandidate — flex-row parent (the headline scenario)", () => {
+describe("resolveAlignmentCandidate — flex-container row parent (the headline scenario)", () => {
   it("align-left -> justify-content: flex-start (main axis = horizontal)", () => {
     const c = resolveAlignmentCandidate(base({ command: "align-left" }));
     expect(c.kind).toBe("parent-layout-property");
@@ -74,15 +75,19 @@ describe("resolveAlignmentCandidate — flex-row parent (the headline scenario)"
   });
 });
 
-describe("resolveAlignmentCandidate — flex-column parent (axes inverted)", () => {
+describe("resolveAlignmentCandidate — flex-container column parent (axes inverted)", () => {
   it("align-top -> justify-content: flex-start (main axis = vertical)", () => {
-    const c = resolveAlignmentCandidate(base({ parentRole: "flex-column", command: "align-top" }));
+    const c = resolveAlignmentCandidate(
+      base({ parentFlexDirection: "column", command: "align-top" }),
+    );
     expect(asParentProperty(c).property).toBe("justify-content");
     expect(asParentProperty(c).value).toBe("flex-start");
   });
 
   it("align-left -> align-items: flex-start (cross axis = horizontal)", () => {
-    const c = resolveAlignmentCandidate(base({ parentRole: "flex-column", command: "align-left" }));
+    const c = resolveAlignmentCandidate(
+      base({ parentFlexDirection: "column", command: "align-left" }),
+    );
     expect(asParentProperty(c).property).toBe("align-items");
     expect(asParentProperty(c).value).toBe("flex-start");
   });
@@ -123,7 +128,7 @@ describe("resolveAlignmentCandidate — distribution", () => {
 
   it("distribute-vertical in a flex column -> justify-content: space-between (main axis)", () => {
     const c = resolveAlignmentCandidate(
-      base({ parentRole: "flex-column", command: "distribute-vertical" }),
+      base({ parentFlexDirection: "column", command: "distribute-vertical" }),
     );
     expect(asParentProperty(c).property).toBe("justify-content");
   });
@@ -148,22 +153,26 @@ describe("resolveAlignmentCandidate — match-size", () => {
 
   it("match width in a flex column -> parent align-items: stretch (cross axis = width)", () => {
     const c = resolveAlignmentCandidate(
-      base({ parentRole: "flex-column", command: "match-size", matchAxis: "width" }),
+      base({ parentFlexDirection: "column", command: "match-size", matchAxis: "width" }),
     );
     expect(asParentProperty(c).property).toBe("align-items");
     expect(asParentProperty(c).value).toBe("stretch");
   });
 });
 
-describe("resolveAlignmentCandidate — non-flex normal-flow parent (block)", () => {
+describe("resolveAlignmentCandidate — non-flex normal-flow parent (normal-flow-block)", () => {
   it("align-center on a block parent signals a flex conversion (still a property)", () => {
-    const c = resolveAlignmentCandidate(base({ parentRole: "block", command: "align-center" }));
+    const c = resolveAlignmentCandidate(
+      base({ parentRole: "normal-flow-block", command: "align-center" }),
+    );
     expect(c.kind).toBe("parent-layout-property");
     expect(asParentProperty(c).requiresFlexConversion).toBe(true);
   });
 
   it("equal-gap on a block parent signals a flex conversion", () => {
-    const c = resolveAlignmentCandidate(base({ parentRole: "block", command: "equal-gap" }));
+    const c = resolveAlignmentCandidate(
+      base({ parentRole: "normal-flow-block", command: "equal-gap" }),
+    );
     expect(c.kind).toBe("parent-layout-property");
     expect(asParentProperty(c).requiresFlexConversion).toBe(true);
   });
@@ -173,7 +182,7 @@ describe("resolveAlignmentCandidate — positioned context (Task 6 rule)", () =>
   it("allows coordinate intent when positioned AND user opts in", () => {
     const c = resolveAlignmentCandidate(
       base({
-        parentRole: "absolute",
+        parentRole: "absolute-positioned",
         contextPositioned: true,
         userIntent: "free-move",
       }),
@@ -185,7 +194,9 @@ describe("resolveAlignmentCandidate — positioned context (Task 6 rule)", () =>
   });
 
   it("rejects positioned alignment WITHOUT explicit opt-in", () => {
-    const c = resolveAlignmentCandidate(base({ parentRole: "absolute", contextPositioned: true }));
+    const c = resolveAlignmentCandidate(
+      base({ parentRole: "absolute-positioned", contextPositioned: true }),
+    );
     expect(c.kind).toBe("unsupported-normal-flow-pixel-transform");
   });
 });
@@ -194,11 +205,17 @@ describe("resolveAlignmentCandidate — MISLEADING-SUCCESS guard (no pixel trans
   // PRD constraint 2 / D41: a normal-flow alignment must NEVER collapse to a
   // pixel transform. Every rejected diagnostic message must avoid instructing
   // absolute positioning or translate transforms.
-  const normalFlowRoles: ReadonlyArray<
-    ["flex-row" | "flex-column" | "block" | "inline" | "inline-block"]
-  > = [["flex-row"], ["flex-column"], ["block"], ["inline"], ["inline-block"]];
+  const normalFlowRoles = [
+    "flex-container",
+    "normal-flow-block",
+    "inline",
+    "inline-block",
+    "flex-item",
+    "replaced-element",
+    "svg-element",
+  ] as const;
 
-  for (const [role] of normalFlowRoles) {
+  for (const role of normalFlowRoles) {
     it(`never returns a pixel-transform or coordinate candidate for role ${role}`, () => {
       for (const command of [
         "align-left",
@@ -223,15 +240,16 @@ describe("resolveAlignmentCandidate — MISLEADING-SUCCESS guard (no pixel trans
   }
 
   it("rejects an explicit free-move opt-in inside normal flow", () => {
-    const c = resolveAlignmentCandidate(base({ parentRole: "flex-row", userIntent: "free-move" }));
-    // Still resolves to a parent property — the opt-in is ignored for normal flow.
+    const c = resolveAlignmentCandidate(
+      base({ parentRole: "flex-container", userIntent: "free-move" }),
+    );
     expect(c.kind).toBe("parent-layout-property");
   });
 });
 
 describe("resolveAlignmentCandidate — validation", () => {
   it("rejects a grid parent with unsupported-alignment-grid", () => {
-    const c = resolveAlignmentCandidate(base({ parentRole: "grid" }));
+    const c = resolveAlignmentCandidate(base({ parentRole: "grid-container" }));
     expect(c.kind).toBe("unsupported-alignment-grid");
   });
 

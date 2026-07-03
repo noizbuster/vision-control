@@ -50,6 +50,11 @@ export interface CandidateContainer {
   /** Parent descriptor including risk metadata. */
   readonly parent: ReparentElementDescriptor;
   readonly layoutRole: LayoutRole;
+  /**
+   * The container's CSS `flex-direction`. Needed to derive the flow axis for a
+   * `flex-container` role (direction is not encoded in the role).
+   */
+  readonly flexDirection?: string;
   /** Container bounding rect in client coordinates. */
   readonly rect: Rect;
   /** In-flow children in DOM order, used for insertion-index computation. */
@@ -251,6 +256,7 @@ export const evaluateDropTarget = (
     pointerX,
     pointerY,
     hovered.layoutRole,
+    hovered.flexDirection ?? "",
   );
 
   const target: DropTarget = {

@@ -1,4 +1,4 @@
-import { isFlexContainerRole, type LayoutRole } from "../layout-role.js";
+import { isFlexContainerRole, isGridRole, type LayoutRole } from "../layout-role.js";
 import {
   type AlignmentAxis,
   type AlignmentCommandKind,
@@ -39,6 +39,11 @@ export type AlignmentParentProperty =
 export interface AlignmentInput {
   /** Layout role of the common parent (or the container whose children align). */
   readonly parentRole: LayoutRole;
+  /**
+   * The parent's CSS `flex-direction`. Needed to derive the main/cross axis for
+   * a `flex-container` role (direction is not encoded in the role).
+   */
+  readonly parentFlexDirection?: string;
   /** The alignment/distribution command to resolve. */
   readonly command: AlignmentCommandKind;
   /** Number of selected members. Alignment/distribution needs at least 2. */
@@ -132,7 +137,7 @@ const TOO_FEW_MESSAGE = "alignment and distribution require at least two selecte
  * candidate. This is the structural enforcement of PRD constraint 2.
  */
 export const resolveAlignmentCandidate = (input: AlignmentInput): AlignmentCandidate => {
-  if (input.parentRole === "grid") {
+  if (isGridRole(input.parentRole)) {
     return {
       kind: "unsupported-alignment-grid",
       message: "alignment in a grid context is not supported in V1 (see task 9)",
@@ -213,7 +218,10 @@ const snapAlignmentCandidate = (
       message: PIXEL_TRANSFORM_REJECT_MESSAGE,
     };
   }
-  const property = flexPropertyForAxis(input.parentRole, commandAlignmentAxis(input.command));
+  const property = flexPropertyForAxis(
+    input.parentFlexDirection ?? "",
+    commandAlignmentAxis(input.command),
+  );
   return {
     kind: "parent-layout-property",
     property,
@@ -236,7 +244,7 @@ const distributionCandidate = (
   requiresFlexConversion: boolean,
 ): AlignmentCandidate => {
   const axis = commandAlignmentAxis(input.command);
-  const isMainAxis = axisIsMainAxis(input.parentRole, axis);
+  const isMainAxis = axisIsMainAxis(input.parentFlexDirection ?? "", axis);
   const property: AlignmentParentProperty = isMainAxis ? "justify-content" : "align-content";
   return {
     kind: "parent-layout-property",
@@ -260,7 +268,7 @@ const matchSizeCandidate = (
   requiresFlexConversion: boolean,
 ): AlignmentCandidate => {
   const axis = matchAxisToScreenAxis(input.matchAxis ?? "width");
-  const isMainAxis = axisIsMainAxis(input.parentRole, axis);
+  const isMainAxis = axisIsMainAxis(input.parentFlexDirection ?? "", axis);
   if (isMainAxis) {
     return {
       kind: "child-alignment-intent",
@@ -284,24 +292,23 @@ const matchSizeCandidate = (
 
 /**
  * Map a screen axis to the flexbox property that controls it for a given
- * parent direction. flex-row: horizontal -> justify-content, vertical ->
- * align-items. flex-column is the inverse. Non-flex parents default to the
- * flex-row mapping (the conversion target).
+ * parent direction. A row-direction flex container: horizontal -> justify-
+ * content, vertical -> align-items. A column-direction container is the
+ * inverse. Non-flex parents default to the row mapping (the conversion target).
  */
 const flexPropertyForAxis = (
-  parentRole: LayoutRole,
+  parentFlexDirection: string,
   axis: AlignmentAxis,
 ): "justify-content" | "align-items" => {
-  if (axisIsMainAxis(parentRole, axis)) {
+  if (axisIsMainAxis(parentFlexDirection, axis)) {
     return "justify-content";
   }
   return "align-items";
 };
 
 /** True when `axis` is the main axis of the flex parent. */
-const axisIsMainAxis = (parentRole: LayoutRole, axis: AlignmentAxis): boolean => {
-  if (parentRole === "flex-column") return axis === "vertical";
-  // flex-row and the non-flex default both treat horizontal as the main axis.
+const axisIsMainAxis = (flexDirection: string, axis: AlignmentAxis): boolean => {
+  if (flexDirection.trim().toLowerCase().startsWith("column")) return axis === "vertical";
   return axis === "horizontal";
 };
 

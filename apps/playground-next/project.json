@@ -1,17 +1,17 @@
 {
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "name": "playground-next",
-  "sourceRoot": "apps/playground-next/src",
-  "projectType": "library",
+  "sourceRoot": "apps/playground-next",
+  "projectType": "application",
   "tags": ["platform:browser", "type:fixture", "scope:playground-next"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsc -p tsconfig.build.json",
+        "command": "next build",
         "cwd": "apps/playground-next"
       },
-      "outputs": ["{projectRoot}/dist"]
+      "outputs": ["{projectRoot}/.next"]
     },
     "typecheck": {
       "executor": "nx:run-commands",
@@ -26,6 +26,14 @@
         "command": "vitest run",
         "cwd": "apps/playground-next"
       }
+    },
+    "e2e": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "playwright test",
+        "cwd": "apps/playground-next"
+      },
+      "outputs": ["{projectRoot}/playwright-report", "{projectRoot}/test-results"]
     }
   }
 }

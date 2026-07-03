@@ -1,9 +1,9 @@
 {
   "name": "@vision-control/tailwind",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Build-tool integration skeleton for @vision-control/tailwind.",
+  "description": "Tailwind v3 token-aware source adapter: resolves className utilities to source origins with nearest-token suggestions.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -15,8 +15,19 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@babel/parser": "catalog:",
+    "@babel/traverse": "catalog:",
+    "@babel/types": "catalog:",
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "tailwindcss": "^3.4.0"
+  },
   "devDependencies": {
+    "@types/babel__traverse": "catalog:",
     "@types/node": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

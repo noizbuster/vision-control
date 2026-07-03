@@ -1,22 +1,26 @@
 {
   "name": "@vision-control/playground-next",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Test-fixture app skeleton for @vision-control/playground-next.",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+  "description": "Next.js fixture for dev-only source marker testing (V1 — VC-V1V2-13).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run"
   },
-  "files": [
-    "dist"
-  ],
+  "dependencies": {
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vision-control/next-react": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

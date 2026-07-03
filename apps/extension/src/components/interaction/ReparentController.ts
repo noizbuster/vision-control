@@ -87,6 +87,7 @@ export interface ReparentController {
 
 const initialFeasibility: FeasibilityReport = {
   canReparent: false,
+  sourcePatch: "agent-required",
   confidence: "low",
   risks: [{ kind: "content-model", reason: "No drop target evaluated yet" }],
 };

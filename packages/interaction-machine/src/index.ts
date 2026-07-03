@@ -68,6 +68,7 @@ export type {
   ReparentRisk,
   ReparentRiskKind,
   ReparentSession,
+  SourcePatchFeasibility,
 } from "./operations/reparent.js";
 export {
   beginReparent,

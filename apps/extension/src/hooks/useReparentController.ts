@@ -31,6 +31,7 @@ export function useReparentController(
     isActive: false,
     feasibility: {
       canReparent: false,
+      sourcePatch: "agent-required",
       confidence: "low",
       risks: [{ kind: "content-model", reason: "No drop target evaluated yet" }],
     },

@@ -11,7 +11,23 @@ import {
   endReparent,
   evaluateDropTarget,
   type ReparentElementDescriptor,
+  type ReparentRiskKind,
 } from "./reparent.js";
+
+const EXPECTED_RISK_KINDS: readonly ReparentRiskKind[] = [
+  "portal",
+  "repeated-instance",
+  "provider",
+  "source-file",
+  "content-model",
+  "label-association",
+  "form-ownership",
+  "slot-shadow-boundary",
+  "render-prop",
+  "context-provider-outside",
+  "server-client-boundary",
+  "cross-file-prop-dependency",
+];
 
 const pointerId = createPointerId("mouse-1");
 
@@ -274,5 +290,235 @@ describe("cancelReparent", () => {
 
     expect(cancelled.phase).toBe("rejected");
     expect(cancelled.rejectionReason).toBe("Escape pressed");
+  });
+});
+
+describe("PRD §9.4 risk coverage (12 kinds)", () => {
+  // sourceFile set on both sides suppresses the source-file risk so each
+  // scenario triggers only its intended kind.
+  const mapped = { sourceFile: "src/App.tsx" };
+
+  const mappedContainer = (
+    runtimeId: string,
+    tagName: string,
+    overrides: Omit<Partial<ReparentElementDescriptor>, "ref" | "tagName"> = {},
+  ): CandidateContainer =>
+    container(runtimeId, tagName, rect(0, 0, 200, 200), "normal-flow-block", {
+      ...mapped,
+      ...overrides,
+    });
+
+  it("warns about label-association when reparenting a <label>'s control", () => {
+    const element = makeDescriptor("el-1", "input", { isLabelControl: true, ...mapped });
+    const sourceParent = makeDescriptor("parent-1", "label", mapped);
+    const session = beginReparent(pointerId, element, sourceParent, 0);
+    const target = mappedContainer("target-1", "section");
+
+    const { session: next } = evaluateDropTarget(session, 50, 50, [target]);
+
+    expect(next.feasibility.risks.some((r) => r.kind === "label-association")).toBe(true);
+  });
+
+  it("warns about form-ownership when reparenting a form field out of a <form>", () => {
+    const element = makeDescriptor("el-1", "input", { isFormField: true, ...mapped });
+    const sourceParent = makeDescriptor("parent-1", "form", mapped);
+    const session = beginReparent(pointerId, element, sourceParent, 0);
+    const target = mappedContainer("target-1", "section");
+
+    const { session: next } = evaluateDropTarget(session, 50, 50, [target]);
+
+    expect(next.feasibility.risks.some((r) => r.kind === "form-ownership")).toBe(true);
+  });
+
+  it("warns about slot-shadow-boundary when crossing a shadow root", () => {
+    const element = makeDescriptor("el-1", "div", { isInShadowRoot: true, ...mapped });
+    const sourceParent = makeDescriptor("parent-1", "div", mapped);
+    const session = beginReparent(pointerId, element, sourceParent, 0);
+    const target = mappedContainer("target-1", "section");
+
+    const { session: next } = evaluateDropTarget(session, 50, 50, [target]);
+
+    expect(next.feasibility.risks.some((r) => r.kind === "slot-shadow-boundary")).toBe(true);
+    expect(next.feasibility.sourcePatch).toBe("unsafe");
+  });
+
+  it("warns about render-prop when the element is a render-prop child", () => {
+    const element = makeDescriptor("el-1", "div", { isRenderPropChild: true, ...mapped });
+    const sourceParent = makeDescriptor("parent-1", "div", mapped);
+    const session = beginReparent(pointerId, element, sourceParent, 0);
+    const target = mappedContainer("target-1", "section");
+
+    const { session: next } = evaluateDropTarget(session, 50, 50, [target]);
+
+    expect(next.feasibility.risks.some((r) => r.kind === "render-prop")).toBe(true);
+    expect(next.feasibility.sourcePatch).toBe("unsafe");
+  });
+
+  it("warns about context-provider-outside when reparenting out of a context provider", () => {
+    const element = makeDescriptor("el-1", "div", { isContextConsumer: true, ...mapped });
+    const sourceParent = makeDescriptor("parent-1", "div", { isContextProvider: true, ...mapped });
+    const session = beginReparent(pointerId, element, sourceParent, 0);
+    const target = mappedContainer("target-1", "section");
+
+    const { session: next } = evaluateDropTarget(session, 50, 50, [target]);
+
+    expect(next.feasibility.risks.some((r) => r.kind === "context-provider-outside")).toBe(true);
+  });
+
+  it("warns about server-client-boundary when crossing server/client", () => {
+    const element = makeDescriptor("el-1", "div", { isServerComponent: true, ...mapped });
+    const sourceParent = makeDescriptor("parent-1", "div", mapped);
+    const session = beginReparent(pointerId, element, sourceParent, 0);
+    const target = mappedContainer("target-1", "section");
+
+    const { session: next } = evaluateDropTarget(session, 50, 50, [target]);
+
+    expect(next.feasibility.risks.some((r) => r.kind === "server-client-boundary")).toBe(true);
+    expect(next.feasibility.sourcePatch).toBe("unsafe");
+  });
+
+  it("warns about cross-file-prop-dependency for differing files with prop dep", () => {
+    const element = makeDescriptor("el-1", "div", {
+      sourceFile: "src/Widget.tsx",
+      hasPropDependency: true,
+    });
+    const sourceParent = makeDescriptor("parent-1", "div", { sourceFile: "src/Widget.tsx" });
+    const session = beginReparent(pointerId, element, sourceParent, 0);
+    const target = mappedContainer("target-1", "section");
+
+    const { session: next } = evaluateDropTarget(session, 50, 50, [target]);
+
+    expect(next.feasibility.risks.some((r) => r.kind === "cross-file-prop-dependency")).toBe(true);
+    expect(next.feasibility.sourcePatch).toBe("unsafe");
+  });
+
+  it("collects all 12 PRD §9.4 risk kinds across scenarios", () => {
+    const scenarios: Array<{
+      element: ReparentElementDescriptor;
+      source: ReparentElementDescriptor;
+      target: CandidateContainer;
+    }> = [
+      {
+        element: makeDescriptor("el", "div", { isPortal: true, ...mapped }),
+        source: makeDescriptor("p", "section", mapped),
+        target: mappedContainer("t", "section"),
+      },
+      {
+        element: makeDescriptor("el", "div", { isRepeatedInstance: true, ...mapped }),
+        source: makeDescriptor("p", "section", mapped),
+        target: mappedContainer("t", "section"),
+      },
+      {
+        element: makeDescriptor("el", "div", mapped),
+        source: makeDescriptor("p", "section", mapped),
+        target: mappedContainer("t", "section", { isProvider: true }),
+      },
+      {
+        element: makeDescriptor("el", "div"),
+        source: makeDescriptor("p", "section"),
+        target: container("t", "section", rect(0, 0, 200, 200)),
+      },
+      {
+        element: makeDescriptor("el", "div", mapped),
+        source: makeDescriptor("p", "ul", mapped),
+        target: mappedContainer("t", "ul"),
+      },
+      {
+        element: makeDescriptor("el", "input", { isLabelControl: true, ...mapped }),
+        source: makeDescriptor("p", "label", mapped),
+        target: mappedContainer("t", "section"),
+      },
+      {
+        element: makeDescriptor("el", "input", { isFormField: true, ...mapped }),
+        source: makeDescriptor("p", "form", mapped),
+        target: mappedContainer("t", "section"),
+      },
+      {
+        element: makeDescriptor("el", "div", { isInShadowRoot: true, ...mapped }),
+        source: makeDescriptor("p", "div", mapped),
+        target: mappedContainer("t", "section"),
+      },
+      {
+        element: makeDescriptor("el", "div", { isRenderPropChild: true, ...mapped }),
+        source: makeDescriptor("p", "div", mapped),
+        target: mappedContainer("t", "section"),
+      },
+      {
+        element: makeDescriptor("el", "div", { isContextConsumer: true, ...mapped }),
+        source: makeDescriptor("p", "div", { isContextProvider: true, ...mapped }),
+        target: mappedContainer("t", "section"),
+      },
+      {
+        element: makeDescriptor("el", "div", { isServerComponent: true, ...mapped }),
+        source: makeDescriptor("p", "div", mapped),
+        target: mappedContainer("t", "section"),
+      },
+      {
+        element: makeDescriptor("el", "div", {
+          sourceFile: "src/A.tsx",
+          hasPropDependency: true,
+        }),
+        source: makeDescriptor("p", "div", { sourceFile: "src/A.tsx" }),
+        target: container("t", "section", rect(0, 0, 200, 200), "normal-flow-block", {
+          sourceFile: "src/B.tsx",
+        }),
+      },
+    ];
+
+    const firedKinds = new Set<ReparentRiskKind>();
+    for (const { element, source, target } of scenarios) {
+      const session = beginReparent(pointerId, element, source, 0);
+      const { session: next } = evaluateDropTarget(session, 50, 50, [target]);
+      for (const risk of next.feasibility.risks) {
+        firedKinds.add(risk.kind);
+      }
+    }
+
+    expect(firedKinds.size).toBe(12);
+    for (const kind of EXPECTED_RISK_KINDS) {
+      expect(firedKinds.has(kind)).toBe(true);
+    }
+  });
+});
+
+describe("endReparent unsafe guard", () => {
+  it("rejects an unsafe reparent (no auto-commit when a guard fires)", () => {
+    const element = makeDescriptor("el-1", "div", {
+      isRenderPropChild: true,
+      sourceFile: "src/App.tsx",
+    });
+    const sourceParent = makeDescriptor("parent-1", "section", { sourceFile: "src/App.tsx" });
+    let session = beginReparent(pointerId, element, sourceParent, 0);
+    const target = container("target-1", "section", rect(0, 0, 200, 200), "normal-flow-block", {
+      sourceFile: "src/App.tsx",
+    });
+
+    ({ session } = evaluateDropTarget(session, 50, 50, [target]));
+    expect(session.feasibility.sourcePatch).toBe("unsafe");
+
+    const result = endReparent(session);
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toContain("Unsafe reparent boundary");
+  });
+
+  it("commits an agent-required reparent (runtime preview allowed)", () => {
+    const element = makeDescriptor("el-1", "div", {
+      isLabelControl: true,
+      sourceFile: "src/App.tsx",
+    });
+    const sourceParent = makeDescriptor("parent-1", "label", { sourceFile: "src/App.tsx" });
+    let session = beginReparent(pointerId, element, sourceParent, 0);
+    const target = container("target-1", "section", rect(0, 0, 200, 200), "normal-flow-block", {
+      sourceFile: "src/App.tsx",
+    });
+
+    ({ session } = evaluateDropTarget(session, 50, 50, [target]));
+    expect(session.feasibility.sourcePatch).toBe("agent-required");
+
+    const result = endReparent(session);
+
+    expect(result.status).toBe("committed");
   });
 });

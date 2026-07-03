@@ -5,11 +5,27 @@ import {
   type ChildBox,
   computeInsertionIndex,
   type LayoutRole,
-  type ValidateReparentResult,
   validateReparent,
 } from "@vision-control/layout-engine";
 
 import type { PointerId } from "../pointer-ownership.js";
+import {
+  buildFeasibility,
+  type FeasibilityReport,
+  initialFeasibility,
+  type ReparentElementDescriptor,
+} from "./reparent-feasibility.js";
+
+// Re-export the feasibility taxonomy so the package barrel can source every
+// reparent type from this module without touching the feasibility split.
+export type {
+  FeasibilityReport,
+  ReparentConfidence,
+  ReparentElementDescriptor,
+  ReparentRisk,
+  ReparentRiskKind,
+  SourcePatchFeasibility,
+} from "./reparent-feasibility.js";
 
 /**
  * Lifecycle phases for a cross-parent reparent gesture.
@@ -25,20 +41,6 @@ export type ReparentPhase =
   | "dropping"
   | "committed"
   | "rejected";
-
-/**
- * Enriched element descriptor used by the reparent evaluator. Carries the
- * element reference plus the metadata needed for content-model guards and
- * risk analysis.
- */
-export interface ReparentElementDescriptor {
-  readonly ref: ElementRef;
-  readonly tagName: string;
-  readonly isPortal?: boolean;
-  readonly isProvider?: boolean;
-  readonly isRepeatedInstance?: boolean;
-  readonly sourceFile?: string;
-}
 
 /**
  * A container that may receive the dragged element. The caller (a browser
@@ -82,34 +84,6 @@ export interface DropEvaluation {
 }
 
 /**
- * Risk kinds that lower source-patch confidence but do not block the preview.
- */
-export type ReparentRiskKind =
-  | "portal"
-  | "repeated-instance"
-  | "provider"
-  | "source-file"
-  | "content-model";
-
-export interface ReparentRisk {
-  readonly kind: ReparentRiskKind;
-  readonly reason: string;
-}
-
-export type ReparentConfidence = "high" | "medium" | "low";
-
-/**
- * Feasibility report shown in the panel. It is separate from the binary
- * valid/invalid drop evaluation so the UI can explain why an operation may be
- * risky even when it is structurally allowed.
- */
-export interface FeasibilityReport {
-  readonly canReparent: boolean;
-  readonly confidence: ReparentConfidence;
-  readonly risks: readonly ReparentRisk[];
-}
-
-/**
  * Final outcome of a reparent gesture.
  */
 export type ReparentResult =
@@ -132,50 +106,6 @@ export interface ReparentSession {
 
 const pointInRect = (x: number, y: number, rect: Rect): boolean =>
   x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
-
-const contentModelRisk = (parentTag: string, childTag: string): ReparentRisk => ({
-  kind: "content-model",
-  reason: `<${childTag}> is not a permitted direct child of <${parentTag}>`,
-});
-
-const buildFeasibility = (
-  element: ReparentElementDescriptor,
-  targetParent: ReparentElementDescriptor | null,
-  contentModel: ValidateReparentResult,
-): FeasibilityReport => {
-  const risks: ReparentRisk[] = [];
-
-  if (!contentModel.ok) {
-    risks.push(contentModelRisk(contentModel.violation.parent, contentModel.violation.child));
-  }
-  if (element.isPortal) {
-    risks.push({ kind: "portal", reason: "Dragged element originates from a portal" });
-  }
-  if (element.isRepeatedInstance) {
-    risks.push({
-      kind: "repeated-instance",
-      reason: "Repeated runtime instance from the same source line",
-    });
-  }
-  if (targetParent?.isProvider) {
-    risks.push({ kind: "provider", reason: "Target parent is a provider/utility wrapper" });
-  }
-  if (element.sourceFile === undefined || targetParent?.sourceFile === undefined) {
-    risks.push({ kind: "source-file", reason: "Missing source mapping for element or target" });
-  }
-
-  const canReparent = contentModel.ok;
-  const confidence: ReparentConfidence =
-    risks.length === 0 ? "high" : risks.some((r) => r.kind === "source-file") ? "low" : "medium";
-
-  return { canReparent, confidence, risks };
-};
-
-const initialFeasibility: FeasibilityReport = {
-  canReparent: false,
-  confidence: "low",
-  risks: [{ kind: "content-model", reason: "No drop target evaluated yet" }],
-};
 
 /**
  * Start a cross-parent reparent gesture. Captures source identity and index
@@ -285,13 +215,30 @@ export const evaluateDropTarget = (
 const newOperationId = (): string => globalThis.crypto.randomUUID();
 
 /**
- * End the reparent gesture. If the current target is valid, produces a
- * `reparent-element` operation; otherwise returns a rejection.
+ * End the reparent gesture. If the current target is valid and the source
+ * patch is not `unsafe`, produces a `reparent-element` operation; otherwise
+ * returns a rejection.
+ *
+ * Per PRD §9.4:566, a reparent that fires an `unsafe` guard (a framework-
+ * boundary crossing) must not auto-commit. {@link ReparentResult} is rejected
+ * with a reason so the caller surfaces it to the user instead of silently
+ * applying a preview.
  */
 export const endReparent = (session: ReparentSession): ReparentResult => {
   const target = session.currentTarget;
   if (target === null || session.phase !== "dragging-over-valid-target") {
     return { status: "rejected", reason: "No valid drop target" };
+  }
+
+  if (session.feasibility.sourcePatch === "unsafe") {
+    const kinds = session.feasibility.risks
+      .map((r) => r.kind)
+      .filter((k) => k !== "content-model")
+      .join(", ");
+    return {
+      status: "rejected",
+      reason: `Unsafe reparent boundary (${kinds}); agent review required`,
+    };
   }
 
   const operation: ReparentElementOperation = {

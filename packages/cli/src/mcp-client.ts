@@ -52,12 +52,44 @@ export async function callMcpTool(
     };
   }
 
-  const body = (await response.json()) as McpJsonRpcResponse;
+  // The MCP Streamable HTTP transport responds with `text/event-stream`: the
+  // JSON-RPC payload is on a `data:` line (`event: message\ndata: {...}`).
+  // Plain `application/json` is also accepted (older transports / mocks), so
+  // fall back to parsing the whole body as JSON. `response.json()` would throw
+  // on the SSE body, breaking every data command against a real daemon.
+  const raw = await response.text();
+  const body = parseJsonRpc(raw);
+  if (body === undefined) {
+    return { ok: false, error: "malformed MCP response (no JSON-RPC payload)" };
+  }
   if (body.error !== undefined) {
     return { ok: false, error: body.error.message };
   }
   const text = extractText(body.result);
   return { ok: true, text };
+}
+
+/**
+ * Parse an MCP JSON-RPC response body. Handles both `text/event-stream` (the
+ * payload on a `data:` line) and plain `application/json`. Returns `undefined`
+ * when no payload can be extracted.
+ */
+function parseJsonRpc(body: string): McpJsonRpcResponse | undefined {
+  for (const line of body.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("data: ")) {
+      try {
+        return JSON.parse(trimmed.slice("data: ".length)) as McpJsonRpcResponse;
+      } catch {
+        continue;
+      }
+    }
+  }
+  try {
+    return JSON.parse(body) as McpJsonRpcResponse;
+  } catch {
+    return undefined;
+  }
 }
 
 interface McpJsonRpcResponse {

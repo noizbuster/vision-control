@@ -1,5 +1,12 @@
 /**
- * `vision-control sessions list` — list active daemon sessions.
+ * `vision-control sessions list` — surface the active daemon session.
+ *
+ * The command name is fixed by PRD §17.2. The MVP daemon tracks a SINGLE
+ * active session at a time (one authenticated browser panel), so this surfaces
+ * that one session via `vision_get_active_session` rather than enumerating
+ * many. When no panel is connected the daemon returns a real `connected: false`
+ * record with an explanatory `note` (never fabricated data). V1+ multi-session
+ * support would widen this to a true enumeration.
  */
 
 import type { CliContext } from "../context.js";

@@ -51,14 +51,10 @@ describe("mcp-server HTTP auth", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("rejects requests with no origin (mirrors daemon-core strict origin check)", () => {
+  it("accepts non-browser requests with no Origin header (bearer-token auth applies)", () => {
     const req = mockRequest("http://127.0.0.1:4322/mcp", { authorization: `Bearer ${AUTH_TOKEN}` });
     const result = checkAuth(req, { token: AUTH_TOKEN });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("ORIGIN_NOT_ALLOWED");
-      expect(result.status).toBe(403);
-    }
+    expect(result.ok).toBe(true);
   });
 });
 
@@ -106,7 +102,7 @@ describe("mcp-server HTTP transport", () => {
     expect(JSON.stringify(body)).not.toContain("selection");
   });
 
-  it("rejects requests with no Origin header even with a valid token", async () => {
+  it("serves requests with no Origin header when the bearer token is valid", async () => {
     const server = createMcpServer(createStubDeps());
     handle = await startHttpTransport(server, { port: 0, auth: { token: AUTH_TOKEN } });
 
@@ -114,13 +110,27 @@ describe("mcp-server HTTP transport", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        accept: "application/json, text/event-stream",
         authorization: `Bearer ${AUTH_TOKEN}`,
       },
       body: mcpRequest("tools/list"),
     });
-    expect(response.status).toBe(403);
-    const body = (await response.json()) as { error: string };
-    expect(body.error).toBe("ORIGIN_NOT_ALLOWED");
+    expect(response.status).toBe(200);
+  });
+
+  it("still requires a bearer token for non-browser requests (no Origin, no token)", async () => {
+    const server = createMcpServer(createStubDeps());
+    handle = await startHttpTransport(server, { port: 0, auth: { token: AUTH_TOKEN } });
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/mcp`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: mcpRequest("tools/list"),
+    });
+    expect(response.status).toBe(401);
   });
 
   it("refuses to bind to non-loopback hosts", async () => {

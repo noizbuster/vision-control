@@ -25,7 +25,8 @@
       "options": {
         "command": "vitest run",
         "cwd": "packages/cli"
-      }
+      },
+      "dependsOn": [{ "projects": "daemon", "target": "build" }]
     }
   }
 }

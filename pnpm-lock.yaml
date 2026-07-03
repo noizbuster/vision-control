@@ -644,12 +644,21 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.0
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.1
+      '@vision-control/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
+      ws:
+        specifier: 'catalog:'
+        version: 8.21.0
 
   packages/context-compiler:
     dependencies:

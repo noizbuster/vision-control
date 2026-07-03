@@ -50,8 +50,13 @@ const constantTimeEquals = (a: string, b: string): boolean => {
  */
 export function checkAuth(req: IncomingMessage, config: AuthConfig): AuthResult {
   const allowlist = config.originAllowlist ?? defaultAllowlistConfig();
-  const origin = req.headers.origin ?? "";
-  if (!isOriginAllowed(origin, allowlist)) {
+  // The Origin header is a browser CSRF signal: browsers always set it, while
+  // server-side clients (the CLI, the daemon's own tests, curl) do not. A
+  // present Origin is validated against the allowlist to block cross-origin
+  // browser requests; an absent Origin is a non-browser request that reaches
+  // the bearer-token check (defended by the loopback bind + the random token).
+  const origin = req.headers.origin;
+  if (origin !== undefined && !isOriginAllowed(origin, allowlist)) {
     return {
       ok: false,
       code: "ORIGIN_NOT_ALLOWED",

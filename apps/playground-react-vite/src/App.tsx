@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 
 import { ConditionalClass } from "./fixtures/ConditionalClass.js";
 import { CrossOriginIframe } from "./fixtures/CrossOriginIframe.js";
+import { CssGridCase } from "./fixtures/CssGridCase.js";
+import { CssModulesCase } from "./fixtures/CssModulesCase.js";
 import { IdenticalButtons } from "./fixtures/IdenticalButtons.js";
 import { MvpBoard } from "./fixtures/MvpBoard.js";
 import { NestedLayout } from "./fixtures/NestedLayout.js";
@@ -11,6 +13,7 @@ import { PrivateFields } from "./fixtures/PrivateFields.js";
 import { Reparent } from "./fixtures/Reparent.js";
 import { RepeatedList } from "./fixtures/RepeatedList.js";
 import { ResizeFlex } from "./fixtures/ResizeFlex.js";
+import { ResponsiveBreakpoints } from "./fixtures/ResponsiveBreakpoints.js";
 import { SameOriginIframe } from "./fixtures/SameOriginIframe.js";
 import { ScrollContainer } from "./fixtures/ScrollContainer.js";
 import { ShadowDomClosed } from "./fixtures/ShadowDomClosed.js";
@@ -45,6 +48,13 @@ const ROUTES: RouteDefinition[] = [
   { path: "/shadow-dom-open", label: "Shadow DOM Open", component: ShadowDomOpen },
   { path: "/shadow-dom-closed", label: "Shadow DOM Closed", component: ShadowDomClosed },
   { path: "/private-fields", label: "Private Fields", component: PrivateFields },
+  { path: "/css-modules", label: "CSS Modules", component: CssModulesCase },
+  { path: "/css-grid", label: "CSS Grid", component: CssGridCase },
+  {
+    path: "/responsive-breakpoints",
+    label: "Responsive Breakpoints",
+    component: ResponsiveBreakpoints,
+  },
 ];
 
 function Nav(): ReactElement {

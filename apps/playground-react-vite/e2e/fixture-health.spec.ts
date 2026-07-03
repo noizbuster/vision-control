@@ -27,11 +27,14 @@ const ROUTES: readonly { path: string; label: string; selector: string }[] = [
   { path: "/shadow-dom-open", label: "Shadow DOM Open", selector: "main" },
   { path: "/shadow-dom-closed", label: "Shadow DOM Closed", selector: "main" },
   { path: "/private-fields", label: "Private Fields", selector: "form" },
+  { path: "/css-modules", label: "CSS Modules", selector: "main" },
+  { path: "/css-grid", label: "CSS Grid", selector: "main" },
+  { path: "/responsive-breakpoints", label: "Responsive Breakpoints", selector: "main" },
 ];
 
 test.describe("@fixture-health", () => {
-  test("all 17 fixture routes are defined", () => {
-    expect(ROUTES.length).toBe(17);
+  test("all 20 fixture routes are defined", () => {
+    expect(ROUTES.length).toBe(20);
     const paths = ROUTES.map((r) => r.path);
     const unique = new Set(paths);
     expect(unique.size).toBe(paths.length);
@@ -78,10 +81,10 @@ test.describe("@fixture-health", () => {
     // Assert: the iframe exists but its content cannot be inspected.
   });
 
-  test.fixme("nav bar lists all 17 routes", async ({ page }) => {
+  test.fixme("nav bar lists all 20 routes", async ({ page }) => {
     // Given: any route is loaded.
     // When: the nav bar renders.
-    // Then: 17 anchor links are present, one per route.
-    // Assert: nav a elements.length === 17.
+    // Then: 20 anchor links are present, one per route.
+    // Assert: nav a elements.length === 20.
   });
 });

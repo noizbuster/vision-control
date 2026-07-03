@@ -9,19 +9,48 @@
  * Preview is NOT source truth (PRD §13, Appendix D.1).
  */
 
-export { applyClassPreview, type ClassOperation } from "./adapters/class-adapter.js";
-export { assertNever, type RollbackFn } from "./adapters/preview-adapter.js";
 export {
+  applyBreakpointClassEditPreview,
+  applyClassPreview,
+  applySetAttributePreview,
+  type ClassOperation,
+} from "./adapters/class-adapter.js";
+export {
+  applyDuplicateElementPreview,
+  applyInsertElementPreview,
+  applyRemoveElementPreview,
+  applyStructuralMutationPreview,
+  applyUnwrapElementPreview,
+  applyWrapElementsPreview,
+  type MutationOperation,
+} from "./adapters/mutation-adapter.js";
+export {
+  assertNever,
+  noopRollback,
+  type RollbackFn,
+  UnsupportedPreviewOperationError,
+} from "./adapters/preview-adapter.js";
+export {
+  applyGridReorderPreview,
+  applyGroupReorderPreview,
+  applyGroupReparentPreview,
   applyReorderPreview,
   applyReparentPreview,
+  applyStructuralMovePreview,
   applyStructuralPreview,
+  type StructuralMoveOperation,
   type StructuralOperation,
 } from "./adapters/structural-adapter.js";
 export {
+  applyPositionElementPreview,
+  applyRemoveStylePreview,
   applyResizePreview,
   applyStylePreview,
 } from "./adapters/style-adapter.js";
-export { applyTextPreview } from "./adapters/text-adapter.js";
+export {
+  applyBreakpointTextEditPreview,
+  applyTextPreview,
+} from "./adapters/text-adapter.js";
 export { applyTransformPreview, type TransformPreviewInput } from "./adapters/transform-adapter.js";
 export {
   detectSpecificityConflict,

@@ -8,8 +8,12 @@ import {
   childTexts,
   createRecordingGhostRenderer,
   createTestDomAdapter,
+  elementRef,
   FakeMutationObserver,
   makeClassAdd,
+  makeGridReorder,
+  makeGroupReorder,
+  makeGroupReparent,
   makeReorder,
   makeRuntimeStyleEdit,
   makeStyleEdit,
@@ -45,6 +49,24 @@ function registerDiv(dom: PreviewDomAdapter, id: string, text?: string): HTMLEle
   dom.registerElement(id, el);
   document.body.appendChild(el);
   return el;
+}
+
+function regParentWithChildren(
+  dom: PreviewDomAdapter,
+  parentId: string,
+  labels: readonly string[],
+): HTMLElement {
+  const parent = document.createElement("div");
+  dom.registerElement(parentId, parent);
+  document.body.appendChild(parent);
+  for (const [id, label] of labels.map((l, i) => [`rt-c${i + 1}0001`, l] as const)) {
+    const child = document.createElement("div");
+    child.textContent = label;
+    child.id = id;
+    dom.registerElement(id, child);
+    parent.appendChild(child);
+  }
+  return parent;
 }
 
 describe("preview-engine integration", () => {
@@ -205,6 +227,96 @@ describe("preview-engine integration", () => {
 
       manager.clearAll();
       expect(manager.hasSimulatedPreviews).toBe(false);
+    });
+
+    it("grid-reorder revert activates ghost and preserves the operation (PRD §13.4)", () => {
+      const { renderer, showCalls } = createRecordingGhostRenderer();
+      const dom = createTestDomAdapter(FakeMutationObserver);
+      const manager = createPreviewManager({ dom, ghostRenderer: renderer });
+
+      const grid = regParentWithChildren(dom, "rt-grid0001", ["A", "B", "C"]);
+
+      manager.applyOperation(makeGridReorder("rt-grid0001", "rt-c30001", "dom-order", 2, 0));
+      expect(childTexts(grid)).toEqual(["C", "A", "B"]);
+      expect(manager.hasSimulatedPreviews).toBe(false);
+      expect(manager.activeCount).toBe(1);
+
+      const tracked = dom.resolveElement("rt-c30001");
+      if (tracked === null) throw new Error("grid child fixture not registered");
+      FakeMutationObserver.instances.at(-1)?.simulateRemoval(tracked);
+
+      expect(manager.hasSimulatedPreviews).toBe(true);
+      expect(showCalls).toHaveLength(1);
+      expect(manager.activeCount).toBe(1);
+
+      manager.clearAll();
+      expect(manager.hasSimulatedPreviews).toBe(false);
+      expect(manager.activeCount).toBe(0);
+      expect(childTexts(grid)).toEqual(["A", "B", "C"]);
+    });
+
+    it("group-reorder revert activates ghost and preserves the operation (PRD §13.4)", () => {
+      const { renderer, showCalls } = createRecordingGhostRenderer();
+      const dom = createTestDomAdapter(FakeMutationObserver);
+      const manager = createPreviewManager({ dom, ghostRenderer: renderer });
+
+      const parent = regParentWithChildren(dom, "rt-parent001", ["A", "B", "C"]);
+
+      manager.applyOperation(
+        makeGroupReorder(
+          "rt-parent001",
+          [elementRef("rt-c10001"), elementRef("rt-c20001"), elementRef("rt-c30001")],
+          [0, 1, 2],
+          [2, 0, 1],
+        ),
+      );
+      expect(childTexts(parent)).toEqual(["C", "A", "B"]);
+      expect(manager.hasSimulatedPreviews).toBe(false);
+      expect(manager.activeCount).toBe(1);
+
+      const tracked = dom.resolveElement("rt-c10001");
+      if (tracked === null) throw new Error("group child fixture not registered");
+      FakeMutationObserver.instances.at(-1)?.simulateRemoval(tracked);
+
+      expect(manager.hasSimulatedPreviews).toBe(true);
+      expect(showCalls).toHaveLength(1);
+      expect(manager.activeCount).toBe(1);
+
+      manager.clearAll();
+      expect(manager.hasSimulatedPreviews).toBe(false);
+      expect(manager.activeCount).toBe(0);
+      expect(childTexts(parent)).toEqual(["A", "B", "C"]);
+    });
+
+    it("group-reparent revert activates ghost and preserves the operation (PRD §13.4)", () => {
+      const { renderer, showCalls } = createRecordingGhostRenderer();
+      const dom = createTestDomAdapter(FakeMutationObserver);
+      const manager = createPreviewManager({ dom, ghostRenderer: renderer });
+
+      const source = regParentWithChildren(dom, "rt-src0001", ["A", "B"]);
+      const target = document.createElement("div");
+      dom.registerElement("rt-tgt0001", target);
+      document.body.appendChild(target);
+
+      manager.applyOperation(
+        makeGroupReparent([elementRef("rt-c10001")], "rt-src0001", [0], "rt-tgt0001", [0]),
+      );
+      const moved = dom.resolveElement("rt-c10001");
+      if (moved === null) throw new Error("reparented child fixture not registered");
+      expect(moved.parentElement).toBe(target);
+      expect(manager.hasSimulatedPreviews).toBe(false);
+      expect(manager.activeCount).toBe(1);
+
+      FakeMutationObserver.instances.at(-1)?.simulateRemoval(moved);
+
+      expect(manager.hasSimulatedPreviews).toBe(true);
+      expect(showCalls).toHaveLength(1);
+      expect(manager.activeCount).toBe(1);
+
+      manager.clearAll();
+      expect(manager.hasSimulatedPreviews).toBe(false);
+      expect(manager.activeCount).toBe(0);
+      expect(source.contains(moved)).toBe(true);
     });
   });
 

@@ -12,11 +12,23 @@
 
 import type { Operation } from "@vision-control/change-ir";
 
-import { applyClassPreview } from "./adapters/class-adapter.js";
-import type { RollbackFn } from "./adapters/preview-adapter.js";
-import { applyStructuralPreview } from "./adapters/structural-adapter.js";
-import { applyResizePreview, applyStylePreview } from "./adapters/style-adapter.js";
-import { applyTextPreview } from "./adapters/text-adapter.js";
+import {
+  applyBreakpointClassEditPreview,
+  applyClassPreview,
+  applySetAttributePreview,
+} from "./adapters/class-adapter.js";
+import {
+  noopRollback,
+  type RollbackFn,
+  UnsupportedPreviewOperationError,
+} from "./adapters/preview-adapter.js";
+import { applyStructuralPreview, type StructuralOperation } from "./adapters/structural-adapter.js";
+import {
+  applyPositionElementPreview,
+  applyRemoveStylePreview,
+  applyStylePreview,
+} from "./adapters/style-adapter.js";
+import { applyBreakpointTextEditPreview, applyTextPreview } from "./adapters/text-adapter.js";
 import { applyTransformPreview } from "./adapters/transform-adapter.js";
 import { detectSpecificityConflict, type SpecificityConflictDiagnostic } from "./diagnostics.js";
 import type { PreviewDomAdapter } from "./dom-adapter.js";
@@ -30,8 +42,11 @@ import {
   type GhostRenderer,
   type SimulatedPreview,
 } from "./simulated-preview.js";
-import type { StylesheetManager } from "./stylesheet-manager.js";
-import { createStylesheetManager } from "./stylesheet-manager.js";
+import {
+  applyCssRule,
+  createStylesheetManager,
+  type StylesheetManager,
+} from "./stylesheet-manager.js";
 
 interface TrackedEntry {
   readonly rollback: RollbackFn;
@@ -100,12 +115,27 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
     return { rollback, observer: null, simulated: null };
   };
 
-  const dispatchStructural = (
-    op: Extract<Operation, { kind: "reorder-child" | "reparent-element" }>,
-  ): DispatchResult => {
+  const structuralObserverTargetId = (op: StructuralOperation): string | null => {
+    switch (op.kind) {
+      case "reorder-child":
+        return op.child.runtimeId;
+      case "reparent-element":
+        return op.element.runtimeId;
+      case "grid-reorder":
+        return op.placement === "dom-order" ? op.child.runtimeId : null;
+      case "group-reorder":
+        return op.children[0]?.runtimeId ?? null;
+      case "group-reparent":
+        return op.elements[0]?.runtimeId ?? null;
+      default:
+        return null;
+    }
+  };
+
+  const dispatchStructural = (op: StructuralOperation): DispatchResult => {
     const innerRollback = applyStructuralPreview(dom, op);
-    const targetId = op.kind === "reparent-element" ? op.element.runtimeId : op.child.runtimeId;
-    const element = dom.resolveElement(targetId);
+    const targetId = structuralObserverTargetId(op);
+    const element = targetId !== null ? dom.resolveElement(targetId) : null;
 
     let observer: ReconciliationObserver | null = null;
     let simulated: SimulatedPreview | null = null;
@@ -133,55 +163,116 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
     return { rollback, observer, simulated };
   };
 
+  const noopDispatch = (): DispatchResult => ({
+    rollback: noopRollback,
+    observer: null,
+    simulated: null,
+  });
+
+  const cssDispatch = (runtimeId: string, declarations: string): DispatchResult => ({
+    rollback: applyCssRule(stylesheet, runtimeId, declarations),
+    observer: null,
+    simulated: null,
+  });
+
+  // allow: SIZE_OK — exhaustive Operation.kind dispatch over a 30-variant
+  // discriminated union. Splitting the switch would break the compile-time
+  // exhaustiveness guarantee (the `never` default branch) that makes a missing
+  // kind a type error. Mirrors the changeset.ts computeInverse precedent.
   const dispatch = (operation: Operation): DispatchResult => {
     switch (operation.kind) {
       case "style-edit":
         return dispatchStyleEdit(operation);
       case "resize-element":
-        return {
-          rollback: applyResizePreview(stylesheet, operation),
-          observer: null,
-          simulated: null,
-        };
+        return cssDispatch(
+          operation.element.runtimeId,
+          `${operation.property}: ${operation.toValue}${operation.unit};`,
+        );
       case "class-add":
       case "class-remove":
       case "class-replace":
         return { rollback: applyClassPreview(dom, operation), observer: null, simulated: null };
       case "text-edit":
         return { rollback: applyTextPreview(dom, operation), observer: null, simulated: null };
+      case "remove-style":
+        return {
+          rollback: applyRemoveStylePreview(stylesheet, operation),
+          observer: null,
+          simulated: null,
+        };
+      case "position-element":
+        return {
+          rollback: applyPositionElementPreview(stylesheet, operation),
+          observer: null,
+          simulated: null,
+        };
+      case "set-attribute":
+        return {
+          rollback: applySetAttributePreview(dom, operation),
+          observer: null,
+          simulated: null,
+        };
+      case "breakpoint-style-edit":
+        return cssDispatch(
+          operation.target.runtimeId,
+          `${operation.property}: ${operation.value}${operation.important ? " !important" : ""};`,
+        );
+      case "breakpoint-class-edit":
+        return {
+          rollback: applyBreakpointClassEditPreview(dom, operation),
+          observer: null,
+          simulated: null,
+        };
+      case "breakpoint-text-edit":
+        return {
+          rollback: applyBreakpointTextEditPreview(dom, operation),
+          observer: null,
+          simulated: null,
+        };
+      case "set-container-layout":
+        return cssDispatch(
+          operation.container.runtimeId,
+          `${operation.property}: ${operation.value};`,
+        );
+      case "set-child-sizing":
+        return operation.value !== undefined
+          ? cssDispatch(operation.child.runtimeId, `${operation.value};`)
+          : noopDispatch();
+      case "grid-span":
+        return cssDispatch(
+          operation.child.runtimeId,
+          `grid-${operation.axis}: span ${operation.toSpan};`,
+        );
+      case "grid-reorder":
+        if (operation.placement === "grid-area" && operation.newGridArea !== undefined) {
+          return cssDispatch(operation.child.runtimeId, `grid-area: ${operation.newGridArea};`);
+        }
+        return dispatchStructural(operation);
       case "reorder-child":
       case "reparent-element":
-        return dispatchStructural(operation);
-      case "multi-select-group":
       case "group-reorder":
       case "group-reparent":
-      case "align-elements":
-      case "distribute-elements":
-      case "set-container-layout":
-      case "set-child-sizing":
-      case "grid-reorder":
-      case "grid-span":
-      case "breakpoint-style-edit":
-      case "breakpoint-class-edit":
-      case "breakpoint-text-edit":
-      case "screenshot-crop-ref":
-      case "suggested-diff":
-      case "remove-style":
-      case "set-attribute":
-      case "position-element":
       case "insert-element":
       case "remove-element":
       case "duplicate-element":
       case "wrap-elements":
       case "unwrap-element":
-        // V1/structural operation kinds have schemas + inverses (change-ir) but
-        // their preview rendering lands in a later wave. No UI emits them yet,
-        // so this path is unreachable until then.
-        throw new Error(`Preview not yet implemented for operation kind: ${operation.kind}`);
+        return dispatchStructural(operation);
+      // Metadata-only or content-side-resolved kinds: no DOM mutation here.
+      // screenshot-crop-ref / suggested-diff are inert artifacts; multi-select-group
+      // records a selection; align/distribute carry geometry the content-side layer
+      // resolves before applying (Task 20). All remain tracked so clearAll resets them.
+      case "align-elements":
+      case "distribute-elements":
+      case "multi-select-group":
+      case "screenshot-crop-ref":
+      case "suggested-diff":
+        return noopDispatch();
       default: {
-        const _: never = operation;
-        _;
-        throw new Error("Unsupported operation kind");
+        const exhaustive: never = operation;
+        throw new UnsupportedPreviewOperationError(
+          (exhaustive as { kind?: string }).kind ?? "unknown",
+        );
       }
     }
   };

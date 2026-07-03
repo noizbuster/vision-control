@@ -4,13 +4,35 @@
  */
 
 import type {
+  AlignElementsOperation,
+  BreakpointClassEditOperation,
+  BreakpointStyleEditOperation,
+  BreakpointTextEditOperation,
   ClassAddOperation,
   ClassRemoveOperation,
+  DistributeElementsOperation,
+  DuplicateElementOperation,
   ElementRef,
+  GridReorderOperation,
+  GridSpanOperation,
+  GroupReorderOperation,
+  GroupReparentOperation,
+  InsertElementOperation,
+  MultiSelectGroupOperation,
+  PositionElementOperation,
+  RemoveElementOperation,
+  RemoveStyleOperation,
   ReorderChildOperation,
   ReparentElementOperation,
+  ScreenshotCropRefOperation,
+  SetAttributeOperation,
+  SetChildSizingOperation,
+  SetContainerLayoutOperation,
   StyleEditOperation,
+  SuggestedDiffOperation,
   TextEditOperation,
+  UnwrapElementOperation,
+  WrapElementsOperation,
 } from "@vision-control/change-ir";
 
 import type { GhostRenderer, PreviewDomAdapter, PreviewRect } from "../index.js";
@@ -159,6 +181,427 @@ export function makeRuntimeStyleEdit(
     important: true,
     timestamp: 0,
     runtime: true,
+    ...opDefaults,
+  };
+}
+
+export function makeRemoveStyle(
+  runtimeId: string,
+  property: string,
+  previousValue?: string,
+): RemoveStyleOperation {
+  return {
+    id: makeOpId("rmst"),
+    kind: "remove-style",
+    target: elementRef(runtimeId),
+    property,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+    ...(previousValue !== undefined ? { previousValue } : {}),
+  };
+}
+
+export function makeSetAttribute(
+  runtimeId: string,
+  name: string,
+  value: string,
+  previousValue?: string,
+): SetAttributeOperation {
+  return {
+    id: makeOpId("attr"),
+    kind: "set-attribute",
+    target: elementRef(runtimeId),
+    name,
+    value,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+    ...(previousValue !== undefined ? { previousValue } : {}),
+  };
+}
+
+export function makePositionElement(
+  runtimeId: string,
+  fromValue: string,
+  toValue: string,
+): PositionElementOperation {
+  return {
+    id: makeOpId("pos"),
+    kind: "position-element",
+    target: elementRef(runtimeId),
+    property: "position",
+    fromValue,
+    toValue,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeMultiSelectGroup(
+  groupId: string,
+  targets: ElementRef[],
+  previousTargets?: ElementRef[],
+): MultiSelectGroupOperation {
+  return {
+    id: makeOpId("msg"),
+    kind: "multi-select-group",
+    targets,
+    groupId,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+    ...(previousTargets !== undefined ? { previousTargets } : {}),
+  };
+}
+
+export function makeGroupReorder(
+  parentId: string,
+  children: ElementRef[],
+  previousOrder: number[],
+  newOrder: number[],
+): GroupReorderOperation {
+  return {
+    id: makeOpId("grp"),
+    kind: "group-reorder",
+    parent: elementRef(parentId),
+    children,
+    previousOrder,
+    newOrder,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeGroupReparent(
+  elements: ElementRef[],
+  sourceParentId: string,
+  sourceIndices: number[],
+  targetParentId: string,
+  targetIndices: number[],
+): GroupReparentOperation {
+  return {
+    id: makeOpId("grpp"),
+    kind: "group-reparent",
+    elements,
+    sourceParent: elementRef(sourceParentId),
+    sourceIndices,
+    targetParent: elementRef(targetParentId),
+    targetIndices,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeAlignElements(
+  targets: ElementRef[],
+  alignment: AlignElementsOperation["alignment"],
+  previousValues: string[] = [],
+  newValues: string[] = [],
+): AlignElementsOperation {
+  return {
+    id: makeOpId("algn"),
+    kind: "align-elements",
+    targets,
+    alignment,
+    previousValues,
+    newValues,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeDistributeElements(
+  targets: ElementRef[],
+  axis: DistributeElementsOperation["axis"],
+  mode: DistributeElementsOperation["mode"],
+  previousGaps: string[] = [],
+  newGaps: string[] = [],
+): DistributeElementsOperation {
+  return {
+    id: makeOpId("dstr"),
+    kind: "distribute-elements",
+    targets,
+    axis,
+    mode,
+    previousGaps,
+    newGaps,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeSetContainerLayout(
+  containerId: string,
+  property: string,
+  value: string,
+  previousValue?: string,
+): SetContainerLayoutOperation {
+  return {
+    id: makeOpId("scl"),
+    kind: "set-container-layout",
+    container: elementRef(containerId),
+    property,
+    value,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+    ...(previousValue !== undefined ? { previousValue } : {}),
+  };
+}
+
+export function makeSetChildSizing(
+  containerId: string,
+  childId: string,
+  childIndex: number,
+  sizing: SetChildSizingOperation["sizing"],
+  value?: string,
+): SetChildSizingOperation {
+  return {
+    id: makeOpId("scs"),
+    kind: "set-child-sizing",
+    container: elementRef(containerId),
+    childIndex,
+    child: elementRef(childId),
+    sizing,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+    ...(value !== undefined ? { value } : {}),
+  };
+}
+
+export function makeGridReorder(
+  gridId: string,
+  childId: string,
+  placement: GridReorderOperation["placement"],
+  fromIndex: number,
+  toIndex: number,
+  newGridArea?: string,
+): GridReorderOperation {
+  return {
+    id: makeOpId("grr"),
+    kind: "grid-reorder",
+    grid: elementRef(gridId),
+    child: elementRef(childId),
+    placement,
+    fromIndex,
+    toIndex,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+    ...(newGridArea !== undefined ? { newGridArea } : {}),
+  };
+}
+
+export function makeGridSpan(
+  gridId: string,
+  childId: string,
+  axis: GridSpanOperation["axis"],
+  fromSpan: number,
+  toSpan: number,
+): GridSpanOperation {
+  return {
+    id: makeOpId("gsp"),
+    kind: "grid-span",
+    grid: elementRef(gridId),
+    child: elementRef(childId),
+    axis,
+    fromSpan,
+    toSpan,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeBreakpointStyleEdit(
+  runtimeId: string,
+  breakpoint: string,
+  property: string,
+  value: string,
+): BreakpointStyleEditOperation {
+  return {
+    id: makeOpId("bpse"),
+    kind: "breakpoint-style-edit",
+    breakpoint,
+    target: elementRef(runtimeId),
+    property,
+    value,
+    important: false,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeBreakpointClassEdit(
+  runtimeId: string,
+  breakpoint: string,
+  oldClassName: string,
+  newClassName: string,
+): BreakpointClassEditOperation {
+  return {
+    id: makeOpId("bpce"),
+    kind: "breakpoint-class-edit",
+    breakpoint,
+    target: elementRef(runtimeId),
+    oldClassName,
+    newClassName,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeBreakpointTextEdit(
+  runtimeId: string,
+  breakpoint: string,
+  newText: string,
+): BreakpointTextEditOperation {
+  return {
+    id: makeOpId("bpte"),
+    kind: "breakpoint-text-edit",
+    breakpoint,
+    target: elementRef(runtimeId),
+    newText,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeScreenshotCropRef(
+  artifactId: string,
+  captureRegion: { x: number; y: number; width: number; height: number },
+): ScreenshotCropRefOperation {
+  return {
+    id: makeOpId("scr"),
+    kind: "screenshot-crop-ref",
+    target: elementRef("rt-screenshot"),
+    artifactId,
+    captureRegion,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeSuggestedDiff(diff: string): SuggestedDiffOperation {
+  return {
+    id: makeOpId("sdf"),
+    kind: "suggested-diff",
+    diff,
+    sourceRanges: [],
+    preconditions: [],
+    applied: false,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+    confidence: "high",
+  };
+}
+
+export function makeInsertElement(
+  elementId: string,
+  parentId: string,
+  index: number,
+  tagName: string,
+  attributes?: Record<string, string>,
+): InsertElementOperation {
+  return {
+    id: makeOpId("ins"),
+    kind: "insert-element",
+    element: elementRef(elementId),
+    parent: elementRef(parentId),
+    index,
+    tagName,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+    ...(attributes !== undefined ? { attributes } : {}),
+  };
+}
+
+export function makeRemoveElement(
+  elementId: string,
+  parentId: string,
+  index: number,
+  tagName: string,
+): RemoveElementOperation {
+  return {
+    id: makeOpId("rem"),
+    kind: "remove-element",
+    element: elementRef(elementId),
+    parent: elementRef(parentId),
+    index,
+    tagName,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeDuplicateElement(
+  sourceId: string,
+  duplicateId: string,
+  parentId: string,
+  index: number,
+  tagName: string,
+): DuplicateElementOperation {
+  return {
+    id: makeOpId("dup"),
+    kind: "duplicate-element",
+    source: elementRef(sourceId),
+    duplicate: elementRef(duplicateId),
+    parent: elementRef(parentId),
+    index,
+    tagName,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeWrapElements(
+  targetIds: string[],
+  wrapperId: string,
+  parentId: string,
+  tagName: string,
+): WrapElementsOperation {
+  return {
+    id: makeOpId("wrp"),
+    kind: "wrap-elements",
+    targets: targetIds.map((id) => elementRef(id)),
+    wrapper: elementRef(wrapperId),
+    parent: elementRef(parentId),
+    tagName,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+  };
+}
+
+export function makeUnwrapElement(
+  wrapperId: string,
+  parentId: string,
+  tagName: string,
+  targetIds: string[],
+): UnwrapElementOperation {
+  return {
+    id: makeOpId("unwr"),
+    kind: "unwrap-element",
+    wrapper: elementRef(wrapperId),
+    parent: elementRef(parentId),
+    tagName,
+    targets: targetIds.map((id) => elementRef(id)),
+    timestamp: 0,
+    runtime: false,
     ...opDefaults,
   };
 }

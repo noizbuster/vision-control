@@ -6,7 +6,12 @@
  * fundamentally a style rule application.
  */
 
-import type { ResizeElementOperation, StyleEditOperation } from "@vision-control/change-ir";
+import type {
+  PositionElementOperation,
+  RemoveStyleOperation,
+  ResizeElementOperation,
+  StyleEditOperation,
+} from "@vision-control/change-ir";
 import type { StylesheetManager } from "../stylesheet-manager.js";
 import { applyCssRule } from "../stylesheet-manager.js";
 import type { RollbackFn } from "./preview-adapter.js";
@@ -26,4 +31,27 @@ export function applyResizePreview(
 ): RollbackFn {
   const declarations = `${operation.property}: ${operation.toValue}${operation.unit};`;
   return applyCssRule(stylesheet, operation.element.runtimeId, declarations);
+}
+
+/**
+ * Remove-style preview: an inline declaration cannot be unset from outside the
+ * element, so the preview overrides it with the prior value (or `unset`) via a
+ * high-specificity `!important` rule. Rollback removes the rule.
+ */
+export function applyRemoveStylePreview(
+  stylesheet: StylesheetManager,
+  operation: RemoveStyleOperation,
+): RollbackFn {
+  const restoreValue = operation.previousValue ?? "unset";
+  const important = operation.important ? " !important" : "";
+  const declarations = `${operation.property}: ${restoreValue}${important};`;
+  return applyCssRule(stylesheet, operation.target.runtimeId, declarations);
+}
+
+export function applyPositionElementPreview(
+  stylesheet: StylesheetManager,
+  operation: PositionElementOperation,
+): RollbackFn {
+  const declarations = `position: ${operation.toValue};`;
+  return applyCssRule(stylesheet, operation.target.runtimeId, declarations);
 }

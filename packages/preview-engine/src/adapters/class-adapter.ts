@@ -5,9 +5,11 @@
  */
 
 import type {
+  BreakpointClassEditOperation,
   ClassAddOperation,
   ClassRemoveOperation,
   ClassReplaceOperation,
+  SetAttributeOperation,
 } from "@vision-control/change-ir";
 
 import type { PreviewDomAdapter } from "../dom-adapter.js";
@@ -34,6 +36,42 @@ export function applyClassPreview(dom: PreviewDomAdapter, operation: ClassOperat
       list.add(operation.newClassName);
       break;
   }
+
+  return (): void => {
+    element.className = original;
+  };
+}
+
+export function applySetAttributePreview(
+  dom: PreviewDomAdapter,
+  operation: SetAttributeOperation,
+): RollbackFn {
+  const element = dom.resolveElement(operation.target.runtimeId);
+  if (element === null) return noopRollback;
+
+  const hadAttribute = element.hasAttribute(operation.name);
+  const previous = element.getAttribute(operation.name) ?? "";
+  element.setAttribute(operation.name, operation.value);
+
+  return (): void => {
+    if (hadAttribute) {
+      element.setAttribute(operation.name, previous);
+    } else {
+      element.removeAttribute(operation.name);
+    }
+  };
+}
+
+export function applyBreakpointClassEditPreview(
+  dom: PreviewDomAdapter,
+  operation: BreakpointClassEditOperation,
+): RollbackFn {
+  const element = dom.resolveElement(operation.target.runtimeId);
+  if (element === null) return noopRollback;
+
+  const original = element.className;
+  element.classList.remove(operation.oldClassName);
+  element.classList.add(operation.newClassName);
 
   return (): void => {
     element.className = original;

@@ -13,7 +13,7 @@ const AUTH_TOKEN = "test-token-1234567890";
 
 describe("mcp-server HTTP auth", () => {
   it("rejects requests without Authorization header", () => {
-    const req = mockRequest("http://127.0.0.1:4322/mcp", {});
+    const req = mockRequest("http://127.0.0.1:4322/mcp", { origin: "http://localhost:5173" });
     const result = checkAuth(req, { token: AUTH_TOKEN });
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -23,7 +23,10 @@ describe("mcp-server HTTP auth", () => {
   });
 
   it("rejects requests with wrong token", () => {
-    const req = mockRequest("http://127.0.0.1:4322/mcp", { authorization: "Bearer wrong-token" });
+    const req = mockRequest("http://127.0.0.1:4322/mcp", {
+      origin: "http://localhost:5173",
+      authorization: "Bearer wrong-token",
+    });
     const result = checkAuth(req, { token: AUTH_TOKEN });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("UNAUTHORIZED");
@@ -48,10 +51,14 @@ describe("mcp-server HTTP auth", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("accepts requests with no origin (non-browser clients)", () => {
+  it("rejects requests with no origin (mirrors daemon-core strict origin check)", () => {
     const req = mockRequest("http://127.0.0.1:4322/mcp", { authorization: `Bearer ${AUTH_TOKEN}` });
     const result = checkAuth(req, { token: AUTH_TOKEN });
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("ORIGIN_NOT_ALLOWED");
+      expect(result.status).toBe(403);
+    }
   });
 });
 
@@ -75,6 +82,7 @@ describe("mcp-server HTTP transport", () => {
       headers: {
         "content-type": "application/json",
         accept: "application/json, text/event-stream",
+        origin: "http://localhost:5173",
         authorization: `Bearer ${AUTH_TOKEN}`,
       },
       body: mcpRequest("tools/list"),
@@ -88,7 +96,7 @@ describe("mcp-server HTTP transport", () => {
 
     const response = await fetch(`http://127.0.0.1:${handle.port}/mcp`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", origin: "http://localhost:5173" },
       body: mcpRequest("tools/list"),
     });
     expect(response.status).toBe(401);
@@ -96,6 +104,23 @@ describe("mcp-server HTTP transport", () => {
     expect(body.error).toBe("UNAUTHORIZED");
     expect(JSON.stringify(body)).not.toContain("session");
     expect(JSON.stringify(body)).not.toContain("selection");
+  });
+
+  it("rejects requests with no Origin header even with a valid token", async () => {
+    const server = createMcpServer(createStubDeps());
+    handle = await startHttpTransport(server, { port: 0, auth: { token: AUTH_TOKEN } });
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/mcp`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${AUTH_TOKEN}`,
+      },
+      body: mcpRequest("tools/list"),
+    });
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { error: string };
+    expect(body.error).toBe("ORIGIN_NOT_ALLOWED");
   });
 
   it("refuses to bind to non-loopback hosts", async () => {

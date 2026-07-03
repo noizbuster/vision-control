@@ -51,7 +51,7 @@ const constantTimeEquals = (a: string, b: string): boolean => {
 export function checkAuth(req: IncomingMessage, config: AuthConfig): AuthResult {
   const allowlist = config.originAllowlist ?? defaultAllowlistConfig();
   const origin = req.headers.origin ?? "";
-  if (origin.length > 0 && !isOriginAllowed(origin, allowlist)) {
+  if (!isOriginAllowed(origin, allowlist)) {
     return {
       ok: false,
       code: "ORIGIN_NOT_ALLOWED",

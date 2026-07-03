@@ -1,0 +1,12 @@
+{
+  "$comment": "Pi MCP server entry for the loopback HTTP transport. Launch the endpoint first with a small script (see README), then map these fields onto Pi's current MCP client settings. Replace change-me with the token your launcher reads from VC_MCP_TOKEN. The transport binds to 127.0.0.1 only (ADR-013).",
+  "servers": {
+    "vision-control": {
+      "transport": "http",
+      "url": "http://127.0.0.1:4322/mcp",
+      "headers": {
+        "Authorization": "Bearer change-me"
+      }
+    }
+  }
+}

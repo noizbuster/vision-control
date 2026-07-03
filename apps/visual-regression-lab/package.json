@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/visual-regression-lab",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Test-fixture app skeleton for @vision-control/visual-regression-lab.",
@@ -17,6 +17,7 @@
   ],
   "devDependencies": {
     "@types/node": "catalog:",
+    "@vision-control/verification-engine": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -1,0 +1,13 @@
+{
+  "$comment": "OpenCode MCP config for the stdio transport. Drop this into your opencode.json (project or user config). Replace VC_DAEMON_URL only if your daemon is not on the default loopback port. The server is read-only: no source-writing tool exists.",
+  "mcp": {
+    "vision-control": {
+      "type": "local",
+      "command": ["pnpm", "exec", "vision-control-mcp"],
+      "enabled": true,
+      "environment": {
+        "VC_DAEMON_URL": "http://127.0.0.1:4321"
+      }
+    }
+  }
+}

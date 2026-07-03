@@ -1,0 +1,13 @@
+{
+  "$comment": "OpenCode MCP config for the loopback HTTP transport. Launch the endpoint first with a small script (see README), then point OpenCode at it. Replace change-me with the token your launcher reads from VC_MCP_TOKEN. The transport binds to 127.0.0.1 only (ADR-013).",
+  "mcp": {
+    "vision-control": {
+      "type": "url",
+      "url": "http://127.0.0.1:4322/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer change-me"
+      }
+    }
+  }
+}

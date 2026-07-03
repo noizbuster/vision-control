@@ -252,6 +252,125 @@ describe("context-compiler", () => {
       expect(markdown).toContain("style-edit");
       expect(markdown).toContain("source");
     });
+
+    it("renders V1 multi-select, breakpoint, and confidence-detail sections", () => {
+      const markdown = renderMarkdown(
+        redactContext(
+          compileContext(
+            makeInputs({
+              multiSelect: {
+                groupId: "grp-v1-test-0001",
+                targets: [
+                  { runtimeId: "rt-a", sourceId: "src-a", selectors: [".a"] },
+                  { runtimeId: "rt-b", selectors: [".b"] },
+                ],
+              },
+              breakpoint: {
+                activeViewport: "tablet",
+                responsivePrefix: "md",
+                scopedChangeCount: 2,
+              },
+              sourceConfidenceDetail: {
+                method: "marker",
+                reasons: ["source marker resolved"],
+                warnings: [],
+              },
+            }),
+          ),
+        ),
+      );
+      expect(markdown).toContain("## Multi-Select Group");
+      expect(markdown).toContain("grp-v1-test-0001");
+      expect(markdown).toContain("## Breakpoint Context");
+      expect(markdown).toContain("tablet");
+      expect(markdown).toContain("## Source Confidence Detail");
+      expect(markdown).toContain("marker");
+    });
+
+    it("renders V1 suggested diffs as inert candidate data", () => {
+      const markdown = renderMarkdown(
+        redactContext(
+          compileContext(
+            makeInputs({
+              suggestedDiffs: [
+                {
+                  diff: "-px-3\n+px-4",
+                  confidence: "high",
+                  preconditions: ["verify after HMR"],
+                  kind: "tailwind-token-replace",
+                  sourceRanges: [{ startLine: 10, startColumn: 0, endLine: 10, endColumn: 4 }],
+                },
+              ],
+            }),
+          ),
+        ),
+      );
+      expect(markdown).toContain("## Suggested Diffs");
+      expect(markdown).toContain("tailwind-token-replace");
+      expect(markdown).toContain("```diff");
+      expect(markdown).toContain("-px-3");
+    });
+
+    it("renders V1 screenshot ref metadata only (no image data)", () => {
+      const markdown = renderMarkdown(
+        redactContext(
+          compileContext(
+            makeInputs({
+              screenshotOptIn: true,
+              screenshotRef: {
+                artifactId: "shot-art-0001",
+                redactionSummary: { totalMasked: 3, postCaptureRecheck: "pass" },
+              },
+            }),
+          ),
+        ),
+      );
+      expect(markdown).toContain("## Screenshot Reference");
+      expect(markdown).toContain("shot-art-0001");
+      expect(markdown).toContain("3 masked");
+    });
+
+    it("renders V1 layout context, adapter warnings, token registry, and component props", () => {
+      const markdown = renderMarkdown(
+        redactContext(
+          compileContext(
+            makeInputs({
+              layoutContext: { gridColumns: 12, autoLayout: "fill" },
+              adapterWarnings: [
+                {
+                  code: "tailwind-dynamic",
+                  message: "dynamic class detected",
+                  severity: "warning",
+                },
+              ],
+              tokenRegistry: {
+                totalTokens: 42,
+                categories: { spacing: 20, color: 22 },
+                sources: ["tailwind", "css"],
+                conflictCount: 1,
+              },
+              componentProps: {
+                componentName: "Button",
+                framework: "react",
+                props: [
+                  { name: "variant", kind: "literal-string", editable: true, value: "primary" },
+                ],
+                ownershipRisk: "low",
+                warnings: [],
+              },
+            }),
+          ),
+        ),
+      );
+      expect(markdown).toContain("## Layout Context");
+      expect(markdown).toContain("Grid columns:** 12");
+      expect(markdown).toContain("## Adapter Warnings");
+      expect(markdown).toContain("dynamic class detected");
+      expect(markdown).toContain("## Token Registry");
+      expect(markdown).toContain("42");
+      expect(markdown).toContain("## Component Props");
+      expect(markdown).toContain("variant");
+    });
   });
 
   describe("TokenBudget truncation order", () => {
@@ -306,6 +425,119 @@ describe("context-compiler", () => {
       const large = budget.estimate({ a: "x".repeat(4000) });
       expect(large).toBeGreaterThan(small);
       expect(large).toBeGreaterThan(900);
+    });
+  });
+
+  describe("V1 optional fields", () => {
+    it("emits V1 fields when supplied and omits them when absent", () => {
+      const withV1 = compileContext(
+        makeInputs({
+          multiSelect: { groupId: "grp-1", targets: [{ selectors: ["a"] }] },
+          breakpoint: { activeViewport: "tablet", responsivePrefix: "md" },
+          sourceConfidenceDetail: { method: "marker", reasons: ["matched"], warnings: [] },
+          suggestedDiffs: [{ diff: "-a\n+b", confidence: "high", preconditions: ["static"] }],
+          layoutContext: { gridColumns: 3 },
+          adapterWarnings: [
+            { code: "dyn", message: "dynamic class", severity: "warning" as const },
+          ],
+        }),
+      );
+      expect(withV1.multiSelect?.groupId).toBe("grp-1");
+      expect(withV1.breakpoint?.responsivePrefix).toBe("md");
+      expect(withV1.sourceConfidenceDetail?.method).toBe("marker");
+      expect(withV1.suggestedDiffs).toHaveLength(1);
+      expect(withV1.layoutContext?.gridColumns).toBe(3);
+      expect(withV1.adapterWarnings).toHaveLength(1);
+      expect(CompiledContextSchema.safeParse(withV1).success).toBe(true);
+
+      const withoutV1 = compileContext(makeInputs());
+      expect(withoutV1.multiSelect).toBeUndefined();
+      expect(withoutV1.breakpoint).toBeUndefined();
+      expect(withoutV1.suggestedDiffs).toBeUndefined();
+    });
+
+    it("emits a token-registry summary when supplied and omits it when absent", () => {
+      const withTokens = compileContext(
+        makeInputs({
+          tokenRegistry: {
+            totalTokens: 42,
+            categories: { spacing: 20, color: 22 },
+            sources: ["tailwind-v3-config", "css-custom-property"],
+            conflictCount: 1,
+          },
+        }),
+      );
+      expect(withTokens.tokenRegistry?.totalTokens).toBe(42);
+      expect(withTokens.tokenRegistry?.categories.spacing).toBe(20);
+      expect(withTokens.tokenRegistry?.sources).toHaveLength(2);
+      expect(withTokens.tokenRegistry?.conflictCount).toBe(1);
+      expect(CompiledContextSchema.safeParse(withTokens).success).toBe(true);
+
+      const withoutTokens = compileContext(makeInputs());
+      expect(withoutTokens.tokenRegistry).toBeUndefined();
+    });
+
+    it("emits a component-props summary when supplied and omits it when absent", () => {
+      const withProps = compileContext(
+        makeInputs({
+          componentProps: {
+            componentName: "Button",
+            framework: "jsx",
+            props: [
+              {
+                name: "variant",
+                kind: "literal-string",
+                editable: true,
+                value: "secondary",
+                candidates: ["primary", "secondary", "danger"],
+              },
+              { name: "disabled", kind: "literal-boolean", editable: true, value: "false" },
+              { name: "onClick", kind: "identifier", editable: false },
+            ],
+            ownershipRisk: "high",
+            warnings: [],
+          },
+        }),
+      );
+      expect(withProps.componentProps?.componentName).toBe("Button");
+      expect(withProps.componentProps?.props).toHaveLength(3);
+      expect(withProps.componentProps?.props[0]?.editable).toBe(true);
+      expect(withProps.componentProps?.props[2]?.editable).toBe(false);
+      expect(withProps.componentProps?.ownershipRisk).toBe("high");
+      expect(CompiledContextSchema.safeParse(withProps).success).toBe(true);
+
+      const withoutProps = compileContext(makeInputs());
+      expect(withoutProps.componentProps).toBeUndefined();
+    });
+
+    it("emits an opt-in screenshot metadata ref only when explicitly opted in", () => {
+      const withShot = compileContext(
+        makeInputs({
+          screenshotOptIn: true,
+          screenshotRef: {
+            artifactId: "shot-1",
+            redactionReport: "r1",
+            redactionSummary: { totalMasked: 2, postCaptureRecheck: "pass" },
+          },
+        }),
+      );
+      expect(withShot.screenshotRef?.artifactId).toBe("shot-1");
+      expect(withShot.screenshotRef?.redactionSummary?.totalMasked).toBe(2);
+      expect(withShot.screenshotRef?.redactionSummary?.postCaptureRecheck).toBe("pass");
+      expect(withShot.screenshotRef && "image" in withShot.screenshotRef).toBe(false);
+      const withoutShot = compileContext(makeInputs());
+      expect(withoutShot.screenshotRef).toBeUndefined();
+    });
+
+    it("DROPS screenshotRef when opt-in is not explicitly enabled (misleading-success guard)", () => {
+      // A caller that supplies screenshotRef WITHOUT the explicit opt-in gate
+      // must never see it emitted — the gate is structural, not advisory.
+      const leaked = compileContext(makeInputs({ screenshotRef: { artifactId: "shot-leak" } }));
+      expect(leaked.screenshotRef).toBeUndefined();
+      const explicitOff = compileContext(
+        makeInputs({ screenshotOptIn: false, screenshotRef: { artifactId: "shot-off" } }),
+      );
+      expect(explicitOff.screenshotRef).toBeUndefined();
     });
   });
 
@@ -380,13 +612,17 @@ describe("context-compiler", () => {
     });
   });
 
-  describe("screenshot exclusion", () => {
-    it("does not include any screenshot or image artifact in the schema", () => {
+  describe("screenshot opt-in metadata ref", () => {
+    it("exposes only an opt-in metadata ref, never image/blob data fields", () => {
       const schemaKeys = Object.keys(CompiledContextSchema.shape);
+      // V1 adds `screenshotRef` as an opt-in metadata ref (artifact id +
+      // redaction report) — never image bytes, per ADR-011. The field is a
+      // ref, so no key may carry raw image/blob/picture data.
       const forbidden = schemaKeys.filter((key) =>
-        /screenshot|image|picture|snapshot-data/i.test(key),
+        /image|picture|snapshot-data|screenshot-blob|screenshot-data/i.test(key),
       );
       expect(forbidden).toEqual([]);
+      expect(schemaKeys).toContain("screenshotRef");
     });
   });
 });

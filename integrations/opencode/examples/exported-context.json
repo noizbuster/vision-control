@@ -1,0 +1,115 @@
+{
+  "$comment": "Sample of the JSON returned by the vision_get_source_context MCP tool. Every field is redacted by @vision-control/security#redactObject before it leaves the server (ADR-009). Paths are workspace-relative. No screenshot bytes are ever exposed (ADR-011). The suggestedDiff is INERT data (ADR-012): the MCP server never applies it. Values are illustrative, not from a real session.",
+  "goal": "Change the primary button background from blue to green and verify it persists after HMR.",
+  "target": {
+    "identity": {
+      "runtimeId": "r-42",
+      "sourceId": "src:App.tsx:12",
+      "fingerprint": "fp-button-primary-0a1b",
+      "confidence": "high",
+      "selectors": ["button.primary", "[data-testid='submit']"]
+    },
+    "semantic": {
+      "tagName": "button",
+      "role": "button",
+      "name": "Submit",
+      "description": "Primary submit button",
+      "textContentPreview": "Submit"
+    },
+    "breadcrumb": [
+      { "tagName": "html" },
+      { "tagName": "body" },
+      { "tagName": "main", "className": "layout" },
+      { "tagName": "form", "id": "checkout" },
+      { "tagName": "button", "className": "primary", "selector": "button.primary" }
+    ],
+    "computedStyle": {
+      "background-color": "rgb(37, 99, 235)",
+      "color": "rgb(255, 255, 255)",
+      "border-radius": "8px",
+      "padding": "8px 16px"
+    },
+    "boxModel": {
+      "contentWidth": 96,
+      "contentHeight": 32,
+      "positionX": 24,
+      "positionY": 480
+    },
+    "classList": [{ "name": "primary", "source": "static" }, { "name": "btn", "source": "static" }],
+    "attributes": [
+      { "name": "type", "value": "submit" },
+      { "name": "data-testid", "value": "submit" }
+    ]
+  },
+  "operations": [
+    {
+      "id": "op-001",
+      "kind": "style-edit",
+      "runtime": true,
+      "description": "Set background-color to green",
+      "target": "button.primary",
+      "detail": { "property": "background-color", "value": "rgb(22, 163, 74)" }
+    }
+  ],
+  "source": {
+    "candidates": [
+      {
+        "workspaceRelativePath": "src/components/Button.tsx",
+        "componentName": "Button",
+        "snippet": "<button className=\"primary\">Submit</button>",
+        "startLine": 12,
+        "endLine": 12,
+        "confidence": "high",
+        "warnings": []
+      }
+    ],
+    "bestCandidateIndex": 0
+  },
+  "layout": {
+    "parentMode": "flex",
+    "parentDisplay": "flex",
+    "parentFlexDirection": "row",
+    "siblingCount": 2,
+    "siblingIndex": 1
+  },
+  "verificationPlan": {
+    "assertions": [
+      { "description": "button.primary computed background-color equals rgb(22, 163, 74)" }
+    ],
+    "notes": "Assertions run against the post-HMR DOM. A pass means the source you wrote produces the visual state the user asked for."
+  },
+  "warnings": [],
+  "privacyReport": {
+    "redactions": [
+      {
+        "field": "target.attributes[cookie]",
+        "patternId": "cookie-name",
+        "description": "cookie value masked"
+      }
+    ],
+    "totalRedacted": 1
+  },
+  "metadata": {
+    "compiledAt": 1783180800,
+    "formatVersion": "1.1.0",
+    "tokenBudget": 8000,
+    "tokenEstimate": 612,
+    "truncated": false,
+    "truncatedSections": [],
+    "operationCount": 1
+  },
+  "suggestedDiffs": [
+    {
+      "$comment": "Inert candidate data (ADR-012). The MCP server does not apply this. Read it, check preconditions, and write the file yourself.",
+      "diff": "--- a/src/components/Button.tsx\n+++ b/src/components/Button.tsx\n@@ -12 +12 @@\n-<button className=\"primary bg-blue-600\">Submit</button>\n+<button className=\"primary bg-green-600\">Submit</button>\n",
+      "confidence": "high",
+      "preconditions": [
+        "className contains the static literal 'bg-blue-600'",
+        "the class is not composed from a dynamic expression"
+      ],
+      "kind": "tailwind-token-replace",
+      "sourceRanges": [{ "startLine": 12, "startColumn": 20, "endLine": 12, "endColumn": 33 }]
+    }
+  ],
+  "adapterWarnings": []
+}

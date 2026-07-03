@@ -64,4 +64,5 @@ export type {
   PatchStartedInput,
   SelectionSummary,
   SessionSummary,
+  SourceContextSuggestedDiff,
 } from "./types.js";

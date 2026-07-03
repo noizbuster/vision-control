@@ -43,8 +43,4 @@ Thumbs.db
 .env.*
 !.env.example
 
-# `.omo/` orchestration state is INTENTIONALLY committed: evidence, notepads,
-# plans, and boulder state are durable project artifacts.
-# Only ephemeral per-agent session logs are ignored (regenerable runtime).
-.omo/run-continuation/
-.omo/start-work/
+.omo

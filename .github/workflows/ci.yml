@@ -79,12 +79,196 @@ jobs:
         if: steps.e2e.outputs.run == 'true'
         run: pnpm nx affected -t e2e --base=${{ steps.nx-base.outputs.base }} --head=HEAD
 
+      # Package artifact validation (PRD §32.1). Real assertion: builds the
+      # extension and enforces the loopback-only / no-<all_urls> / no-excess
+      # permission contract from ADR-007 + ADR-016 + the PRD guardrails. Runs
+      # whenever e2e-relevant changes are detected (includes apps/extension/).
+      # The main-matrix job below runs the identical assertion unconditionally
+      # on every push to master.
       - name: Validate extension artifact
         if: steps.e2e.outputs.run == 'true'
         run: |
-          # Hardens to a real assertion once the extension packager lands (task 5+).
-          if [ -d apps/extension/dist ]; then
-            if [ ! -f apps/extension/dist/manifest.json ]; then
-              echo "note: apps/extension/dist/manifest.json not produced yet (extension packager is task 5+)."
-            fi
-          fi
+          set -euo pipefail
+          pnpm nx run extension:build
+          node --input-type=module <<'ASSERT'
+          import { readFileSync } from "node:fs";
+
+          const path = "apps/extension/.output/chrome-mv3/manifest.json";
+          let manifest;
+          try {
+            manifest = JSON.parse(readFileSync(path, "utf8"));
+          } catch (err) {
+            console.error(`EXTENSION VALIDATION FAILED: cannot read/parse ${path}: ${err.message}`);
+            process.exit(1);
+          }
+
+          const fail = (msg) => {
+            console.error(`EXTENSION VALIDATION FAILED: ${msg}`);
+            process.exit(1);
+          };
+
+          if (manifest.manifest_version !== 3) {
+            fail(`manifest_version must be 3, got ${manifest.manifest_version}`);
+          }
+
+          const perms = manifest.permissions ?? [];
+          const hostPerms = manifest.host_permissions ?? [];
+
+          if ([...perms, ...hostPerms].includes("<all_urls>")) {
+            fail("<all_urls> is forbidden (loopback-only, ADR-007/ADR-016)");
+          }
+
+          const ALLOWED_PERMS = new Set(["devtools", "storage", "activeTab", "scripting", "tabs", "webNavigation"]);
+          for (const p of perms) {
+            if (!ALLOWED_PERMS.has(p)) {
+              fail(`unexpected mandatory permission "${p}" (allowed: ${[...ALLOWED_PERMS].join(", ")})`);
+            }
+          }
+
+          if (perms.includes("debugger")) {
+            fail('"debugger" must be optional (optional_permissions), not mandatory');
+          }
+
+          const loopbackRe = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\/.*$/;
+          for (const h of hostPerms) {
+            if (!loopbackRe.test(h)) {
+              fail(`non-loopback host_permission forbidden: "${h}" (ADR-007)`);
+            }
+          }
+
+          for (const cs of manifest.content_scripts ?? []) {
+            for (const m of cs.matches ?? []) {
+              if (m === "<all_urls>") {
+                fail("<all_urls> in content_scripts.matches forbidden");
+              }
+              if (!loopbackRe.test(m)) {
+                fail(`non-loopback content_scripts match forbidden: "${m}"`);
+              }
+            }
+          }
+
+          console.log("Extension manifest OK:", JSON.stringify({
+            manifest_version: manifest.manifest_version,
+            permissions: perms,
+            host_permissions: hostPerms,
+            optional_permissions: manifest.optional_permissions ?? [],
+          }));
+          ASSERT
+
+  # Main-branch full matrix (PRD §32.2). Runs the UNCONDITIONAL full
+  # typecheck/test/build/boundaries on every push to master (not affected
+  # based), plus an unconditional extension artifact validation. e2e is
+  # intentionally NOT part of this job — it stays change-detection-gated in
+  # build-test above so it never blocks the full matrix (PRD constraint).
+  main-matrix:
+    name: main / full matrix
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Enable corepack
+        run: corepack enable
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+      - name: Biome check
+        run: pnpm check
+
+      - name: Package boundaries
+        run: pnpm boundaries
+
+      - name: Full typecheck
+        run: pnpm typecheck
+
+      - name: Full test
+        run: pnpm test
+
+      - name: Full build
+        run: pnpm build
+
+      - name: Validate extension artifact
+        run: |
+          set -euo pipefail
+          pnpm nx run extension:build
+          node --input-type=module <<'ASSERT'
+          import { readFileSync } from "node:fs";
+
+          const path = "apps/extension/.output/chrome-mv3/manifest.json";
+          let manifest;
+          try {
+            manifest = JSON.parse(readFileSync(path, "utf8"));
+          } catch (err) {
+            console.error(`EXTENSION VALIDATION FAILED: cannot read/parse ${path}: ${err.message}`);
+            process.exit(1);
+          }
+
+          const fail = (msg) => {
+            console.error(`EXTENSION VALIDATION FAILED: ${msg}`);
+            process.exit(1);
+          };
+
+          if (manifest.manifest_version !== 3) {
+            fail(`manifest_version must be 3, got ${manifest.manifest_version}`);
+          }
+
+          const perms = manifest.permissions ?? [];
+          const hostPerms = manifest.host_permissions ?? [];
+
+          if ([...perms, ...hostPerms].includes("<all_urls>")) {
+            fail("<all_urls> is forbidden (loopback-only, ADR-007/ADR-016)");
+          }
+
+          const ALLOWED_PERMS = new Set(["devtools", "storage", "activeTab", "scripting", "tabs", "webNavigation"]);
+          for (const p of perms) {
+            if (!ALLOWED_PERMS.has(p)) {
+              fail(`unexpected mandatory permission "${p}" (allowed: ${[...ALLOWED_PERMS].join(", ")})`);
+            }
+          }
+
+          if (perms.includes("debugger")) {
+            fail('"debugger" must be optional (optional_permissions), not mandatory');
+          }
+
+          const loopbackRe = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\/.*$/;
+          for (const h of hostPerms) {
+            if (!loopbackRe.test(h)) {
+              fail(`non-loopback host_permission forbidden: "${h}" (ADR-007)`);
+            }
+          }
+
+          for (const cs of manifest.content_scripts ?? []) {
+            for (const m of cs.matches ?? []) {
+              if (m === "<all_urls>") {
+                fail("<all_urls> in content_scripts.matches forbidden");
+              }
+              if (!loopbackRe.test(m)) {
+                fail(`non-loopback content_scripts match forbidden: "${m}"`);
+              }
+            }
+          }
+
+          console.log("Extension manifest OK:", JSON.stringify({
+            manifest_version: manifest.manifest_version,
+            permissions: perms,
+            host_permissions: hostPerms,
+            optional_permissions: manifest.optional_permissions ?? [],
+          }));
+          ASSERT

@@ -17,18 +17,19 @@
 /**
  * Current protocol version.
  *
- * 1.1.0 (minor, additive within major 1) — adds the V1 operation kinds and
- * compiled-context fields. The envelope/message wire shapes are unchanged; the
- * new operation kinds live in `@vision-control/change-ir` and travel inside the
- * envelope `payload`, while the new context fields are optional additive keys.
+ * 2.0.0 (major, breaking) — replaces the generic `page-event`/`session-event`
+ * collapse with the 15-message §25 typed catalog (8 browser→daemon + 7
+ * daemon→browser). The handshake backbone (`hello`/`welcome`/`error`/`ack`/
+ * `nack`) is unchanged. Per PRD §25.3, a major bump is required because the
+ * message-type discriminator set changed (old `page-event`/`session-event` are
+ * removed; 15 new dotted literals are added).
  *
- * Compatibility is unchanged: {@link hasCompatibleMajor} still accepts any 1.x
- * envelope (additive fields keep the wire compatible), and {@link isCompatible}
- * still requires `server.minor >= client.minor` for negotiation. A 1.0.0 client
- * negotiates successfully against a 1.1.0 server; a 1.1.0 client against a 1.0.0
- * server is reported incompatible by the strict check (the server is older).
+ * Compatibility: {@link hasCompatibleMajor} now accepts any 2.x envelope.
+ * {@link isCompatible} requires same MAJOR and `server.minor >= client.minor`.
+ * A 2.0.0 client ↔ 1.x daemon (or vice versa) is rejected with
+ * `PROTOCOL_VERSION_MISMATCH`.
  */
-export const PROTOCOL_VERSION = "1.1.0";
+export const PROTOCOL_VERSION = "2.0.0";
 
 export const PROTOCOL_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 

@@ -1,3 +1,37 @@
+export {
+  type ChangesetUpdated,
+  ChangesetUpdatedSchema,
+  type DiagnosticReported,
+  DiagnosticReportedSchema,
+  type PageNavigated,
+  PageNavigatedSchema,
+  type SelectionChanged,
+  SelectionChangedSchema,
+  type SessionHeartbeat,
+  SessionHeartbeatSchema,
+  type SessionHello,
+  SessionHelloSchema,
+  type SourceRequest,
+  SourceRequestSchema,
+  type VerificationRuntimeResult,
+  VerificationRuntimeResultSchema,
+} from "./catalog/browser-to-daemon.js";
+export {
+  type ConfigurationUpdated,
+  ConfigurationUpdatedSchema,
+  type ContextCompiled,
+  ContextCompiledSchema,
+  type PreviewClearRequested,
+  PreviewClearRequestedSchema,
+  type SessionAccepted,
+  SessionAcceptedSchema,
+  type SourceResolved,
+  SourceResolvedSchema,
+  type VerificationRequested,
+  VerificationRequestedSchema,
+  type WorkspaceBound,
+  WorkspaceBoundSchema,
+} from "./catalog/daemon-to-browser.js";
 export { type ProtocolEnvelope, ProtocolEnvelopeSchema, parseEnvelope } from "./envelope.js";
 export {
   type ParseResult,
@@ -19,16 +53,16 @@ export {
   MessageSchema,
   type NackMessage,
   NackMessageSchema,
-  type PageEventMessage,
-  PageEventMessageSchema,
   parseMessage,
-  type SessionEventMessage,
-  SessionEventMessageSchema,
   type WelcomeMessage,
   WelcomeMessageSchema,
 } from "./message-types.js";
 
-export { type NegotiationResult, negotiateProtocol } from "./negotiation.js";
+export {
+  type NegotiationResult,
+  negotiateProtocol,
+  PROTOCOL_CAPABILITIES,
+} from "./negotiation.js";
 export {
   hasCompatibleMajor,
   isCompatible,

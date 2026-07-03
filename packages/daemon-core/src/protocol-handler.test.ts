@@ -43,7 +43,7 @@ describe("ProtocolHandler", () => {
       payload: {
         type: "hello",
         clientVersion: PROTOCOL_VERSION,
-        clientCapabilities: ["page-events", "session-events", "error-reporting"],
+        clientCapabilities: ["selection", "verification", "error-reporting"],
       },
       timestamp: 1,
     };
@@ -66,7 +66,7 @@ describe("ProtocolHandler", () => {
       payload: {
         type: "hello",
         clientVersion: "999.0.0",
-        clientCapabilities: ["page-events"],
+        clientCapabilities: ["selection"],
       },
       timestamp: 1,
     };
@@ -92,20 +92,18 @@ describe("ProtocolHandler", () => {
   it("acks recognized non-hello messages", async () => {
     const handler = makeHandler();
     const socket = createFakeSocket();
-    const pageEvent = {
+    const selectionChanged = {
       protocolVersion: PROTOCOL_VERSION,
-      messageId: "pe-00001",
-      messageType: "page-event",
+      messageId: "sel-00001",
+      messageType: "selection.changed",
       payload: {
-        type: "page-event",
-        event: "load",
-        url: "http://localhost/",
-        title: "Home",
+        type: "selection.changed",
+        elementId: "elem-abc",
         framePath: [],
       },
       timestamp: 1,
     };
-    const result = await handler.handle(JSON.stringify(pageEvent), socket as never);
+    const result = await handler.handle(JSON.stringify(selectionChanged), socket as never);
     expect(result.ok).toBe(true);
     const sent = JSON.parse(socket.sent[0] ?? "{}");
     expect(sent.messageType).toBe("ack");

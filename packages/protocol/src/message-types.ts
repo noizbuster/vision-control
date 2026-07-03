@@ -1,21 +1,29 @@
 import { z } from "zod";
 
+import { browserToDaemonSchemas } from "./catalog/browser-to-daemon.js";
+import { daemonToBrowserSchemas } from "./catalog/daemon-to-browser.js";
 import { type ParseResult, ProtocolErrorCodeSchema, protocolError } from "./errors.js";
 
 /**
- * Discriminated union of known MVP message types.
+ * Discriminated union of all known message types (PRD §25 catalog + handshake
+ * backbone).
+ *
+ * The union has two tiers:
+ * 1. **Handshake backbone** — `hello`, `welcome`, `error`, `ack`, `nack`.
+ *    These handle transport-level session establishment and acknowledgement.
+ * 2. **§25 business catalog** — 15 typed messages (8 browser→daemon per §25.1,
+ *    7 daemon→browser per §25.2) that flow after the handshake completes.
  *
  * Each variant is keyed by its `type` literal. The envelope carries the message
- * in its `payload` field (typed `unknown`); callers narrow via
- * {@link parseMessage}.
+ * in its `payload` field; callers narrow via {@link parseMessage}.
  *
  * To add a new variant:
- *   1. Define `<Name>MessageSchema` with a unique `z.literal("<type>")`.
- *   2. Append it to the `MessageSchema` discriminated-union array below.
- *   3. Export the inferred type.
- * The union is open to extension; do not add V1-only types (multi-select,
- * auto-layout, etc.) per the MVP scope.
+ *   1. Define a schema in the appropriate `catalog/*.ts` file.
+ *   2. Add it to the exported `*Schemas` array.
+ *   3. It is automatically included in {@link MessageSchema} below.
  */
+
+// ── Handshake backbone ──────────────────────────────────────────────────────
 
 export const HelloMessageSchema = z.object({
   type: z.literal("hello"),
@@ -29,19 +37,6 @@ export const WelcomeMessageSchema = z.object({
   serverCapabilities: z.array(z.string()),
   sessionId: z.string(),
   sessionToken: z.string(),
-});
-
-export const PageEventMessageSchema = z.object({
-  type: z.literal("page-event"),
-  event: z.enum(["load", "reload", "navigation", "tab-focus", "devtools-open", "devtools-close"]),
-  url: z.string(),
-  title: z.string(),
-  framePath: z.array(z.string()),
-});
-
-export const SessionEventMessageSchema = z.object({
-  type: z.literal("session-event"),
-  payload: z.unknown(),
 });
 
 export const ErrorMessageSchema = z.object({
@@ -62,24 +57,28 @@ export const NackMessageSchema = z.object({
   reason: z.string().optional(),
 });
 
+// ── Full discriminated union ────────────────────────────────────────────────
+
 export const MessageSchema = z.discriminatedUnion("type", [
   HelloMessageSchema,
   WelcomeMessageSchema,
-  PageEventMessageSchema,
-  SessionEventMessageSchema,
   ErrorMessageSchema,
   AckMessageSchema,
   NackMessageSchema,
+  ...browserToDaemonSchemas,
+  ...daemonToBrowserSchemas,
 ]);
+
+// ── Type re-exports ─────────────────────────────────────────────────────────
 
 export type AckMessage = z.infer<typeof AckMessageSchema>;
 export type ErrorMessage = z.infer<typeof ErrorMessageSchema>;
 export type HelloMessage = z.infer<typeof HelloMessageSchema>;
 export type Message = z.infer<typeof MessageSchema>;
 export type NackMessage = z.infer<typeof NackMessageSchema>;
-export type PageEventMessage = z.infer<typeof PageEventMessageSchema>;
-export type SessionEventMessage = z.infer<typeof SessionEventMessageSchema>;
 export type WelcomeMessage = z.infer<typeof WelcomeMessageSchema>;
+
+// ── Parser ──────────────────────────────────────────────────────────────────
 
 /**
  * Parse an unknown payload into a typed {@link Message}. Returns a

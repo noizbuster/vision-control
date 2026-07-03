@@ -74,56 +74,49 @@ describe("loadConfig", () => {
 });
 
 describe("daemon V1 context pass-through (VC-V1V2-16)", () => {
-  it("protocol version is 1.1.0 (V1-capable)", () => {
-    expect(PROTOCOL_VERSION).toBe("1.1.0");
+  it("protocol version is 2.0.0 (§25 catalog, breaking)", () => {
+    expect(PROTOCOL_VERSION).toBe("2.0.0");
   });
 
-  it("a session-event with a V1 context payload parses successfully", () => {
+  it("a changeset.updated with a V1 context payload parses successfully", () => {
     const v1Payload = {
-      type: "session-event",
-      payload: {
-        kind: "source-context",
-        context: {
-          goal: "Multi-select Auto Layout edit",
-          multiSelect: {
-            groupId: "grp-daemon-v1-0001",
-            targets: [{ runtimeId: "rt-a", selectors: [".a"] }],
-          },
-          breakpoint: { activeViewport: "tablet", scopedChangeCount: 2 },
-          sourceConfidenceDetail: { method: "marker", reasons: [], warnings: [] },
-          suggestedDiffs: [{ diff: "-gap-2\n+gap-4", confidence: "high", preconditions: [] }],
-          layoutContext: { gridColumns: 12 },
-          adapterWarnings: [{ code: "dyn", message: "dynamic", severity: "warning" }],
-          screenshotRef: {
-            artifactId: "shot-1",
-            redactionSummary: { totalMasked: 1, postCaptureRecheck: "pass" },
-          },
+      type: "changeset.updated",
+      changesetId: "cs-daemon-v1-0001",
+      revision: 3,
+      operations: [
+        {
+          kind: "multi-select-group",
+          groupId: "grp-daemon-v1-0001",
+          targets: [{ runtimeId: "rt-a", selectors: [".a"] }],
         },
-      },
+        { kind: "breakpoint-style-edit", breakpoint: "md" },
+        { kind: "grid-reorder", placement: "dom-order" },
+        { kind: "screenshot-crop-ref", artifactId: "shot-1" },
+        { kind: "suggested-diff", suggestedDiff: "-a\n+b" },
+      ],
     };
     const result = parseMessage(v1Payload);
     expect(result.success).toBe(true);
   });
 
-  it("a session-event payload with V1 operation summaries is not stripped", () => {
+  it("a changeset.updated payload with V1 operation kinds is preserved", () => {
     const message = {
-      type: "session-event",
-      payload: {
-        operations: [
-          { kind: "multi-select-group", groupId: "g1", targetCount: 3 },
-          { kind: "breakpoint-style-edit", breakpoint: "md" },
-          { kind: "grid-reorder", placement: "dom-order" },
-          { kind: "screenshot-crop-ref", artifactId: "shot-1" },
-          { kind: "suggested-diff", suggestedDiff: "-a\n+b" },
-        ],
-      },
+      type: "changeset.updated",
+      changesetId: "cs-v1-ops",
+      revision: 1,
+      operations: [
+        { kind: "multi-select-group", groupId: "g1", targetCount: 3 },
+        { kind: "breakpoint-style-edit", breakpoint: "md" },
+        { kind: "grid-reorder", placement: "dom-order" },
+        { kind: "screenshot-crop-ref", artifactId: "shot-1" },
+        { kind: "suggested-diff", suggestedDiff: "-a\n+b" },
+      ],
     };
     const result = parseMessage(message);
     expect(result.success).toBe(true);
-    if (result.success && result.data.type === "session-event") {
-      const payload = result.data.payload as { operations: { kind: string }[] };
-      expect(payload.operations).toHaveLength(5);
-      const kinds = payload.operations.map((op) => op.kind);
+    if (result.success && result.data.type === "changeset.updated") {
+      expect(result.data.operations).toHaveLength(5);
+      const kinds = result.data.operations.map((op) => (op as { kind: string }).kind);
       expect(kinds).toContain("multi-select-group");
       expect(kinds).toContain("breakpoint-style-edit");
       expect(kinds).toContain("grid-reorder");

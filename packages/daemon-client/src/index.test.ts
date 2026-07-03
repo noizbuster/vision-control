@@ -117,7 +117,7 @@ describe("DaemonClient handshake + reconnect", () => {
       payload: {
         type: "welcome",
         serverVersion: PROTOCOL_VERSION,
-        serverCapabilities: ["page-events"],
+        serverCapabilities: ["selection"],
         sessionId: "sess-aaa",
         sessionToken: "st-xyz",
       },

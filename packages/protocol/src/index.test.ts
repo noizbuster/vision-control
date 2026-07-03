@@ -1,16 +1,39 @@
 import { describe, expect, it } from "vitest";
+import type { z } from "zod";
 import {
   additiveFieldEnvelope,
   unknownTypePayload,
   validHelloEnvelope,
-  validPageEventEnvelope,
+  validSelectionChangedEnvelope,
   validWelcomeEnvelope,
   versionMismatchEnvelope,
 } from "./__fixtures__/envelopes.js";
 import {
+  browserToDaemonSchemas,
+  ChangesetUpdatedSchema,
+  DiagnosticReportedSchema,
+  PageNavigatedSchema,
+  SelectionChangedSchema,
+  SessionHeartbeatSchema,
+  SessionHelloSchema,
+  SourceRequestSchema,
+  VerificationRuntimeResultSchema,
+} from "./catalog/browser-to-daemon.js";
+import {
+  ConfigurationUpdatedSchema,
+  ContextCompiledSchema,
+  daemonToBrowserSchemas,
+  PreviewClearRequestedSchema,
+  SessionAcceptedSchema,
+  SourceResolvedSchema,
+  VerificationRequestedSchema,
+  WorkspaceBoundSchema,
+} from "./catalog/daemon-to-browser.js";
+import {
   generateJsonSchema,
   isCompatible,
   negotiateProtocol,
+  PROTOCOL_CAPABILITIES,
   PROTOCOL_VERSION,
   ProtocolErrorSchema,
   parseEnvelope,
@@ -21,21 +44,21 @@ import {
 
 describe("protocol version", () => {
   it("parses a valid semver version", () => {
-    const result = parseProtocolVersion("1.2.3");
+    const result = parseProtocolVersion("2.0.3");
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data).toEqual({ major: 1, minor: 2, patch: 3 });
+      expect(result.data).toEqual({ major: 2, minor: 0, patch: 3 });
     }
   });
 
   it("rejects an invalid semver string", () => {
     expect(parseProtocolVersion("not-a-version").success).toBe(false);
-    expect(parseProtocolVersion("1.2").success).toBe(false);
-    expect(parseProtocolVersion("01.2.3").success).toBe(false);
+    expect(parseProtocolVersion("2.0").success).toBe(false);
+    expect(parseProtocolVersion("02.0.3").success).toBe(false);
   });
 
   it("exposes the current protocol version constant", () => {
-    expect(PROTOCOL_VERSION).toBe("1.1.0");
+    expect(PROTOCOL_VERSION).toBe("2.0.0");
   });
 
   it("isCompatible requires same major and server minor >= client minor", () => {
@@ -44,12 +67,12 @@ describe("protocol version", () => {
       if (r.success) return r.data;
       throw new Error("unreachable");
     };
-    expect(isCompatible(v("1.0.0"), v("1.0.0"))).toBe(true);
-    expect(isCompatible(v("1.0.0"), v("1.1.0"))).toBe(true);
-    expect(isCompatible(v("1.0.0"), v("1.5.2"))).toBe(true);
-    expect(isCompatible(v("1.5.0"), v("1.0.0"))).toBe(false);
-    expect(isCompatible(v("1.1.0"), v("1.0.0"))).toBe(false);
-    expect(isCompatible(v("1.0.0"), v("2.0.0"))).toBe(false);
+    expect(isCompatible(v("2.0.0"), v("2.0.0"))).toBe(true);
+    expect(isCompatible(v("2.0.0"), v("2.1.0"))).toBe(true);
+    expect(isCompatible(v("2.0.0"), v("2.5.2"))).toBe(true);
+    expect(isCompatible(v("2.5.0"), v("2.0.0"))).toBe(false);
+    expect(isCompatible(v("2.1.0"), v("2.0.0"))).toBe(false);
+    expect(isCompatible(v("2.0.0"), v("3.0.0"))).toBe(false);
   });
 });
 
@@ -67,12 +90,12 @@ describe("envelope round-trip", () => {
     expect(parseEnvelope(validWelcomeEnvelope).success).toBe(true);
   });
 
-  it("parses a valid page-event envelope", () => {
-    expect(parseEnvelope(validPageEventEnvelope).success).toBe(true);
+  it("parses a valid selection.changed envelope", () => {
+    expect(parseEnvelope(validSelectionChangedEnvelope).success).toBe(true);
   });
 
   it("rejects an envelope with a structurally invalid payload", () => {
-    const result = parseEnvelope({ protocolVersion: "1.0.0" });
+    const result = parseEnvelope({ protocolVersion: "2.0.0" });
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe("INVALID_PAYLOAD");
@@ -90,12 +113,42 @@ describe("version mismatch", () => {
     }
   });
 
-  it("negotiateProtocol rejects a mismatched client version", () => {
+  it("negotiateProtocol rejects a 2.0.0 client ↔ 1.x daemon (client too new)", () => {
+    const result = negotiateProtocol(
+      {
+        type: "hello",
+        clientVersion: "2.0.0",
+        clientCapabilities: ["selection"],
+      },
+      "1.1.0",
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("PROTOCOL_VERSION_MISMATCH");
+    }
+  });
+
+  it("negotiateProtocol rejects a 1.x client ↔ 2.0.0 daemon (client too old)", () => {
+    const result = negotiateProtocol(
+      {
+        type: "hello",
+        clientVersion: "1.1.0",
+        clientCapabilities: ["selection"],
+      },
+      "2.0.0",
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("PROTOCOL_VERSION_MISMATCH");
+    }
+  });
+
+  it("negotiateProtocol rejects a future-major client version", () => {
     const result = negotiateProtocol(
       {
         type: "hello",
         clientVersion: "999.0.0",
-        clientCapabilities: ["page-events"],
+        clientCapabilities: ["selection"],
       },
       PROTOCOL_VERSION,
     );
@@ -128,6 +181,28 @@ describe("unknown message type", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.type).toBe("hello");
+    }
+  });
+
+  it("rejects the legacy page-event type (removed in 2.0.0)", () => {
+    const result = parseMessage({
+      type: "page-event",
+      event: "load",
+      url: "https://example.com",
+      title: "Example",
+      framePath: [],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe("UNKNOWN_MESSAGE_TYPE");
+    }
+  });
+
+  it("rejects the legacy session-event type (removed in 2.0.0)", () => {
+    const result = parseMessage({ type: "session-event", payload: {} });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe("UNKNOWN_MESSAGE_TYPE");
     }
   });
 });
@@ -184,8 +259,8 @@ describe("negotiation happy path", () => {
     const result = negotiateProtocol(
       {
         type: "hello",
-        clientVersion: "1.0.0",
-        clientCapabilities: ["page-events", "session-events", "unknown-cap"],
+        clientVersion: "2.0.0",
+        clientCapabilities: ["selection", "verification", "unknown-cap"],
       },
       PROTOCOL_VERSION,
     );
@@ -193,7 +268,7 @@ describe("negotiation happy path", () => {
     if (result.ok) {
       expect(result.welcome.type).toBe("welcome");
       expect(result.welcome.serverVersion).toBe(PROTOCOL_VERSION);
-      expect(result.welcome.serverCapabilities).toEqual(["page-events", "session-events"]);
+      expect(result.welcome.serverCapabilities).toEqual(["selection", "verification"]);
       expect(result.welcome.sessionId).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
@@ -212,5 +287,205 @@ describe("JSON schema generation", () => {
     const properties = parsed.properties as Record<string, unknown>;
     expect(properties.envelope).toBeDefined();
     expect(properties.message).toBeDefined();
+  });
+});
+
+// ── §25 catalog round-trip tests ───────────────────────────────────────────
+
+describe("§25 catalog count invariant", () => {
+  it("exactly 8 browser→daemon schemas", () => {
+    expect(browserToDaemonSchemas).toHaveLength(8);
+  });
+
+  it("exactly 7 daemon→browser schemas", () => {
+    expect(daemonToBrowserSchemas).toHaveLength(7);
+  });
+
+  it("exactly 15 business messages total (8 + 7)", () => {
+    expect(browserToDaemonSchemas.length + daemonToBrowserSchemas.length).toBe(15);
+  });
+});
+
+describe("§25.1 browser→daemon catalog (8 messages)", () => {
+  it("PROTOCOL_CAPABILITIES exports exactly 12 capability strings", () => {
+    expect(PROTOCOL_CAPABILITIES).toHaveLength(12);
+  });
+
+  const cases: Array<{ name: string; schema: z.ZodType; sample: unknown }> = [
+    {
+      name: "session.hello",
+      schema: SessionHelloSchema,
+      sample: { type: "session.hello", tabId: "tab-001" },
+    },
+    {
+      name: "session.heartbeat",
+      schema: SessionHeartbeatSchema,
+      sample: { type: "session.heartbeat", clientTime: 1_700_000_000_000 },
+    },
+    {
+      name: "page.navigated",
+      schema: PageNavigatedSchema,
+      sample: {
+        type: "page.navigated",
+        url: "https://example.com",
+        title: "Example",
+        framePath: ["main"],
+      },
+    },
+    {
+      name: "selection.changed",
+      schema: SelectionChangedSchema,
+      sample: { type: "selection.changed", elementId: "elem-abc", framePath: ["main"] },
+    },
+    {
+      name: "changeset.updated",
+      schema: ChangesetUpdatedSchema,
+      sample: {
+        type: "changeset.updated",
+        changesetId: "cs-1",
+        revision: 3,
+        operations: [{ kind: "style-edit" }],
+      },
+    },
+    {
+      name: "source.request",
+      schema: SourceRequestSchema,
+      sample: { type: "source.request", requestId: "req-1", elementId: "elem-abc" },
+    },
+    {
+      name: "verification.runtimeResult",
+      schema: VerificationRuntimeResultSchema,
+      sample: { type: "verification.runtimeResult", changesetId: "cs-1", passed: true },
+    },
+    {
+      name: "diagnostic.reported",
+      schema: DiagnosticReportedSchema,
+      sample: { type: "diagnostic.reported", severity: "warning", message: "contrast low" },
+    },
+  ];
+
+  for (const { name, schema, sample } of cases) {
+    it(`${name} parses + serializes round-trip (serialize → parse → deep-equal)`, () => {
+      const json = JSON.stringify(sample);
+      const parsed = JSON.parse(json);
+      const result = schema.safeParse(parsed);
+      expect(result.success, `${name} should parse`).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(sample);
+      }
+      // parseMessage must also accept it (it's in the union).
+      const msgResult = parseMessage(parsed);
+      expect(msgResult.success, `${name} should be in the Message union`).toBe(true);
+      if (msgResult.success) {
+        expect(msgResult.data.type).toBe(name);
+      }
+    });
+  }
+});
+
+describe("§25.2 daemon→browser catalog (7 messages)", () => {
+  const cases: Array<{ name: string; schema: z.ZodType; sample: unknown }> = [
+    {
+      name: "session.accepted",
+      schema: SessionAcceptedSchema,
+      sample: { type: "session.accepted", sessionId: "sess-1" },
+    },
+    {
+      name: "workspace.bound",
+      schema: WorkspaceBoundSchema,
+      sample: { type: "workspace.bound", fileCount: 42 },
+    },
+    {
+      name: "source.resolved",
+      schema: SourceResolvedSchema,
+      sample: {
+        type: "source.resolved",
+        requestId: "req-1",
+        elementId: "elem-1",
+        sourceToken: "tok-1",
+        confidence: "high",
+      },
+    },
+    {
+      name: "context.compiled",
+      schema: ContextCompiledSchema,
+      sample: { type: "context.compiled", contextId: "ctx-1", tokenCount: 500, format: "json" },
+    },
+    {
+      name: "verification.requested",
+      schema: VerificationRequestedSchema,
+      sample: { type: "verification.requested", changesetId: "cs-1", timeoutMs: 5000 },
+    },
+    {
+      name: "preview.clearRequested",
+      schema: PreviewClearRequestedSchema,
+      sample: { type: "preview.clearRequested", reason: "verification-reset" },
+    },
+    {
+      name: "configuration.updated",
+      schema: ConfigurationUpdatedSchema,
+      sample: { type: "configuration.updated", keys: ["privacy.redactSelectors"] },
+    },
+  ];
+
+  for (const { name, schema, sample } of cases) {
+    it(`${name} parses + serializes round-trip (serialize → parse → deep-equal)`, () => {
+      const json = JSON.stringify(sample);
+      const parsed = JSON.parse(json);
+      const result = schema.safeParse(parsed);
+      expect(result.success, `${name} should parse`).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(sample);
+      }
+      const msgResult = parseMessage(parsed);
+      expect(msgResult.success, `${name} should be in the Message union`).toBe(true);
+      if (msgResult.success) {
+        expect(msgResult.data.type).toBe(name);
+      }
+    });
+  }
+});
+
+describe("end-to-end: 2.0.0 handshake + typed selection.changed", () => {
+  it("negotiates a session then round-trips a selection.changed through the envelope", () => {
+    // Step 1: handshake.
+    const negotiation = negotiateProtocol(
+      {
+        type: "hello",
+        clientVersion: "2.0.0",
+        clientCapabilities: [...PROTOCOL_CAPABILITIES],
+      },
+      PROTOCOL_VERSION,
+    );
+    expect(negotiation.ok).toBe(true);
+    if (!negotiation.ok) return;
+
+    // Step 2: wrap a selection.changed in a 2.0.0 envelope and round-trip it.
+    const envelope = {
+      protocolVersion: PROTOCOL_VERSION,
+      messageId: "e2e-msg-001",
+      messageType: "selection.changed",
+      sessionId: negotiation.welcome.sessionId,
+      timestamp: Date.now(),
+      payload: {
+        type: "selection.changed",
+        elementId: "btn-submit",
+        framePath: ["main", "shadow-root"],
+      },
+    };
+    const envResult = parseEnvelope(envelope);
+    expect(envResult.success).toBe(true);
+    if (!envResult.success) return;
+
+    const msgResult = parseMessage(envResult.data.payload);
+    expect(msgResult.success).toBe(true);
+    if (msgResult.success) {
+      const msg = msgResult.data;
+      expect(msg.type).toBe("selection.changed");
+      if (msg.type === "selection.changed") {
+        expect(msg.elementId).toBe("btn-submit");
+        expect(msg.framePath).toEqual(["main", "shadow-root"]);
+      }
+    }
   });
 });

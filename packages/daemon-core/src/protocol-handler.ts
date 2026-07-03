@@ -33,8 +33,8 @@ export type DispatchResult =
  * Handles the `hello` → `welcome` negotiation (delegated to
  * {@link negotiateProtocol}), replies with `ack` for recognized messages, and
  * emits `error` envelopes (never throwing) for malformed input or version
- * mismatch. All other message types (page-event, session-event) are acked; the
- * MVP daemon does not act on them beyond acknowledging receipt.
+ * mismatch. All other message types (§25 business catalog) are acked; the
+ * daemon does not act on them beyond acknowledging receipt in this layer.
  */
 export class ProtocolHandler {
   private readonly logger: Logger;

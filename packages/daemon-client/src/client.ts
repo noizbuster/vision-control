@@ -1,4 +1,5 @@
 import {
+  PROTOCOL_CAPABILITIES,
   PROTOCOL_VERSION,
   type ProtocolEnvelope,
   type WelcomeMessage,
@@ -57,7 +58,7 @@ export interface DaemonClientOptions {
 /** A timer handle that works under both DOM (`number`) and Node (`Timeout`) lib types. */
 export type TimerHandle = ReturnType<typeof setTimeout>;
 
-const DEFAULT_CAPABILITIES = ["page-events", "session-events", "error-reporting"];
+const DEFAULT_CAPABILITIES: readonly string[] = PROTOCOL_CAPABILITIES;
 
 /**
  * Computes the next reconnect delay using exponential backoff with jitter.

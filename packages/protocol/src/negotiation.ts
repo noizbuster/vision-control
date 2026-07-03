@@ -5,8 +5,26 @@ import { isCompatible, parseProtocolVersion } from "./version.js";
 /**
  * Capabilities this server advertises. The negotiated welcome only lists the
  * intersection with what the client announced it understands.
+ *
+ * Each capability maps to a §25 message area. `error-reporting` covers the
+ * `error` handshake-backbone message.
  */
-const SERVER_CAPABILITIES = ["page-events", "session-events", "error-reporting"] as const;
+export const PROTOCOL_CAPABILITIES = [
+  "session",
+  "page-navigation",
+  "selection",
+  "changesets",
+  "source-resolution",
+  "context-export",
+  "verification",
+  "diagnostics",
+  "preview-control",
+  "workspace-binding",
+  "configuration",
+  "error-reporting",
+] as const;
+
+const SERVER_CAPABILITIES: readonly string[] = PROTOCOL_CAPABILITIES;
 
 export type NegotiationResult =
   | { readonly ok: true; readonly welcome: WelcomeMessage }

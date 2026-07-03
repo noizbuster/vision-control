@@ -131,7 +131,7 @@ function wsConnect(
         payload: {
           type: "hello",
           clientVersion: PROTOCOL_VERSION,
-          clientCapabilities: ["page-events", "session-events", "error-reporting"],
+          clientCapabilities: ["selection", "verification", "error-reporting"],
         },
         timestamp: Date.now(),
       };

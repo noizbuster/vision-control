@@ -9,8 +9,14 @@
 import type { IdentityConfidence } from "@vision-control/element-identity";
 import type { Rect } from "@vision-control/geometry";
 
+import { type BoxModelState, createBoxModelOverlay } from "./box-model-overlay.js";
+import { type ChangedBadgeState, createChangedBadge } from "./changed-badge.js";
+import { createDragGhost, type DragGhostState } from "./drag-ghost.js";
+import { createFlexGridAxis, type FlexGridAxisState } from "./flex-grid-axis.js";
+import { createParentOutline } from "./parent-outline.js";
 import type { ResizeHandlePosition } from "./resize-handles.js";
 import { createResizeHandles } from "./resize-handles.js";
+import { createRotationHandle } from "./rotation-handle.js";
 
 /** State for the currently selected element in the overlay. */
 export interface SelectionOverlayState {
@@ -33,6 +39,18 @@ export interface OverlayElement {
   readonly getResizeHandle: (position: ResizeHandlePosition) => HTMLElement | null;
   /** Update the cursor style of one resize handle. */
   readonly updateResizeHandleCursor: (position: ResizeHandlePosition, cursor: string) => void;
+  /** Show or hide the parent/container outline (PRD §8.2). */
+  readonly setParentOutline: (rect: Rect | null) => void;
+  /** Show or hide the margin/border/padding visualization (PRD §8.2). */
+  readonly setBoxModel: (state: BoxModelState | null) => void;
+  /** Show or hide the flex/grid main-axis indicator (PRD §8.2). */
+  readonly setFlexGridAxis: (state: FlexGridAxisState | null) => void;
+  /** Show the rotation handle around `rect` (PRD §8.2 — always disabled). */
+  readonly setRotationHandle: (rect: Rect | null) => void;
+  /** Show or hide the changed-element badge (PRD §8.2). */
+  readonly setChangedBadge: (state: ChangedBadgeState | null) => void;
+  /** Show or hide the drag ghost/placeholder (PRD §8.2). */
+  readonly setDragGhost: (state: DragGhostState | null) => void;
   /** Remove all rendered overlay artifacts. */
   readonly clear: () => void;
 }
@@ -53,6 +71,12 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
   const badge = createDiv(document, "vc-badge");
   const dropIndicator = createDiv(document, "vc-drop-indicator");
   const resizeHandles = createResizeHandles(root);
+  const parentOutline = createParentOutline(root);
+  const boxModel = createBoxModelOverlay(root);
+  const flexGridAxis = createFlexGridAxis(root);
+  const rotationHandle = createRotationHandle(root);
+  const changedBadge = createChangedBadge(root);
+  const dragGhost = createDragGhost(root);
 
   root.appendChild(hoverOutline);
   root.appendChild(selectOutline);
@@ -105,11 +129,53 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
     resizeHandles.updateHandleCursor(position, cursor);
   };
 
+  const setParentOutline = (rect: Rect | null): void => {
+    parentOutline.setParentOutline(rect);
+  };
+
+  const setBoxModel = (state: BoxModelState | null): void => {
+    boxModel.setBoxModel(state);
+  };
+
+  const setFlexGridAxis = (state: FlexGridAxisState | null): void => {
+    flexGridAxis.setAxis(state);
+  };
+
+  const setRotationHandle = (rect: Rect | null): void => {
+    if (rect === null) {
+      rotationHandle.clear();
+      return;
+    }
+    rotationHandle.show(rect);
+  };
+
+  const setChangedBadge = (state: ChangedBadgeState | null): void => {
+    if (state === null) {
+      changedBadge.clear();
+      return;
+    }
+    changedBadge.showChangedBadge(state);
+  };
+
+  const setDragGhost = (state: DragGhostState | null): void => {
+    if (state === null) {
+      dragGhost.clear();
+      return;
+    }
+    dragGhost.showDragGhost(state);
+  };
+
   const clear = (): void => {
     setHover(null);
     setSelection(null);
     setDropIndicator(null);
     setResizeHandles(null);
+    setParentOutline(null);
+    setBoxModel(null);
+    setFlexGridAxis(null);
+    setRotationHandle(null);
+    setChangedBadge(null);
+    setDragGhost(null);
   };
 
   return {
@@ -119,6 +185,12 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
     setResizeHandles,
     getResizeHandle,
     updateResizeHandleCursor,
+    setParentOutline,
+    setBoxModel,
+    setFlexGridAxis,
+    setRotationHandle,
+    setChangedBadge,
+    setDragGhost,
     clear,
   };
 }

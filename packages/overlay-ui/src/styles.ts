@@ -11,6 +11,10 @@
 /** Class applied to the inner root container inside the shadow tree. */
 export const OVERLAY_ROOT_CLASS = "vc-overlay-root";
 
+// allow: SIZE_OK — single cohesive shadow-root stylesheet (design tokens + CSS
+// rules must ship as one template literal so the overlay injects one <style>).
+// Pure declarative data, no logic; splitting would fragment the design system.
+
 /** All overlay CSS, designed to be injected into a shadow root `<style>`. */
 export const OVERLAY_CSS = /* css */ `
   .${OVERLAY_ROOT_CLASS} {
@@ -56,6 +60,27 @@ export const OVERLAY_CSS = /* css */ `
     --vc-snap-baseline: oklch(70% 0.22 25);
     --vc-snap-grid: oklch(70% 0.01 260);
     --vc-snap-spacing-token: oklch(70% 0.22 300);
+
+    /* PRD §8.2 artifact tokens.
+       Box-model regions follow the Chromium DevTools convention:
+       margin = amber, border = blue, padding = green. */
+    --vc-parent-outline: oklch(72% 0.16 300);
+    --vc-margin-fill: oklch(80% 0.14 85);
+    --vc-margin-edge: oklch(70% 0.16 85);
+    --vc-border-fill: oklch(70% 0.16 250);
+    --vc-padding-fill: oklch(78% 0.16 145);
+    --vc-padding-edge: oklch(68% 0.18 145);
+    --vc-axis-flex: oklch(72% 0.22 200);
+    --vc-axis-grid: oklch(72% 0.2 300);
+    --vc-rotation-handle: oklch(55% 0.01 260);
+    --vc-rotation-handle-stroke: oklch(45% 0.01 260);
+    --vc-changed-badge: oklch(72% 0.22 60);
+    --vc-changed-badge-ink: oklch(15% 0.02 60);
+    --vc-drag-ghost: oklch(60% 0.2 240);
+    --vc-drag-placeholder: oklch(70% 0.18 240);
+
+    /* Rotation handle is intentionally non-interactive (PRD §8.2). */
+    --vc-handle-disabled-opacity: 0.5;
   }
 
   .${OVERLAY_ROOT_CLASS} *,
@@ -217,4 +242,126 @@ export const OVERLAY_CSS = /* css */ `
   .vc-snap-guide--baseline { background: var(--vc-snap-baseline); }
   .vc-snap-guide--grid { background: var(--vc-snap-grid); }
   .vc-snap-guide--spacing-token { background: var(--vc-snap-spacing-token); }
+
+  /* PRD §8.2 — parent/container outline (distinct from hover/select). */
+  .vc-parent-outline {
+    position: absolute;
+    pointer-events: none;
+    border: var(--vc-outline-width) dotted var(--vc-parent-outline);
+    border-radius: var(--vc-radius-md);
+    will-change: transform, width, height;
+  }
+
+  /* PRD §8.2 — margin/border/padding visualization (DevTools box-model overlay). */
+  .vc-box-model {
+    position: absolute;
+    pointer-events: none;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .vc-box-model__region {
+    position: absolute;
+    pointer-events: none;
+    box-sizing: border-box;
+  }
+
+  .vc-box-model__region--margin {
+    background: color-mix(in oklch, var(--vc-margin-fill) 35%, transparent);
+    border: 1px dashed var(--vc-margin-edge);
+  }
+
+  .vc-box-model__region--border {
+    background: color-mix(in oklch, var(--vc-border-fill) 45%, transparent);
+  }
+
+  .vc-box-model__region--padding {
+    background: color-mix(in oklch, var(--vc-padding-fill) 40%, transparent);
+    border: 1px dashed var(--vc-padding-edge);
+  }
+
+  /* PRD §8.2 — flex/grid main-axis indicator. */
+  .vc-axis-indicator {
+    position: absolute;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .vc-axis-indicator__line {
+    position: absolute;
+    pointer-events: none;
+    background: var(--vc-axis-flex);
+    box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.25);
+  }
+
+  .vc-axis-indicator--grid .vc-axis-indicator__line {
+    background: var(--vc-axis-grid);
+  }
+
+  .vc-axis-indicator__arrow {
+    position: absolute;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* PRD §8.2 — rotation handle, intentionally non-interactive. */
+  .vc-rotation-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--vc-rotation-handle);
+    border: 1px solid var(--vc-rotation-handle-stroke);
+    opacity: var(--vc-handle-disabled-opacity);
+    pointer-events: none;
+  }
+
+  .vc-rotation-handle__stem {
+    position: absolute;
+    width: 1px;
+    background: var(--vc-rotation-handle-stroke);
+    pointer-events: none;
+  }
+
+  /* PRD §8.2 — changed-element badge (변경된 요소 badge). */
+  .vc-changed-badge {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vc-space-1);
+    padding: var(--vc-space-1) var(--vc-space-2);
+    background: var(--vc-changed-badge);
+    color: var(--vc-changed-badge-ink);
+    border-radius: var(--vc-radius-sm);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  /* PRD §8.2 — drag ghost / placeholder. */
+  .vc-drag-ghost {
+    position: absolute;
+    pointer-events: none;
+    background: color-mix(in oklch, var(--vc-drag-ghost) 25%, transparent);
+    border: 1px solid var(--vc-drag-ghost);
+    border-radius: var(--vc-radius-sm);
+    box-shadow: 0 4px 12px oklch(0% 0 0 / 0.2);
+  }
+
+  .vc-drag-placeholder {
+    position: absolute;
+    pointer-events: none;
+    border: 2px dashed var(--vc-drag-placeholder);
+    border-radius: var(--vc-radius-sm);
+    background: color-mix(in oklch, var(--vc-drag-placeholder) 12%, transparent);
+  }
 `;

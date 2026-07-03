@@ -1,4 +1,21 @@
 export {
+  type BoxModelOverlay,
+  type BoxModelState,
+  createBoxModelOverlay,
+  type EdgeValues,
+} from "./box-model-overlay.js";
+export {
+  type ChangedBadge,
+  type ChangedBadgeState,
+  createChangedBadge,
+} from "./changed-badge.js";
+export {
+  createDragGhost,
+  type DragGhost,
+  type DragGhostKind,
+  type DragGhostState,
+} from "./drag-ghost.js";
+export {
   createDropIndicator,
   type DropIndicatorApi,
   type DropIndicatorOrientation,
@@ -11,6 +28,13 @@ export {
   type DropTargetValidity,
   highlightDropTarget,
 } from "./drop-target-highlight.js";
+export {
+  type AxisContainerKind,
+  type AxisDirection,
+  createFlexGridAxis,
+  type FlexGridAxis,
+  type FlexGridAxisState,
+} from "./flex-grid-axis.js";
 export { hitTest } from "./hit-testing.js";
 export {
   type BridgedRectResult,
@@ -36,6 +60,10 @@ export {
 } from "./overlay-root.js";
 export { PACKAGE_NAME } from "./package-name.js";
 export {
+  createParentOutline,
+  type ParentOutline,
+} from "./parent-outline.js";
+export {
   getDefaultPointerEventsForRole,
   type PointerEventMode,
   setHandlePointerEvents,
@@ -47,6 +75,10 @@ export {
   type ResizeHandlePosition,
   type ResizeHandles,
 } from "./resize-handles.js";
+export {
+  createRotationHandle,
+  type RotationHandle,
+} from "./rotation-handle.js";
 export {
   createSnapGuides,
   type SnapGuideBounds,

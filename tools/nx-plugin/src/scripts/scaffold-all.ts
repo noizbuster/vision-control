@@ -46,6 +46,7 @@ const manifest: readonly GeneratePackageOptions[] = [
   iso("storage"),
   iso("logger"),
   iso("testing"),
+  iso("editor-core"),
   // Browser libraries (platform:browser, type:library)
   browser("overlay-ui"),
   browser("inspector-core"),
@@ -56,10 +57,17 @@ const manifest: readonly GeneratePackageOptions[] = [
   nodePackage("daemon", "apps/daemon", { type: "app" }),
   // Browser app (platform:browser, type:app)
   browserPackage("extension", "apps/extension", { type: "app" }),
-  // Fixture app (platform:browser, type:fixture)
+  // Fixture apps (platform:browser, type:fixture)
   fixtureApp("playground-react-vite", "apps/playground-react-vite"),
-  // Build-tool integration (platform:node, type:integration)
+  fixtureApp("playground-next", "apps/playground-next"),
+  fixtureApp("visual-regression-lab", "apps/visual-regression-lab"),
+  // Build-tool integrations (platform:node, type:integration)
   integrationPackage("vite-react", "integrations/vite-react"),
+  integrationPackage("next-react", "integrations/next-react"),
+  integrationPackage("tailwind", "integrations/tailwind"),
+  integrationPackage("css-modules", "integrations/css-modules"),
+  integrationPackage("opencode", "integrations/opencode"),
+  integrationPackage("pi", "integrations/pi"),
 ];
 
 const findRepoRoot = (start: string): string => {

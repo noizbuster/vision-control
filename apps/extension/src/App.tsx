@@ -1,18 +1,28 @@
-import type { ReactElement } from "react";
+import type { AlignmentCommandKind } from "@vision-control/layout-engine";
+import type { ReactElement, ReactNode } from "react";
 import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
+import { AlignmentPanel } from "./components/inspector/AlignmentPanel.js";
+import { AutoLayoutPanel } from "./components/inspector/AutoLayoutPanel.js";
 import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
 import { ChangeJournal } from "./components/journal/ChangeJournal.js";
 import { useConnectionState } from "./hooks/useConnectionState.js";
 import { useEditor } from "./hooks/useEditor.js";
 import { useFrameTree } from "./hooks/useFrameTree.js";
+import { useGridPlacement } from "./hooks/useGridPlacement.js";
 import { useInspectedTab } from "./hooks/useInspectedTab.js";
 import { useJournal } from "./hooks/useJournal.js";
 import { useJournalPersistence } from "./hooks/useJournalPersistence.js";
+import { useMultiSelect } from "./hooks/useMultiSelect.js";
 import { usePanelBus } from "./hooks/usePanelBus.js";
 import { useSelectionSummary } from "./hooks/useSelectionSummary.js";
 import { useSession } from "./hooks/useSession.js";
 import { useTheme } from "./hooks/useTheme.js";
+import {
+  buildAlignmentOperation,
+  buildGridReorderOperation,
+  buildGridSpanOperation,
+} from "./inspector-slot-commands.js";
 import type { FrameInfo } from "./messaging/index.js";
 import { createEditorCommandMessage } from "./messaging/index.js";
 import "./styles/variables.css";
@@ -39,6 +49,8 @@ export function App(): ReactElement {
   const session = useSession(bus, tabId);
   const frames = useFrameTree(bus, tabId);
   const { summary, selectElement } = useSelectionSummary(bus);
+  const { group: multiSelectGroup } = useMultiSelect(bus);
+  const { state: gridPlacementState } = useGridPlacement(bus);
   const editor = useEditor();
   const journal = useJournal({ connectionState });
   useJournalPersistence({
@@ -54,6 +66,39 @@ export function App(): ReactElement {
       bus.send("background", createEditorCommandMessage(command));
     }
   };
+
+  const handleAlignmentCommand = (kind: AlignmentCommandKind): void => {
+    if (multiSelectGroup === null) return;
+    const op = buildAlignmentOperation(multiSelectGroup, kind);
+    if (op !== null) handleEditorCommand(op);
+  };
+
+  const handleGridChoosePlacement = (choice: "dom-order" | "grid-area"): void => {
+    if (gridPlacementState === null) return;
+    handleEditorCommand(buildGridReorderOperation(gridPlacementState, choice));
+  };
+
+  const handleGridResizeSpan = (axis: "column" | "row", toSpan: number): void => {
+    if (gridPlacementState === null) return;
+    handleEditorCommand(buildGridSpanOperation(gridPlacementState, axis, toSpan));
+  };
+
+  const isLayoutContainer =
+    summary !== null &&
+    (summary.computedStyle.display === "flex" || summary.computedStyle.display === "grid");
+  const showAlignment = multiSelectGroup !== null && multiSelectGroup.members.length >= 2;
+
+  const autoLayoutPanel: ReactNode | undefined =
+    isLayoutContainer && summary !== null ? (
+      <AutoLayoutPanel summary={summary} onCommand={handleEditorCommand} />
+    ) : undefined;
+  const alignmentPanel: ReactNode | undefined =
+    showAlignment && multiSelectGroup !== null ? (
+      <AlignmentPanel
+        memberCount={multiSelectGroup.members.length}
+        onCommand={handleAlignmentCommand}
+      />
+    ) : undefined;
 
   return (
     <ErrorBoundary>
@@ -99,6 +144,15 @@ export function App(): ReactElement {
             onChangeEditorMode={editor.actions.setMode}
             onEditorCommand={handleEditorCommand}
             onValidationError={editor.actions.setValidationError}
+            multiSelectGroup={multiSelectGroup}
+            gridPlacement={gridPlacementState?.placement ?? null}
+            gridSpanCandidates={gridPlacementState?.spanCandidates ?? []}
+            gridReorderChoice={gridPlacementState?.reorderChoice ?? null}
+            gridA11yWarning={gridPlacementState?.a11yWarning ?? null}
+            onChooseGridPlacement={handleGridChoosePlacement}
+            onResizeGridSpan={handleGridResizeSpan}
+            {...(alignmentPanel !== undefined ? { alignmentPanel } : {})}
+            {...(autoLayoutPanel !== undefined ? { autoLayoutPanel } : {})}
           />
           <ChangeJournal
             entries={journal.entries}

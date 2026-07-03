@@ -17,9 +17,12 @@ export {
 export {
   createConnectionStateMessage,
   createEditorCommandMessage,
+  createGridPlacementMessage,
+  createMultiSelectGroupMessage,
   createSelectElementMessage,
   createSelectionSummaryMessage,
   createSessionUpdateMessage,
+  type GridPlacementMessage,
 } from "./panel-messages.js";
 export {
   connectionStateFromDaemonClient,

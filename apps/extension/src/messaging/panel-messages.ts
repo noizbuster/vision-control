@@ -76,6 +76,17 @@ export function createReorderOperationMessage(operation: Operation): BusMessage 
   };
 }
 
+export function createInteractionOperationMessage(operation: Operation): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `interaction-operation-${Date.now()}`,
+    messageType: "interaction-operation",
+    targetRoute: "panel",
+    payload: operation,
+    timestamp: Date.now(),
+  };
+}
+
 /**
  * Panel-bound payload describing the inferred grid placement of the currently
  * selected grid child. Emitted by the content-side overlay runtime (the

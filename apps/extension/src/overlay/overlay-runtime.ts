@@ -21,9 +21,19 @@ import {
   isOverlayElement,
   type OverlayRoot,
 } from "@vision-control/overlay-ui";
+import {
+  createBrowserPreviewDomAdapter,
+  createPreviewManager,
+  type PreviewManager,
+} from "@vision-control/preview-engine";
 
 import type { BusMessage, BusMessageHandler, BusRoute, MessageBus } from "../messaging/index.js";
 import { createSelectionSummaryMessage } from "../messaging/panel-messages.js";
+import {
+  buildSelectionContext,
+  createInteractionControllers,
+  type InteractionControllers,
+} from "./interaction-wiring.js";
 
 /**
  * Narrow bus seam the runtime depends on. {@link MessageBus} satisfies this
@@ -41,6 +51,8 @@ export interface OverlayRuntimeOptions {
   readonly domAdapter?: DomAdapter;
   /** Override overlay-root factory (testing). Defaults to attachOverlayRoot. */
   readonly attachRoot?: (document: Document) => OverlayRoot;
+  /** Instantiate the interaction controllers. Defaults to true. */
+  readonly interactionControllers?: boolean;
 }
 
 export interface OverlayRuntime {
@@ -48,6 +60,7 @@ export interface OverlayRuntime {
   readonly stop: () => void;
   readonly dispose: () => void;
   readonly getInspector: () => Inspector;
+  readonly getInteractionControllers: () => InteractionControllers | null;
 }
 
 /**
@@ -77,6 +90,25 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     domAdapter,
     bus: inspectorBus,
   });
+
+  const overlayContainer = overlayRoot.shadowRoot.querySelector<HTMLElement>(".vc-overlay-root");
+  const enableControllers = options.interactionControllers ?? true;
+  let controllers: InteractionControllers | null = null;
+  if (enableControllers && overlayContainer !== null) {
+    const previewManager: PreviewManager = createPreviewManager({
+      dom: createBrowserPreviewDomAdapter(),
+    });
+    controllers = createInteractionControllers({
+      overlayElement,
+      overlayContainer,
+      previewManager,
+      bus,
+    });
+  }
+
+  const notifySelection = (target: Element): void => {
+    controllers?.onSelectionChange(buildSelectionContext(target));
+  };
 
   // RAF throttle on the hover path (PRD §28.1: 60fps target, <8ms update).
   let hoverRafId: number | null = null;
@@ -119,6 +151,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     event.preventDefault();
     event.stopPropagation();
     inspector.select(target);
+    notifySelection(target);
   };
 
   const onSelectElement: BusMessageHandler = (message) => {
@@ -127,6 +160,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     const target = doc.querySelector(payload.selector);
     if (!isInspectable(target)) return;
     inspector.select(target);
+    notifySelection(target);
   };
 
   let selectElementUnsub: (() => void) | null = null;
@@ -136,9 +170,11 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     doc.addEventListener("click", onClickCapture, true);
     inspector.setInspectMode(true);
     selectElementUnsub = bus.on("select-element", onSelectElement);
+    controllers?.attach();
   };
 
   const stop = (): void => {
+    controllers?.detach();
     cancelHoverRaf();
     doc.removeEventListener("mousemove", onMouseMoveCapture, true);
     doc.removeEventListener("click", onClickCapture, true);
@@ -149,10 +185,18 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
 
   const dispose = (): void => {
     stop();
+    controllers?.dispose();
+    controllers = null;
     inspector.dispose();
   };
 
-  return { start, stop, dispose, getInspector: () => inspector };
+  return {
+    start,
+    stop,
+    dispose,
+    getInspector: () => inspector,
+    getInteractionControllers: () => controllers,
+  };
 }
 
 /**

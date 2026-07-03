@@ -18,6 +18,7 @@ export {
   createConnectionStateMessage,
   createEditorCommandMessage,
   createGridPlacementMessage,
+  createInteractionOperationMessage,
   createMultiSelectGroupMessage,
   createSelectElementMessage,
   createSelectionSummaryMessage,

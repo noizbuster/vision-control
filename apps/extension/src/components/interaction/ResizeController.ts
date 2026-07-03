@@ -25,6 +25,15 @@ import {
   isResizeCandidateSelectPayload,
 } from "../../messaging/resize-messages.js";
 
+/**
+ * Narrow bus seam. {@link MessageBus} satisfies this structurally; tests and
+ * the overlay runtime may pass a smaller fake carrying only `send` + `on`.
+ */
+export interface ResizeControllerBus {
+  readonly send: MessageBus["send"];
+  readonly on: MessageBus["on"];
+}
+
 export interface SelectedElementContext {
   readonly element: ElementRef;
   readonly rect: Rect;
@@ -34,7 +43,13 @@ export interface SelectedElementContext {
 export interface ResizeControllerOptions {
   readonly overlayElement: OverlayElement;
   readonly previewEngine: PreviewManager;
-  readonly bus: MessageBus;
+  readonly bus: ResizeControllerBus;
+  /**
+   * Invoked with the committed resize operation alongside the bus emission.
+   * The overlay runtime funnels this into the change journal; the bus path
+   * coordinates with the background.
+   */
+  readonly onRecordOperation?: (operation: ResizeElementOperation) => void;
 }
 
 interface ActiveGesture {
@@ -70,7 +85,7 @@ export function createResizeController(options: ResizeControllerOptions): {
   readonly detach: () => void;
   readonly destroy: () => void;
 } {
-  const { overlayElement, previewEngine, bus } = options;
+  const { overlayElement, previewEngine, bus, onRecordOperation } = options;
 
   let attachedContext: SelectedElementContext | null = null;
   let candidateSet: ResizeCandidateSet | null = null;
@@ -148,6 +163,7 @@ export function createResizeController(options: ResizeControllerOptions): {
     cleanupPreview();
     const result = gesture.operation.endResize();
     if (result !== null) {
+      onRecordOperation?.(result.operation);
       bus.send("background", createResizeOperationMessage(result.operation));
     }
 

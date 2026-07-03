@@ -25,7 +25,7 @@ Full product scope: [Vision-Control-PRD.md](./Vision-Control-PRD.md).
 
 ## Package boundaries
 
-The workspace has 29 packages split across `apps/`, `packages/`,
+The workspace has 40 packages split across `apps/`, `packages/`,
 `integrations/`, and `tools/`. Every package carries Nx tags in its
 `project.json` that declare its platform and type:
 

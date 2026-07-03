@@ -46,11 +46,11 @@ const manifest: readonly GeneratePackageOptions[] = [
   iso("storage"),
   iso("logger"),
   iso("testing"),
-  iso("editor-core"),
   // Browser libraries (platform:browser, type:library)
   browser("overlay-ui"),
   browser("inspector-core"),
   browser("shared-ui"),
+  browser("editor-core"),
   // Node library (platform:node, type:library)
   nodePackage("cli", "packages/cli"),
   // Node app (platform:node, type:app)

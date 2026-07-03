@@ -3,7 +3,7 @@
   "name": "editor-core",
   "sourceRoot": "packages/editor-core/src",
   "projectType": "library",
-  "tags": ["platform:isomorphic", "type:library", "scope:editor-core"],
+  "tags": ["platform:browser", "type:library", "scope:editor-core"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",

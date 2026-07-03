@@ -66,3 +66,21 @@ feature work. The direct-root Biome invocation means `pnpm check` is a single
 fast gate, not a per-project target that fragments verification. The pnpm
 catalog pins every external version exactly, so no contributor or agent can
 accidentally pull a different React or TypeScript version during MVP development.
+
+## Correction Notes
+
+- **Package count (2026-07-04).** The Context section above says "29-package
+  monorepo". That count was the early scaffold snapshot and is now stale. The
+  workspace has grown to 40 packages (5 apps, 9 integrations, 25 libraries, 1
+  tool) and `pnpm boundaries` reports `packages: 40`. The 29-package figure is
+  retained here for history; treat 40 as the live count.
+- **Root scripts vs PRD section 20.5 (2026-07-04).** PRD section 20.5 lists
+  `check` and `lint` as `nx run-many -t ...` targets and `doctor` as
+  `nx run tools-doctor:run`. This ADR's Decision supersedes that: `pnpm check`
+  and `pnpm lint` call Biome directly from the root, the `affected` target
+  lists only `typecheck`, `test`, and `build`, and `doctor` is `nx report`. The
+  actual root `package.json` scripts match this ADR. PRD 20.5 has been
+  reconciled to point here.
+- **`editor-core` retag (2026-07-04).** Unrelated to the toolchain choice, but
+  recorded for completeness: `editor-core` was re-tagged `platform:isomorphic`
+  → `platform:browser` to match PRD section 20.3 (Browser-only). See ADR-003.

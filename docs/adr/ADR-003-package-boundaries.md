@@ -67,3 +67,20 @@ MVP's core architectural promise: the extension runs in the browser, the daemon
 runs on loopback, and neither leaks into the other's runtime. The tag-driven
 design means scope decisions can evolve without rewriting the checker, which
 prevents the enforcement logic from becoming a maintenance burden during MVP.
+
+## Correction Notes
+
+- **Package count (2026-07-04).** The Context section says "29 packages". That
+  was the early scaffold snapshot; the workspace now has 40 packages and
+  `pnpm boundaries` reports `packages: 40`. The 29 figure is retained for
+  history.
+- **`editor-core` retagged browser (2026-07-04).** PRD section 20.3 classifies
+  `editor-core` as Browser-only, but it was scaffolded `platform:isomorphic`
+  (the same deferred-tag pattern noted above for `preview-engine` and
+  `storage`). `editor-core` has now been tightened to `platform:browser`, the
+  one-line `project.json` change this ADR's Consequences section describes.
+  `pnpm boundaries` still passes: `editor-core` is imported only by browser
+  packages (`overlay-ui`, the extension app) and the isomorphic
+  `interaction-machine` (isomorphic → browser is allowed; only node → browser
+  is forbidden). No node package imports it. `preview-engine` and `storage`
+  remain on the deferred isomorphic tag.

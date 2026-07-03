@@ -44,7 +44,7 @@ pnpm test:e2e       # end-to-end suite (Playwright, added in a later task)
 Inspect the workspace:
 
 ```bash
-pnpm nx show projects   # list all 29 packages
+pnpm nx show projects   # list all 40 packages
 pnpm graph              # open the Nx project dependency graph
 pnpm doctor             # print the Nx environment report
 pnpm boundaries         # run the package boundary checker

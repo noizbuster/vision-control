@@ -89,7 +89,7 @@ that **a visual edit is a preview, never a silent source change**.
 - pnpm 11.9.0 workspaces + Nx 23 + Biome 2.5 (single formatter/linter).
 - TypeScript 6 strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
   `verbatimModuleSyntax`). Vitest 4. Zod 4.
-- 29 packages with enforced platform boundaries (`platform:browser` / `node` /
+- 40 packages with enforced platform boundaries (`platform:browser` / `node` /
   `isomorphic`) and a no-deep-import rule.
 - 10 ADRs, each with an MVP Guardrail section.
 

@@ -1381,7 +1381,6 @@ vision-control/
 ├── apps/
 │   ├── extension/
 │   ├── daemon/
-│   ├── docs/
 │   ├── playground-react-vite/
 │   ├── playground-next/
 │   └── visual-regression-lab/
@@ -1496,21 +1495,30 @@ catalog:
 
 ## 20.5 Root Scripts
 
+> **Governed by [ADR-001](./docs/adr/ADR-001-toolchain.md).** ADR-001 supersedes
+> the script shape sketched below: `check`/`lint` call Biome directly from the
+> root (not `nx run-many -t`), the `affected` target lists only `typecheck`,
+> `test`, and `build`, and `doctor` is `nx report`. The block below is the live,
+> ADR-001-reconciled root `package.json` scripts. PRD 20.6 retains the generic
+> per-package target catalog (`check`, `lint`, ...), but the root does not wrap
+> Biome in per-project targets.
+
 ```json
 {
   "scripts": {
     "dev": "nx run-many -t dev --parallel=6",
     "build": "nx run-many -t build",
-    "check": "nx run-many -t check",
-    "lint": "nx run-many -t lint",
+    "check": "biome check",
+    "lint": "biome check",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "typecheck": "nx run-many -t typecheck",
     "test": "nx run-many -t test",
     "test:e2e": "nx run-many -t e2e",
-    "affected": "nx affected -t check,typecheck,test,build",
+    "affected": "nx affected -t typecheck,test,build",
     "graph": "nx graph",
-    "doctor": "nx run tools-doctor:run"
+    "boundaries": "nx run tools-nx-plugin:boundaries",
+    "doctor": "nx report"
   }
 }
 ```

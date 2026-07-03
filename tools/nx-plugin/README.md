@@ -24,7 +24,7 @@ drives every generator and the bulk scaffold target.
 pnpm nx run tools-nx-plugin:build        # tsc -p tsconfig.build.json -> dist/
 pnpm nx run tools-nx-plugin:typecheck    # tsc --noEmit
 pnpm nx run tools-nx-plugin:test         # vitest run (generator + boundary unit tests)
-pnpm nx run tools-nx-plugin:scaffold     # (re)generate all 28 package skeletons
+pnpm nx run tools-nx-plugin:scaffold     # (re)generate all 40 package skeletons
 pnpm nx run tools-nx-plugin:boundaries   # run the boundary conformance check
 ```
 

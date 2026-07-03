@@ -1,21 +1,19 @@
-import type { AdapterContext, SourceAdapter } from "./adapter-contract.js";
-import { createSourceCandidate, type SourceCandidate } from "./source-candidate.js";
+import type { SourceAdapter } from "./adapter-contract.js";
 
 /**
- * V1/V2 source-adapter stubs (VC-V1V2-04 / PRD 7.2 scope boundary).
+ * V1/V2 source-adapter registry (VC-V1V2-04 / PRD 7.2 scope boundary).
  *
- * Tailwind token-aware editing, CSS Modules mapping, Next.js, Vue, Svelte, and
- * CSS-in-JS are explicitly V1/V2 features. Their real adapters land in Wave 3+
- * tasks (11-14, 18-20). Until then these stubs are first-class
- * {@link SourceAdapter} registrations that return a single LOW candidate with a
- * "not-yet-implemented" warning and NO evidence. Because they carry no
- * evidence, the never-wrong-HIGH policy keeps them at LOW — an agent is never
- * told a Tailwind/CSS-Modules/Next origin is a definitive source location until
- * the real adapter ships.
+ * Every Wave 3+ styling/framework integration (Tailwind 11, CSS Modules 12,
+ * Next 13, Vue/Svelte 19, CSS-in-JS 20, Vanilla CSS 15.3) now ships a REAL
+ * adapter from its integration package; this module re-exports them so callers
+ * have a single import surface. The not-yet-implemented stub machinery is gone:
+ * {@link V1_NOT_IMPLEMENTED_ADAPTERS} is empty, signalling that all planned
+ * Wave 3+ adapters have landed. The never-wrong-HIGH policy (enforced by the
+ * resolver on every candidate regardless) remains the load-bearing guardrail.
  *
  * The MVP-era `{ supported: false, diagnostic }` shape is preserved below as
  * thin wrappers so existing callers (context compiler diagnostics, docs) keep
- * compiling. The adapter objects are the new canonical form.
+ * compiling.
  */
 
 /** Legacy MVP shape: "is this integration available yet?" */
@@ -23,21 +21,6 @@ export interface V1StubResult {
   readonly supported: false;
   readonly diagnostic: string;
 }
-
-const notImplemented = (feature: string): SourceCandidate =>
-  createSourceCandidate({
-    confidence: "low",
-    evidence: [],
-    ownershipRisk: "none",
-    warnings: [`${feature} source resolution is not-yet-implemented (V1/V2 feature)`],
-  });
-
-/** Build a not-yet-implemented adapter for one framework/styling integration. */
-const notImplementedAdapter = (id: string, feature: string): SourceAdapter => ({
-  id,
-  description: `${feature} source resolution (not-yet-implemented; returns LOW advisory candidate)`,
-  resolve: (_context: AdapterContext): readonly SourceCandidate[] => [notImplemented(feature)],
-});
 
 /** CSS Modules hashed-class-to-source mapping adapter (V1 — VC-V1V2-12).
  * Real implementation lives in @vision-control/css-modules. */
@@ -48,26 +31,25 @@ export { NEXT_ADAPTER } from "@vision-control/next-react";
 export { SVELTE_ADAPTER } from "@vision-control/svelte";
 /** Tailwind token-aware editing adapter — real implementation (VC-V1V2-11). */
 export { TAILWIND_TOKEN_ADAPTER } from "@vision-control/tailwind";
+/** Vanilla CSS adapter — real implementation (PRD §15.3 / Task 45). */
+export { VANILLA_CSS_ADAPTER } from "@vision-control/vanilla-css";
 /** Vue adapter — real implementation (VC-V1V2-19). */
 export { VUE_ADAPTER } from "@vision-control/vue";
-
 /** CSS-in-JS (styled-components/emotion/stitches) adapter — real implementation
  * (VC-V1V2-20). Static extractable styles resolve HIGH (ast-origin); dynamic
  * runtime-generated styles are agent-required. */
 export { CSS_IN_JS_ADAPTER } from "./css-in-js/index.js";
 
-/** Vanilla CSS adapter (Wave 3+). */
-export const VANILLA_CSS_ADAPTER: SourceAdapter = notImplementedAdapter(
-  "vanilla-css",
-  "Vanilla CSS origin mapping",
-);
-
 /**
  * All not-yet-implemented adapter registrations, in a stable order. Callers may
  * register any subset into an {@link AdapterRegistry}. Empty by default in the
- * resolver; populated by Wave 3+ tasks.
+ * resolver.
+ *
+ * This list is now EMPTY: every Wave 3+ adapter (Tailwind, CSS Modules, Next,
+ * Vue, Svelte, CSS-in-JS, Vanilla CSS) has shipped its real implementation.
+ * Task 48's release-readiness gate asserts no adapter id remains here.
  */
-export const V1_NOT_IMPLEMENTED_ADAPTERS: readonly SourceAdapter[] = [VANILLA_CSS_ADAPTER];
+export const V1_NOT_IMPLEMENTED_ADAPTERS: readonly SourceAdapter[] = [];
 
 // --- Legacy MVP-era stubs (kept for backward compatibility) -----------------
 

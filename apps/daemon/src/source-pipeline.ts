@@ -7,9 +7,10 @@
  * {@link SourceResolver} that owns the never-wrong-HIGH cascade. The data-less
  * singletons (`TAILWIND_TOKEN_ADAPTER` etc.) are NOT used here — only the
  * factories (`createTailwindTokenAdapter`, `createCssModulesAdapter`, …) wired
- * with workspace-discovered data. `VANILLA_CSS_ADAPTER` is deliberately NOT
- * registered (Task 45 implements the real vanilla adapter; the stub stays out
- * of production).
+ * with workspace-discovered data. The real vanilla CSS adapter
+ * (`createVanillaCssAdapter`, PRD §15.3 / Task 45) is not yet wired here:
+ * registering it needs a workspace stylesheet-discovery step (parse `.css`
+ * files into parsed stylesheets) that is a follow-up task.
  *
  * {@link resolveSourceRequest} is the pure bridge between a §25.1 `source.request`
  * (carrying only `elementId`) and the resolver's `SelectionIdentity`-shaped API.

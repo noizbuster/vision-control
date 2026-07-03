@@ -22,6 +22,7 @@
     "@vision-control/source-registry": "workspace:*",
     "@vision-control/svelte": "workspace:*",
     "@vision-control/tailwind": "workspace:*",
+    "@vision-control/vanilla-css": "workspace:*",
     "@vision-control/vue": "workspace:*",
     "@vision-control/workspace-index": "workspace:*",
     "zod": "catalog:"

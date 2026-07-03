@@ -533,12 +533,14 @@ describe("AdapterRegistry", () => {
 });
 
 describe("V1 not-yet-implemented adapters", () => {
-  it("the canonical adapter list no longer contains the implemented adapters (Tailwind 11, CSS Modules 12, Next 13, CSS-in-JS 20)", () => {
+  it("the canonical not-implemented list contains no shipped adapter (Tailwind 11, CSS Modules 12, Next 13, CSS-in-JS 20, Vue/Svelte 19, Vanilla CSS 15.3)", () => {
     const ids = V1_NOT_IMPLEMENTED_ADAPTERS.map((a) => a.id);
-    expect(ids).toContain("vanilla-css");
+    expect(ids).not.toContain("vanilla-css");
     expect(ids).not.toContain("tailwind-token");
     expect(ids).not.toContain("css-modules");
     expect(ids).not.toContain("next");
+    expect(ids).not.toContain("vue");
+    expect(ids).not.toContain("svelte");
     expect(ids).not.toContain("css-in-js");
   });
 
@@ -590,6 +592,15 @@ describe("V1 not-yet-implemented adapters", () => {
     expect(candidates[0]?.confidence).not.toBe("low");
     expect(candidates[0]?.evidence).toEqual(["text-search"]);
     expect(candidates[0]?.warnings.some((w) => w.includes("agent-required"))).toBe(true);
+  });
+
+  it("VANILLA_CSS_ADAPTER is the real adapter (PRD §15.3 / Task 45): the bare singleton defers (returns no LOW not-yet-implemented candidate)", () => {
+    const candidates = VANILLA_CSS_ADAPTER.resolve({
+      identity: makeIdentity(),
+      cssClasses: ["btn"],
+    });
+    expect(candidates).toEqual([]);
+    expect(candidates).not.toHaveProperty("0.confidence", "low");
   });
 });
 

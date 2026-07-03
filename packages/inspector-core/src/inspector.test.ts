@@ -40,6 +40,8 @@ function createFakeOverlay(): {
     setSelection: (state) => calls.push({ method: "setSelection", state }),
     setDropIndicator: (rect) => calls.push({ method: "setDropIndicator", rect }),
     setResizeHandles: (rect) => calls.push({ method: "setResizeHandles", rect }),
+    getResizeHandle: () => null,
+    updateResizeHandleCursor: () => calls.push({ method: "updateResizeHandleCursor" }),
     clear: () => calls.push({ method: "clear" }),
   };
 

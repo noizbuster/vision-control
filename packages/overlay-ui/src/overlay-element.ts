@@ -9,6 +9,9 @@
 import type { IdentityConfidence } from "@vision-control/element-identity";
 import type { Rect } from "@vision-control/geometry";
 
+import type { ResizeHandlePosition } from "./resize-handles.js";
+import { createResizeHandles } from "./resize-handles.js";
+
 /** State for the currently selected element in the overlay. */
 export interface SelectionOverlayState {
   readonly rect: Rect;
@@ -26,6 +29,10 @@ export interface OverlayElement {
   readonly setDropIndicator: (rect: Rect | null) => void;
   /** Show or hide resize handles around the given rect. */
   readonly setResizeHandles: (rect: Rect | null) => void;
+  /** Read a resize handle element by position, or null if not shown. */
+  readonly getResizeHandle: (position: ResizeHandlePosition) => HTMLElement | null;
+  /** Update the cursor style of one resize handle. */
+  readonly updateResizeHandleCursor: (position: ResizeHandlePosition, cursor: string) => void;
   /** Remove all rendered overlay artifacts. */
   readonly clear: () => void;
 }
@@ -45,15 +52,12 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
   const label = createDiv(document, "vc-label");
   const badge = createDiv(document, "vc-badge");
   const dropIndicator = createDiv(document, "vc-drop-indicator");
-
-  const handlesLayer = createDiv(document, "vc-handles-layer");
-  const handles: HTMLElement[] = [];
+  const resizeHandles = createResizeHandles(root);
 
   root.appendChild(hoverOutline);
   root.appendChild(selectOutline);
   root.appendChild(label);
   root.appendChild(dropIndicator);
-  root.appendChild(handlesLayer);
 
   const setHover = (rect: Rect | null): void => {
     applyRect(hoverOutline, rect);
@@ -86,22 +90,19 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
   };
 
   const setResizeHandles = (rect: Rect | null): void => {
-    handlesLayer.innerHTML = "";
-    handles.length = 0;
     if (rect === null) {
-      handlesLayer.style.display = "none";
+      resizeHandles.hideResizeHandles();
       return;
     }
+    resizeHandles.showResizeHandles(rect);
+  };
 
-    const positions = ["nw", "ne", "sw", "se"] as const;
-    for (const pos of positions) {
-      const handle = createDiv(document, `vc-handle vc-handle-${pos}`);
-      positionHandle(handle, rect, pos);
-      handle.dataset.handlePosition = pos;
-      handlesLayer.appendChild(handle);
-      handles.push(handle);
-    }
-    handlesLayer.style.display = "block";
+  const getResizeHandle = (position: ResizeHandlePosition): HTMLElement | null => {
+    return resizeHandles.getHandleElement(position);
+  };
+
+  const updateResizeHandleCursor = (position: ResizeHandlePosition, cursor: string): void => {
+    resizeHandles.updateHandleCursor(position, cursor);
   };
 
   const clear = (): void => {
@@ -111,7 +112,15 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
     setResizeHandles(null);
   };
 
-  return { setHover, setSelection, setDropIndicator, setResizeHandles, clear };
+  return {
+    setHover,
+    setSelection,
+    setDropIndicator,
+    setResizeHandles,
+    getResizeHandle,
+    updateResizeHandleCursor,
+    clear,
+  };
 }
 
 function getOrCreateRootContainer(shadowRoot: ShadowRoot): HTMLElement {
@@ -142,19 +151,4 @@ function applyRect(element: HTMLElement, rect: Rect | null): void {
   element.style.top = `${rect.y}px`;
   element.style.width = `${rect.width}px`;
   element.style.height = `${rect.height}px`;
-}
-
-function positionHandle(
-  handle: HTMLElement,
-  rect: Rect,
-  position: "nw" | "ne" | "sw" | "se",
-): void {
-  const offset = -4;
-  const left =
-    position === "nw" || position === "sw" ? rect.x + offset : rect.x + rect.width + offset;
-  const top =
-    position === "nw" || position === "ne" ? rect.y + offset : rect.y + rect.height + offset;
-  handle.style.left = `${left}px`;
-  handle.style.top = `${top}px`;
-  handle.style.display = "block";
 }

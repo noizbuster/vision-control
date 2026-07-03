@@ -30,6 +30,8 @@ export const OVERLAY_CSS = /* css */ `
     --vc-select: oklch(65% 0.22 85);
     --vc-handle: oklch(60% 0.2 260);
     --vc-drop: oklch(70% 0.18 300);
+    --vc-drop-valid: oklch(70% 0.22 145);
+    --vc-drop-invalid: oklch(60% 0.22 25);
 
     /* Confidence badge tokens */
     --vc-confidence-high: oklch(70% 0.22 145);
@@ -143,8 +145,48 @@ export const OVERLAY_CSS = /* css */ `
     cursor: pointer;
   }
 
-  .vc-handle-nw { cursor: nw-resize; }
+  .vc-handle-n { cursor: n-resize; }
   .vc-handle-ne { cursor: ne-resize; }
+  .vc-handle-e { cursor: e-resize; }
+  .vc-handle-se { cursor: se-resize; }
+  .vc-handle-s { cursor: s-resize; }
   .vc-handle-sw { cursor: sw-resize; }
   .vc-handle-se { cursor: se-resize; }
+
+  .vc-drop-target-highlight {
+    position: absolute;
+    pointer-events: none;
+    border: var(--vc-outline-width) solid var(--vc-drop-valid);
+    border-radius: var(--vc-radius-sm);
+    background: oklch(70% 0.22 145 / 0.08);
+    transition: top var(--vc-transition-fast),
+                left var(--vc-transition-fast),
+                width var(--vc-transition-fast),
+                height var(--vc-transition-fast);
+  }
+
+  .vc-drop-target-highlight--invalid {
+    border-color: var(--vc-drop-invalid);
+    background: oklch(60% 0.22 25 / 0.08);
+  }
+
+  .vc-drop-warning {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--vc-space-2);
+    padding: var(--vc-space-1) var(--vc-space-3);
+    background: var(--vc-surface);
+    color: var(--vc-drop-invalid);
+    border-radius: var(--vc-radius-md);
+    white-space: nowrap;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .vc-drop-warning__icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
 `;

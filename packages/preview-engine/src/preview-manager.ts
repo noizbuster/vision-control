@@ -152,6 +152,24 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
       case "reorder-child":
       case "reparent-element":
         return dispatchStructural(operation);
+      case "multi-select-group":
+      case "group-reorder":
+      case "group-reparent":
+      case "align-elements":
+      case "distribute-elements":
+      case "set-container-layout":
+      case "set-child-sizing":
+      case "grid-reorder":
+      case "grid-span":
+      case "breakpoint-style-edit":
+      case "breakpoint-class-edit":
+      case "breakpoint-text-edit":
+      case "screenshot-crop-ref":
+      case "suggested-diff":
+        // V1 operation kinds have schemas + inverses (change-ir v1.1.0) but
+        // their preview rendering lands in Wave 2 (tasks 5-10). No Wave 2 UI
+        // emits them yet, so this path is unreachable until then.
+        throw new Error(`Preview not yet implemented for V1 operation kind: ${operation.kind}`);
       default: {
         const _: never = operation;
         _;

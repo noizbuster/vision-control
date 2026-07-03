@@ -34,7 +34,28 @@ const conflictSignature = (op: Operation): string | undefined => {
       return `reorder:${op.parent.runtimeId}:${op.child.runtimeId}`;
     case "reparent-element":
       return `reparent:${op.element.runtimeId}`;
+    case "set-container-layout":
+      return `container-layout:${op.container.runtimeId}:${op.property}`;
+    case "set-child-sizing":
+      return `child-sizing:${op.container.runtimeId}:${op.childIndex}:${op.sizing}`;
+    case "grid-reorder":
+      return `grid-reorder:${op.grid.runtimeId}:${op.child.runtimeId}`;
+    case "grid-span":
+      return `grid-span:${op.grid.runtimeId}:${op.child.runtimeId}:${op.axis}`;
+    case "breakpoint-style-edit":
+      return `bp-style:${op.target.runtimeId}:${op.breakpoint}:${op.property}`;
+    case "breakpoint-class-edit":
+      return `bp-class:${op.target.runtimeId}:${op.breakpoint}:${op.oldClassName}`;
+    case "breakpoint-text-edit":
+      return `bp-text:${op.target.runtimeId}:${op.breakpoint}`;
+    case "group-reorder":
+      return `group-reorder:${op.parent.runtimeId}`;
+    case "group-reparent":
+      return `group-reparent:${op.elements[0]?.runtimeId ?? ""}`;
     default:
+      // multi-select-group, align-elements, distribute-elements,
+      // screenshot-crop-ref, and suggested-diff are metadata/no-op markers or
+      // group-spanning ops that do not occupy a single conflicting slot.
       return undefined;
   }
 };

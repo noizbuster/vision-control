@@ -17,7 +17,17 @@ export {
   type ChangesetUpdate,
 } from "./repositories/changeset.js";
 export { type JournalInsert, JournalRepository } from "./repositories/journal.js";
+export {
+  type ScreenshotArtifactInsert,
+  ScreenshotArtifactRepository,
+} from "./repositories/screenshot-artifact.js";
 export { type SessionInsert, SessionRepository } from "./repositories/session.js";
+export {
+  type ShareBundleInsert,
+  type ShareBundleKind,
+  ShareBundleKindSchema,
+  ShareBundleRepository,
+} from "./repositories/share-bundle.js";
 export {
   isWorkspaceRelativePath,
   type SourceRegistryInsert,
@@ -38,7 +48,9 @@ export type {
   ChangesetRow,
   JournalRow,
   MigrationRecord,
+  ScreenshotArtifactRow,
   SessionRow,
+  ShareBundleRow,
   SourceRange,
   SourceRegistryRow,
   SqliteBoolean,

@@ -44,6 +44,16 @@ export interface ChangesetOperationSummary {
   readonly kind: string;
   readonly runtime: boolean;
   readonly description: string;
+  /** V1: breakpoint identifier for breakpoint-scoped operations. */
+  readonly breakpoint?: string;
+  /** V1 (inert): suggested-diff text for suggested-diff operations (ADR-012, never applied). */
+  readonly suggestedDiff?: string;
+  /** V1: screenshot artifact id for screenshot-crop-ref operations. */
+  readonly artifactId?: string;
+  /** V1: group id for multi-select-group operations. */
+  readonly groupId?: string;
+  /** V1: number of elements targeted by a group/multi-select operation. */
+  readonly targetCount?: number;
 }
 
 /** Diagnostic returned by `vision_get_diagnostics`. */
@@ -60,6 +70,37 @@ export interface CaptureResult {
   readonly selector: string | undefined;
   readonly sourceId: string | undefined;
   readonly note: string;
+}
+
+/**
+ * V1 (inert): one deterministic patch suggestion surfaced through the
+ * `vision_get_source_context` response as candidate DATA (ADR-012). The MCP
+ * server NEVER applies it — there is no apply/write/codemod tool (ADR-010). An
+ * agent reads the suggestion, decides whether to apply it through its own
+ * file-writing mechanism, and then runs the verification loop.
+ *
+ * Mirrors the shape compiled by `@vision-control/context-compiler`
+ * (`SuggestedDiffSummary`) and emitted by `@vision-control/source-resolver`'s
+ * generator. Defined locally so this package's type surface stays decoupled.
+ */
+export interface SourceContextSuggestedDiff {
+  readonly diff: string;
+  readonly confidence: "high" | "medium" | "low";
+  readonly preconditions: readonly string[];
+  readonly kind?:
+    | "tailwind-token-replace"
+    | "css-declaration-replace"
+    | "css-class-replace"
+    | "css-modules-local-edit"
+    | "inline-style-object-edit"
+    | "jsx-text-edit"
+    | "simple-reorder";
+  readonly sourceRanges?: readonly {
+    readonly startLine: number;
+    readonly startColumn: number;
+    readonly endLine: number;
+    readonly endColumn: number;
+  }[];
 }
 
 /** Result of a coordination tool (request-verification, clear-preview, etc.). */

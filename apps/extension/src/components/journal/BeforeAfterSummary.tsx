@@ -61,6 +61,84 @@ export function summarizeOperation(op: Operation): OperationSummary {
         to: `${op.toValue}${op.unit}`,
         variant: "set",
       };
+    case "multi-select-group":
+      return {
+        subject: "group",
+        from: String(op.previousTargets?.length ?? 0),
+        to: String(op.targets.length),
+        variant: "set",
+      };
+    case "group-reorder":
+      return {
+        subject: "group-order",
+        from: op.previousOrder.join(","),
+        to: op.newOrder.join(","),
+        variant: "set",
+      };
+    case "group-reparent":
+      return {
+        subject: "group-parent",
+        from: op.sourceParent.runtimeId,
+        to: op.targetParent.runtimeId,
+        variant: "set",
+      };
+    case "align-elements":
+      return { subject: "align", from: "", to: op.alignment, variant: "set" };
+    case "distribute-elements":
+      return { subject: "distribute", from: "", to: `${op.axis}/${op.mode}`, variant: "set" };
+    case "set-container-layout":
+      return {
+        subject: op.property,
+        from: op.previousValue ?? "",
+        to: op.value,
+        variant: "set",
+      };
+    case "set-child-sizing":
+      return {
+        subject: `child[${op.childIndex}]:sizing`,
+        from: op.previousSizing ?? "",
+        to: op.sizing,
+        variant: "set",
+      };
+    case "grid-reorder":
+      return {
+        subject: `grid:${op.placement}`,
+        from: String(op.fromIndex),
+        to: String(op.toIndex),
+        variant: "set",
+      };
+    case "grid-span":
+      return {
+        subject: `grid-span:${op.axis}`,
+        from: String(op.fromSpan),
+        to: String(op.toSpan),
+        variant: "set",
+      };
+    case "breakpoint-style-edit":
+      return {
+        subject: `${op.property}@${op.breakpoint}`,
+        from: op.previousValue ?? "",
+        to: op.value,
+        variant: "set",
+      };
+    case "breakpoint-class-edit":
+      return {
+        subject: `class@${op.breakpoint}`,
+        from: op.oldClassName,
+        to: op.newClassName,
+        variant: "set",
+      };
+    case "breakpoint-text-edit":
+      return {
+        subject: `text@${op.breakpoint}`,
+        from: op.previousText ?? "",
+        to: op.newText,
+        variant: "set",
+      };
+    case "screenshot-crop-ref":
+      return { subject: "screenshot", from: "", to: op.artifactId, variant: "set" };
+    case "suggested-diff":
+      return { subject: "suggested-diff", from: "", to: op.confidence, variant: "set" };
     default: {
       const exhaustive: never = op;
       throw new Error(`summarizeOperation: unhandled kind: ${JSON.stringify(exhaustive)}`);
@@ -77,6 +155,20 @@ const KIND_LABEL: Record<OperationKind, string> = {
   "reorder-child": "Reorder",
   "reparent-element": "Reparent",
   "resize-element": "Resize",
+  "multi-select-group": "Multi-select",
+  "group-reorder": "Group reorder",
+  "group-reparent": "Group reparent",
+  "align-elements": "Align",
+  "distribute-elements": "Distribute",
+  "set-container-layout": "Container layout",
+  "set-child-sizing": "Child sizing",
+  "grid-reorder": "Grid reorder",
+  "grid-span": "Grid span",
+  "breakpoint-style-edit": "BP style",
+  "breakpoint-class-edit": "BP class",
+  "breakpoint-text-edit": "BP text",
+  "screenshot-crop-ref": "Screenshot",
+  "suggested-diff": "Suggested diff",
 };
 
 export function operationLabel(op: Operation): string {

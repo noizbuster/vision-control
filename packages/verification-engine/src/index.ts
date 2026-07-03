@@ -13,6 +13,47 @@
  * distinction is the backbone of every guardrail here.
  */
 
+// V2 (VC-V1V2-24 / ADR-017): advisory accessibility repair suggestions. Each
+// suggestion carries a deterministic verification assertion; the system never
+// auto-mutates the DOM or source (advisory only).
+export {
+  type AccessibilityRepairLevel,
+  type AccessibilityScan,
+  type AccessibilitySuggestion,
+  assertReadingOrderPreserved as assertReadingOrderPreservedRepair,
+  buildAccessibleNameAssertion,
+  buildAttributePresentAssertion,
+  buildFocusableAssertion,
+  buildRoleAssertion,
+  collectAccessibilitySuggestions,
+  type DomVisualOrderInput,
+  detectDomVisualOrderIssues,
+  detectFocusOrderIssues,
+  detectKeyboardNavigationIssues,
+  detectLabelControlIssues,
+  detectRoleNameIssues,
+  type FocusOrderElement,
+  type FocusOrderInput,
+  hasAccessibleName,
+  hasAccessibleNameSource,
+  isKeyboardFocusable,
+  type KeyboardNavigationElement,
+  type KeyboardNavigationInput,
+  type LabelControlElement,
+  type LabelControlInput,
+  parseTabindex,
+  type RoleNameElement,
+  type RoleNameInput,
+  summarizeSuggestions,
+} from "./accessibility-repair/index.js";
+export {
+  type AlignmentAccessibilityLevel,
+  type AlignmentAccessibilityWarning,
+  assertReadingOrderPreserved,
+  detectCssOrderPresent,
+  detectCssOrderUsage,
+  detectDomVisualOrderDesync,
+} from "./alignment-accessibility.js";
 export { assertName, assertRole } from "./assertions/accessibility.js";
 export { assertClass, type ExpectedClass } from "./assertions/class.js";
 export { assertComputedStyle, type ExpectedStyle } from "./assertions/computed-style.js";
@@ -30,6 +71,51 @@ export {
   type VerificationDomAdapter,
 } from "./dom-adapter.js";
 export { type WaitForHmrOptions, waitForHmrComplete } from "./hmr-detector.js";
+// V1 (VC-V1V2-15 / ADR-011): opt-in screenshot crop capture, redaction, diff,
+// and short-retention cleanup. Opt-in only — default context exports exclude
+// screenshots entirely (enforced in the context-compiler opt-in gate).
+export {
+  type CaptureRequest,
+  type CssRect,
+  captureScreenshotCrop,
+  type DeviceRect,
+  type OverlaySuppressor,
+  type ScreenshotCaptureAdapter,
+  type ScreenshotCaptureInput,
+  type ScreenshotCropResult,
+  type ScreenshotOptIn,
+  type ScreenshotRedactionLens,
+  scaleToDevice,
+} from "./screenshot-crop.js";
+export {
+  assertScreenshotSimilarity,
+  byteSimilarity,
+  DEFAULT_DIFF_THRESHOLD,
+  type ScreenshotCropData,
+  type ScreenshotDiffOptions,
+  type ScreenshotDiffResult,
+} from "./screenshot-diff.js";
+export {
+  buildRedactionReport,
+  classifyRegion,
+  type DomRegionCandidate,
+  discoverRedactableRegions,
+  type RecheckResult,
+  type RedactableRegion,
+  type RedactionReason,
+  type RedactionReport,
+  recheckCapture,
+} from "./screenshot-redaction.js";
+export {
+  computeExpiry,
+  DEFAULT_RETENTION_POLICY,
+  DEFAULT_SCREENSHOT_RETENTION_MS,
+  type RetentionCleanupResult,
+  type RetentionPolicy,
+  type RetentionSweepRepository,
+  type RetentionSweepRow,
+  runRetentionCleanup,
+} from "./screenshot-retention.js";
 export { type ResolveTargetOptions, resolveTarget } from "./target-resolver.js";
 export {
   type AssertionEntry,

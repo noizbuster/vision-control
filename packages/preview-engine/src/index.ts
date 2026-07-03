@@ -49,6 +49,16 @@ export {
   TransactionStateError,
 } from "./preview-transaction.js";
 export {
+  applyPseudoPreview,
+  assertPseudoElementStyle,
+  PSEUDO_PREVIEW_ELEMENTS,
+  type PseudoElementAssertionResult,
+  type PseudoPreviewElement,
+  type PseudoPreviewInput,
+  type PseudoPreviewTarget,
+  pseudoPreviewSelector,
+} from "./pseudo-preview.js";
+export {
   createReconciliationObserver,
   type ReconciliationObserver,
   type ReconciliationObserverOptions,

@@ -5,6 +5,13 @@ import { type Operation, OperationSchema } from "./operations/index.js";
 const ID = z.string().regex(OPERATION_ID_PATTERN);
 
 /**
+ * change-ir schema version. v1.0.0 = the 8 MVP kinds. v1.1.0 added the 14 V1
+ * kinds (multi-select, group, layout, grid, breakpoint, screenshot-ref,
+ * suggested-diff) — additive, no breaking shape change. See `src/SCHEMA_VERSION.md`.
+ */
+export const CHANGE_IR_SCHEMA_VERSION = "1.1.0";
+
+/**
  * A ChangeSet is the unit of grouped visual operations for one editing session.
  * Operations are append-only; `committed` marks the set as finalized for
  * source resolution, and `supersededBy` marks it as replaced by a newer set.
@@ -141,6 +148,163 @@ export const computeInverse = (op: Operation): Operation => {
         fromValue: op.toValue,
         toValue: op.fromValue,
         unit: op.unit,
+      };
+    case "multi-select-group":
+      return {
+        ...base,
+        kind: "multi-select-group",
+        targets: op.previousTargets ?? [],
+        groupId: op.groupId,
+        previousTargets: op.targets,
+      };
+    case "group-reorder":
+      return {
+        ...base,
+        kind: "group-reorder",
+        parent: op.parent,
+        children: op.children,
+        previousOrder: op.newOrder,
+        newOrder: op.previousOrder,
+      };
+    case "group-reparent":
+      return {
+        ...base,
+        kind: "group-reparent",
+        elements: op.elements,
+        sourceParent: op.targetParent,
+        sourceIndices: op.targetIndices,
+        targetParent: op.sourceParent,
+        targetIndices: op.sourceIndices,
+      };
+    case "align-elements":
+      return {
+        ...base,
+        kind: "align-elements",
+        targets: op.targets,
+        alignment: op.alignment,
+        previousValues: op.newValues,
+        newValues: op.previousValues,
+      };
+    case "distribute-elements":
+      return {
+        ...base,
+        kind: "distribute-elements",
+        targets: op.targets,
+        axis: op.axis,
+        mode: op.mode,
+        previousGaps: op.newGaps,
+        newGaps: op.previousGaps,
+      };
+    case "set-container-layout":
+      return {
+        ...base,
+        kind: "set-container-layout",
+        container: op.container,
+        property: op.property,
+        value: op.previousValue ?? "",
+        previousValue: op.value,
+      };
+    case "set-child-sizing":
+      return {
+        ...base,
+        kind: "set-child-sizing",
+        container: op.container,
+        childIndex: op.childIndex,
+        child: op.child,
+        sizing: op.previousSizing ?? op.sizing,
+        previousSizing: op.sizing,
+        ...(op.previousValue !== undefined || op.value !== undefined
+          ? { value: op.previousValue, previousValue: op.value }
+          : {}),
+      };
+    case "grid-reorder":
+      return {
+        ...base,
+        kind: "grid-reorder",
+        grid: op.grid,
+        child: op.child,
+        placement: op.placement,
+        fromIndex: op.toIndex,
+        toIndex: op.fromIndex,
+        ...(op.newGridArea !== undefined || op.previousGridArea !== undefined
+          ? { previousGridArea: op.newGridArea, newGridArea: op.previousGridArea }
+          : {}),
+      };
+    case "grid-span":
+      return {
+        ...base,
+        kind: "grid-span",
+        grid: op.grid,
+        child: op.child,
+        axis: op.axis,
+        fromSpan: op.toSpan,
+        toSpan: op.fromSpan,
+      };
+    case "breakpoint-style-edit":
+      return {
+        ...base,
+        kind: "breakpoint-style-edit",
+        target: op.target,
+        breakpoint: op.breakpoint,
+        ...(op.mediaSource !== undefined ? { mediaSource: op.mediaSource } : {}),
+        ...(op.activeViewport !== undefined ? { activeViewport: op.activeViewport } : {}),
+        ...(op.responsivePrefix !== undefined ? { responsivePrefix: op.responsivePrefix } : {}),
+        ...(op.applyToBase !== undefined ? { applyToBase: op.applyToBase } : {}),
+        property: op.property,
+        value: op.previousValue ?? "",
+        important: op.important,
+        previousValue: op.value,
+      };
+    case "breakpoint-class-edit":
+      return {
+        ...base,
+        kind: "breakpoint-class-edit",
+        target: op.target,
+        breakpoint: op.breakpoint,
+        ...(op.mediaSource !== undefined ? { mediaSource: op.mediaSource } : {}),
+        ...(op.activeViewport !== undefined ? { activeViewport: op.activeViewport } : {}),
+        ...(op.responsivePrefix !== undefined ? { responsivePrefix: op.responsivePrefix } : {}),
+        ...(op.applyToBase !== undefined ? { applyToBase: op.applyToBase } : {}),
+        oldClassName: op.newClassName,
+        newClassName: op.oldClassName,
+      };
+    case "breakpoint-text-edit":
+      return {
+        ...base,
+        kind: "breakpoint-text-edit",
+        target: op.target,
+        breakpoint: op.breakpoint,
+        ...(op.mediaSource !== undefined ? { mediaSource: op.mediaSource } : {}),
+        ...(op.activeViewport !== undefined ? { activeViewport: op.activeViewport } : {}),
+        ...(op.responsivePrefix !== undefined ? { responsivePrefix: op.responsivePrefix } : {}),
+        ...(op.applyToBase !== undefined ? { applyToBase: op.applyToBase } : {}),
+        newText: op.previousText ?? "",
+        previousText: op.newText,
+      };
+    case "screenshot-crop-ref":
+      // No-op marker: the screenshot ref is metadata, not a state change.
+      return {
+        ...base,
+        kind: "screenshot-crop-ref",
+        target: op.target,
+        artifactId: op.artifactId,
+        captureRegion: op.captureRegion,
+        ...(op.redactionReport !== undefined ? { redactionReport: op.redactionReport } : {}),
+        ...(op.retentionExpiresAt !== undefined
+          ? { retentionExpiresAt: op.retentionExpiresAt }
+          : {}),
+      };
+    case "suggested-diff":
+      // No-op marker: the suggestion is inert metadata, not a state change.
+      return {
+        ...base,
+        kind: "suggested-diff",
+        ...(op.target !== undefined ? { target: op.target } : {}),
+        diff: op.diff,
+        sourceRanges: op.sourceRanges,
+        confidence: op.confidence,
+        preconditions: op.preconditions,
+        applied: false,
       };
     default: {
       // Exhaustiveness guard: a new kind without a branch is a compile error.

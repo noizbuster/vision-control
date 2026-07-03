@@ -1,5 +1,6 @@
 export {
   appendOperation,
+  CHANGE_IR_SCHEMA_VERSION,
   type ChangeSet,
   ChangeSetSchema,
   type CreateChangeSetOptions,

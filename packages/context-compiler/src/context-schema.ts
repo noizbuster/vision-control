@@ -15,10 +15,10 @@
 
 import { z } from "zod";
 
-/** Version of the compiled-context format. Bumped on a breaking shape change. */
-export const CONTEXT_FORMAT_VERSION = "1.0.0";
+/** Version of the compiled-context format. Bumped minor on additive V1 fields. */
+export const CONTEXT_FORMAT_VERSION = "1.1.0";
 
-/** The eight MVP operation kinds, mirrored from change-ir (kept in sync by the
+/** Every operation kind, mirrored from change-ir (kept in sync by the
  * compiler's exhaustive switch — adding a kind to change-ir without a branch
  * here is a compile error). */
 export const OPERATION_SUMMARY_KINDS = [
@@ -30,6 +30,20 @@ export const OPERATION_SUMMARY_KINDS = [
   "reorder-child",
   "reparent-element",
   "resize-element",
+  "multi-select-group",
+  "group-reorder",
+  "group-reparent",
+  "align-elements",
+  "distribute-elements",
+  "set-container-layout",
+  "set-child-sizing",
+  "grid-reorder",
+  "grid-span",
+  "breakpoint-style-edit",
+  "breakpoint-class-edit",
+  "breakpoint-text-edit",
+  "screenshot-crop-ref",
+  "suggested-diff",
 ] as const;
 
 export const OperationSummaryKindSchema = z.enum(OPERATION_SUMMARY_KINDS);
@@ -212,9 +226,161 @@ export const ContextMetadataSchema = z.object({
 export type ContextMetadata = z.infer<typeof ContextMetadataSchema>;
 
 /**
+ * V1: the multi-selection group currently in scope (absent for single-element
+ * edits). Carries the JSON-safe identity of every selected target plus the
+ * stable group id.
+ */
+export const MultiSelectSummarySchema = z.object({
+  groupId: z.string(),
+  targets: z.array(TargetIdentitySchema),
+});
+export type MultiSelectSummary = z.infer<typeof MultiSelectSummarySchema>;
+
+/**
+ * V1: the active responsive breakpoint context. `activeViewport` is the current
+ * viewport label; `mediaQuerySource` is the originating media query when known;
+ * `responsivePrefix` is the framework prefix (e.g. Tailwind `md`) when known;
+ * `scopedChangeCount` is how many breakpoint-scoped operations target this
+ * breakpoint (derived from the changeset by the compiler).
+ */
+export const BreakpointContextSchema = z.object({
+  activeViewport: z.string(),
+  mediaQuerySource: z.string().optional(),
+  responsivePrefix: z.string().optional(),
+  scopedChangeCount: z.number().int().nonnegative().optional(),
+});
+export type BreakpointContext = z.infer<typeof BreakpointContextSchema>;
+
+/** V1: detail behind a source-confidence level (method + reasons + warnings). */
+export const SourceConfidenceDetailSchema = z.object({
+  method: z.string(),
+  reasons: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+export type SourceConfidenceDetail = z.infer<typeof SourceConfidenceDetailSchema>;
+
+/**
+ * V1 (opt-in only): a metadata reference to an opt-in screenshot crop artifact.
+ * NEVER carries image bytes — only the artifact id and redaction report ref.
+ * Absent unless the session explicitly opted into screenshot capture.
+ */
+export const ScreenshotRedactionSummarySchema = z.object({
+  /** How many sensitive regions were masked before capture. */
+  totalMasked: z.number().int().nonnegative(),
+  /** Post-capture re-check verdict (ADR-011: must be "pass" to persist). */
+  postCaptureRecheck: z.enum(["pass", "fail"]),
+});
+export type ScreenshotRedactionSummary = z.infer<typeof ScreenshotRedactionSummarySchema>;
+
+export const ScreenshotRefSummarySchema = z.object({
+  artifactId: z.string(),
+  redactionReport: z.string().optional(),
+  redactionSummary: ScreenshotRedactionSummarySchema.optional(),
+});
+export type ScreenshotRefSummary = z.infer<typeof ScreenshotRefSummarySchema>;
+
+/**
+ * V1 (inert): one deterministic patch suggestion, surfaced as candidate data.
+ * Never applied by the runtime or MCP (ADR-012); a coding agent may consume it.
+ *
+ * `diff`/`confidence`/`preconditions` are the Task-3 baseline. `kind` and
+ * `sourceRanges` (VC-V1V2-14) carry the suggestion kind and the exact source
+ * ranges the diff touches, so a consumer can locate the edit without re-parsing
+ * the diff. All V1V2-14 fields are OPTIONAL so a 1.1.0 baseline summary built
+ * by Task-3's round-trip still validates.
+ */
+export const SuggestedDiffSummarySchema = z.object({
+  diff: z.string(),
+  confidence: SourceConfidenceLevelSchema,
+  preconditions: z.array(z.string()),
+  kind: z
+    .enum([
+      "tailwind-token-replace",
+      "css-declaration-replace",
+      "css-class-replace",
+      "css-modules-local-edit",
+      "inline-style-object-edit",
+      "jsx-text-edit",
+      "simple-reorder",
+    ])
+    .optional(),
+  sourceRanges: z
+    .array(
+      z.object({
+        startLine: z.number().int().positive(),
+        startColumn: z.number().int().nonnegative(),
+        endLine: z.number().int().positive(),
+        endColumn: z.number().int().nonnegative(),
+      }),
+    )
+    .optional(),
+});
+export type SuggestedDiffSummary = z.infer<typeof SuggestedDiffSummarySchema>;
+
+/** V1: grid / auto-layout context for layout-aware reasoning. */
+export const LayoutContextSummarySchema = z.object({
+  gridColumns: z.number().int().nonnegative().optional(),
+  gridRows: z.number().int().nonnegative().optional(),
+  autoLayout: z.string().optional(),
+});
+export type LayoutContextSummary = z.infer<typeof LayoutContextSummarySchema>;
+
+/**
+ * V1 (VC-V1V2-18): compact summary of the design-token registry. Tells an agent
+ * which token categories and source kinds are in play, and how many names have
+ * conflicting values across sources. The full token list is NOT emitted (it can
+ * be large); this summary plus the conflict warnings give the agent enough to
+ * reason about token provenance without blowing the token budget.
+ *
+ * Structurally compatible with `TokenRegistrySummary` from
+ * `@vision-control/source-resolver`; defined locally (same decoupling pattern
+ * as `SourceCandidateSummarySchema`).
+ */
+export const TokenRegistrySummarySchema = z.object({
+  totalTokens: z.number().int().nonnegative(),
+  categories: z.record(z.string(), z.number().int().nonnegative()),
+  sources: z.array(z.string()),
+  conflictCount: z.number().int().nonnegative(),
+});
+export type TokenRegistrySummary = z.infer<typeof TokenRegistrySummarySchema>;
+
+/**
+ * V1 (VC-V1V2-21): one discovered component prop surfaced in the agent context.
+ * `editable` is true only for safe static literals; dynamic/computed props carry
+ * `editable: false` so the agent knows a deterministic edit is not possible.
+ */
+export const ComponentPropSummarySchema = z.object({
+  name: z.string(),
+  kind: z.string(),
+  editable: z.boolean(),
+  value: z.string().optional(),
+  candidates: z.array(z.string()).optional(),
+});
+export type ComponentPropSummary = z.infer<typeof ComponentPropSummarySchema>;
+
+/**
+ * V1 (VC-V1V2-21): summary of the selected component's props for agent context.
+ * Includes the component name, framework, discovered props, ownership risk, and
+ * any prop-flow warnings (reparented/moved, cross-boundary).
+ */
+export const ComponentPropsSummarySchema = z.object({
+  componentName: z.string(),
+  framework: z.string(),
+  props: z.array(ComponentPropSummarySchema),
+  ownershipRisk: z.enum(["none", "low", "medium", "high"]),
+  warnings: z.array(z.string()),
+});
+export type ComponentPropsSummary = z.infer<typeof ComponentPropsSummarySchema>;
+
+/**
  * The full compiled agent context. Field order follows the priority order used
  * by the token budget (goal first, privacy report last). Lower-priority fields
  * are truncated first when the context exceeds the token budget.
+ *
+ * V1 (format 1.1.0) adds the optional trailing fields (`multiSelect`,
+ * `breakpoint`, `sourceConfidenceDetail`, `screenshotRef`, `suggestedDiffs`,
+ * `layoutContext`, `adapterWarnings`). All are optional so a 1.0.0 consumer
+ * that ignores unknown keys still parses a 1.1.0 context.
  */
 export const CompiledContextSchema = z.object({
   goal: z.string(),
@@ -226,6 +392,15 @@ export const CompiledContextSchema = z.object({
   warnings: z.array(WarningSchema),
   privacyReport: PrivacyReportSchema,
   metadata: ContextMetadataSchema,
+  multiSelect: MultiSelectSummarySchema.optional(),
+  breakpoint: BreakpointContextSchema.optional(),
+  sourceConfidenceDetail: SourceConfidenceDetailSchema.optional(),
+  screenshotRef: ScreenshotRefSummarySchema.optional(),
+  suggestedDiffs: z.array(SuggestedDiffSummarySchema).optional(),
+  layoutContext: LayoutContextSummarySchema.optional(),
+  adapterWarnings: z.array(WarningSchema).optional(),
+  tokenRegistry: TokenRegistrySummarySchema.optional(),
+  componentProps: ComponentPropsSummarySchema.optional(),
 });
 export type CompiledContext = z.infer<typeof CompiledContextSchema>;
 

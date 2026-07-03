@@ -7,6 +7,11 @@ export interface JournalInsert {
   readonly operation: unknown;
   readonly status: string;
   readonly applied_at?: number;
+  /** V1: breakpoint identifier for breakpoint-scoped entries. */
+  readonly breakpoint?: string;
+  /** V1: inert suggested-diff payload (serialized when `suggested_diff` is given). */
+  readonly suggested_diff?: unknown;
+  readonly suggested_diff_json?: string;
 }
 
 /** Repository for the `journal` table (undo/redo entries). */
@@ -16,7 +21,7 @@ export class JournalRepository {
   insert(input: JournalInsert): void {
     this.db
       .prepare(
-        "INSERT INTO journal (id, changeset_id, operation_json, status, applied_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO journal (id, changeset_id, operation_json, status, applied_at, breakpoint, suggested_diff_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
       .run(
         input.id,
@@ -24,6 +29,9 @@ export class JournalRepository {
         JSON.stringify(input.operation),
         input.status,
         input.applied_at ?? null,
+        input.breakpoint ?? null,
+        input.suggested_diff_json ??
+          (input.suggested_diff !== undefined ? JSON.stringify(input.suggested_diff) : null),
       );
   }
 

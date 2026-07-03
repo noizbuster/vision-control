@@ -11,6 +11,9 @@ export interface ChangesetInsert {
   readonly committed?: boolean;
   readonly created_at: number;
   readonly updated_at: number;
+  /** V1: multi-select element-ref identities (serialized when `multi_select_targets` is given). */
+  readonly multi_select_targets?: readonly unknown[];
+  readonly multi_select_targets_json?: string;
 }
 
 export interface ChangesetUpdate {
@@ -19,6 +22,8 @@ export interface ChangesetUpdate {
   readonly committed?: boolean;
   readonly superseded_by?: string | null;
   readonly updated_at: number;
+  readonly multi_select_targets?: readonly unknown[];
+  readonly multi_select_targets_json?: string | null;
 }
 
 /** Repository for the `changesets` table. Booleans map to INTEGER 0/1. */
@@ -28,7 +33,7 @@ export class ChangesetRepository {
   insert(input: ChangesetInsert): void {
     this.db
       .prepare(
-        "INSERT INTO changesets (id, session_id, workspace_id, operations_json, committed, superseded_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO changesets (id, session_id, workspace_id, operations_json, committed, superseded_by, created_at, updated_at, multi_select_targets_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .run(
         input.id,
@@ -39,6 +44,8 @@ export class ChangesetRepository {
         null,
         input.created_at,
         input.updated_at,
+        input.multi_select_targets_json ??
+          (input.multi_select_targets ? JSON.stringify(input.multi_select_targets) : null),
       );
   }
 
@@ -65,9 +72,15 @@ export class ChangesetRepository {
     if (current === undefined) {
       return;
     }
+    const multiSelectJson =
+      input.multi_select_targets !== undefined
+        ? JSON.stringify(input.multi_select_targets)
+        : input.multi_select_targets_json !== undefined
+          ? input.multi_select_targets_json
+          : current.multi_select_targets_json;
     this.db
       .prepare(
-        "UPDATE changesets SET operations_json = ?, committed = ?, superseded_by = ?, updated_at = ? WHERE id = ?",
+        "UPDATE changesets SET operations_json = ?, committed = ?, superseded_by = ?, updated_at = ?, multi_select_targets_json = ? WHERE id = ?",
       )
       .run(
         input.operations_json ??
@@ -75,6 +88,7 @@ export class ChangesetRepository {
         (input.committed ?? current.committed === 1) ? 1 : 0,
         input.superseded_by !== undefined ? input.superseded_by : current.superseded_by,
         input.updated_at,
+        multiSelectJson,
         id,
       );
   }

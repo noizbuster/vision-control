@@ -57,6 +57,8 @@ export interface ChangesetRow {
   readonly superseded_by: string | null;
   readonly created_at: number;
   readonly updated_at: number;
+  /** V1: JSON array of multi-select element-ref identities (null for single-element changesets). */
+  readonly multi_select_targets_json: string | null;
 }
 
 export interface JournalRow {
@@ -65,6 +67,10 @@ export interface JournalRow {
   readonly operation_json: string;
   readonly status: string;
   readonly applied_at: number | null;
+  /** V1: breakpoint identifier for breakpoint-scoped journal entries. */
+  readonly breakpoint: string | null;
+  /** V1: inert suggested-diff JSON payload for suggested-diff entries. */
+  readonly suggested_diff_json: string | null;
 }
 
 export interface VerificationRow {
@@ -89,6 +95,36 @@ export interface ArtifactRow {
   readonly path: string;
   readonly metadata_json: string;
   readonly created_at: number;
+}
+
+/** V1: a screenshot crop artifact's metadata. The blob lives on the filesystem. */
+export interface ScreenshotArtifactRow {
+  readonly id: string;
+  readonly workspace_id: string;
+  readonly content_hash: string;
+  /** Workspace-relative path (validated at the repository boundary). */
+  readonly file_path: string;
+  readonly captured_at: number;
+  /** Retention expiry; NULL means no expiry set. */
+  readonly expires_at: number | null;
+  readonly redaction_report_json: string;
+}
+
+/**
+ * V2: metadata about an exported or imported share bundle (ADR-015 / ADR-018).
+ * The bundle bytes live on the local filesystem; this row records the content
+ * hash, kind (`export`/`import`), optional local path, and optional expiry so a
+ * workspace can audit and revoke local shares. No token, secret, or image data
+ * is ever stored here.
+ */
+export interface ShareBundleRow {
+  readonly id: string;
+  readonly workspace_id: string;
+  readonly bundle_hash: string;
+  readonly kind: string;
+  readonly local_path: string | null;
+  readonly created_at: number;
+  readonly expires_at: number | null;
 }
 
 /** A single applied-migration record from the `_migrations` bookkeeping table. */

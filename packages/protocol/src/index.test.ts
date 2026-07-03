@@ -35,7 +35,7 @@ describe("protocol version", () => {
   });
 
   it("exposes the current protocol version constant", () => {
-    expect(PROTOCOL_VERSION).toBe("1.0.0");
+    expect(PROTOCOL_VERSION).toBe("1.1.0");
   });
 
   it("isCompatible requires same major and server minor >= client minor", () => {
@@ -45,8 +45,10 @@ describe("protocol version", () => {
       throw new Error("unreachable");
     };
     expect(isCompatible(v("1.0.0"), v("1.0.0"))).toBe(true);
+    expect(isCompatible(v("1.0.0"), v("1.1.0"))).toBe(true);
     expect(isCompatible(v("1.0.0"), v("1.5.2"))).toBe(true);
     expect(isCompatible(v("1.5.0"), v("1.0.0"))).toBe(false);
+    expect(isCompatible(v("1.1.0"), v("1.0.0"))).toBe(false);
     expect(isCompatible(v("1.0.0"), v("2.0.0"))).toBe(false);
   });
 });

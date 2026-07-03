@@ -76,6 +76,97 @@ const describeOperation = (
           unit: op.unit,
         },
       };
+    case "multi-select-group":
+      return {
+        description: `Select group ${op.groupId} (${op.targets.length} elements)`,
+        detail: { groupId: op.groupId, targetCount: String(op.targets.length) },
+      };
+    case "group-reorder":
+      return {
+        description: `Reorder group of ${op.children.length} in ${op.parent.runtimeId}`,
+        detail: { parent: op.parent.runtimeId, childCount: String(op.children.length) },
+      };
+    case "group-reparent":
+      return {
+        description: `Reparent ${op.elements.length} elements to ${op.targetParent.runtimeId}`,
+        detail: {
+          count: String(op.elements.length),
+          targetParent: op.targetParent.runtimeId,
+        },
+      };
+    case "align-elements":
+      return {
+        description: `Align ${op.targets.length} elements ${op.alignment}`,
+        detail: { alignment: op.alignment, targetCount: String(op.targets.length) },
+      };
+    case "distribute-elements":
+      return {
+        description: `Distribute ${op.targets.length} elements ${op.axis} (${op.mode})`,
+        detail: { axis: op.axis, mode: op.mode, targetCount: String(op.targets.length) },
+      };
+    case "set-container-layout":
+      return {
+        description: `Set container ${op.property} to ${describeValue(op.value)}`,
+        detail: { property: op.property, value: op.value },
+      };
+    case "set-child-sizing":
+      return {
+        description: `Set child ${op.childIndex} sizing to ${op.sizing}`,
+        detail: { childIndex: String(op.childIndex), sizing: op.sizing },
+      };
+    case "grid-reorder":
+      return {
+        description: `Grid reorder ${op.child.runtimeId} (${op.placement}) ${op.fromIndex}->${op.toIndex}`,
+        detail: {
+          grid: op.grid.runtimeId,
+          placement: op.placement,
+          fromIndex: String(op.fromIndex),
+          toIndex: String(op.toIndex),
+        },
+      };
+    case "grid-span":
+      return {
+        description: `Grid ${op.axis} span ${op.fromSpan}->${op.toSpan}`,
+        detail: { axis: op.axis, fromSpan: String(op.fromSpan), toSpan: String(op.toSpan) },
+      };
+    case "breakpoint-style-edit":
+      return {
+        description: `Set ${op.property} to ${describeValue(op.value)} at ${op.breakpoint}`,
+        detail: {
+          breakpoint: op.breakpoint,
+          property: op.property,
+          value: op.value,
+          important: String(op.important),
+        },
+      };
+    case "breakpoint-class-edit":
+      return {
+        description: `Replace ${describeValue(op.oldClassName)} with ${describeValue(op.newClassName)} at ${op.breakpoint}`,
+        detail: {
+          breakpoint: op.breakpoint,
+          oldClassName: op.oldClassName,
+          newClassName: op.newClassName,
+        },
+      };
+    case "breakpoint-text-edit":
+      return {
+        description: `Change text to ${describeValue(op.newText)} at ${op.breakpoint}`,
+        detail: { breakpoint: op.breakpoint, newText: op.newText },
+      };
+    case "screenshot-crop-ref":
+      return {
+        description: `Reference screenshot artifact ${op.artifactId}`,
+        detail: { artifactId: op.artifactId },
+      };
+    case "suggested-diff":
+      return {
+        description: `Suggested diff (${op.confidence} confidence, inert)`,
+        detail: {
+          confidence: op.confidence,
+          applied: String(op.applied),
+          preconditions: op.preconditions.join("; "),
+        },
+      };
     default: {
       const exhaustive: never = op;
       throw new Error(`describeOperation: unhandled kind: ${JSON.stringify(exhaustive)}`);
@@ -102,6 +193,29 @@ const describeTarget = (op: Operation): string | undefined => {
     case "reparent-element":
     case "resize-element":
       return op.element.sourceId ?? op.element.selector;
+    case "set-container-layout":
+      return op.container.sourceId ?? op.container.selector;
+    case "set-child-sizing":
+      return op.child.sourceId ?? op.child.selector;
+    case "grid-reorder":
+    case "grid-span":
+      return op.child.sourceId ?? op.child.selector;
+    case "group-reorder":
+      return op.parent.sourceId ?? op.parent.selector;
+    case "group-reparent":
+      return op.targetParent.sourceId ?? op.targetParent.selector;
+    case "multi-select-group":
+    case "align-elements":
+    case "distribute-elements":
+      return op.targets[0]?.sourceId ?? op.targets[0]?.selector;
+    case "screenshot-crop-ref":
+      return op.target.sourceId ?? op.target.selector;
+    case "breakpoint-style-edit":
+    case "breakpoint-class-edit":
+    case "breakpoint-text-edit":
+      return op.target.sourceId ?? op.target.selector;
+    case "suggested-diff":
+      return op.target?.sourceId ?? op.target?.selector;
     default: {
       const exhaustive: never = op;
       throw new Error(`describeTarget: unhandled kind: ${JSON.stringify(exhaustive)}`);

@@ -11,6 +11,7 @@ allowBuilds:
   better-sqlite3: true
   esbuild: true
   spawn-sync: true
+  sharp: set this to true or false
 
 # Shared external dependency versions. Every workspace package references
 # these via the `catalog:` protocol so a version bump lives in exactly one
@@ -35,6 +36,7 @@ catalog:
   better-sqlite3: "12.11.1"
   jsdom: "29.1.1"
   magic-string: "0.30.21"
+  next: "15.5.4"
   nx: "23.0.1"
   playwright: "1.61.1"
   postcss: "8.5.3"

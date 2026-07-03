@@ -14,7 +14,21 @@
  * can talk to an older server without breaking the wire.
  */
 
-export const PROTOCOL_VERSION = "1.0.0";
+/**
+ * Current protocol version.
+ *
+ * 1.1.0 (minor, additive within major 1) — adds the V1 operation kinds and
+ * compiled-context fields. The envelope/message wire shapes are unchanged; the
+ * new operation kinds live in `@vision-control/change-ir` and travel inside the
+ * envelope `payload`, while the new context fields are optional additive keys.
+ *
+ * Compatibility is unchanged: {@link hasCompatibleMajor} still accepts any 1.x
+ * envelope (additive fields keep the wire compatible), and {@link isCompatible}
+ * still requires `server.minor >= client.minor` for negotiation. A 1.0.0 client
+ * negotiates successfully against a 1.1.0 server; a 1.1.0 client against a 1.0.0
+ * server is reported incompatible by the strict check (the server is older).
+ */
+export const PROTOCOL_VERSION = "1.1.0";
 
 export const PROTOCOL_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 

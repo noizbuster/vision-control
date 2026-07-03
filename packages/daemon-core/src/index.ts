@@ -8,7 +8,9 @@ export {
   serializeEnvelope,
 } from "./envelope-builder.js";
 export { DaemonCoreError, WorkspaceNotBoundError } from "./errors.js";
+export { createMessageSender, type MessageSender } from "./message-sender.js";
 export {
+  type BrowserToDaemonHandler,
   type DispatchResult,
   ProtocolHandler,
   type ProtocolHandlerDeps,

@@ -21,7 +21,11 @@ import { describe, expect, it } from "vitest";
  *   - the release docs (notes, feature matrix, migration, known limitations)
  *     exist and are non-empty,
  *   - no source-mutating MCP tool exists (read-only contract),
- *   - the evidence convention directory is present.
+ *   - the evidence convention directory is present,
+ *   - every packages/* project.json defines package+publish targets (Task 44),
+ *   - every test.fixme in PRD §31.5 e2e specs carries an OUT rationale (Task 41),
+ *   - the removed verification-plan constant is absent from all source (Task 33),
+ *   - vanilla-css graduated from the V1 not-implemented stub list (Task 45).
  *
  * Green here means "structurally releasable"; the command-level proof lives in
  * the evidence file.
@@ -53,6 +57,47 @@ function listWorkspaceManifests(): string[] {
     }
   }
   return out;
+}
+
+interface NxProjectConfig {
+  readonly targets?: Record<string, unknown>;
+}
+
+/** packages/* directories are the publishable workspace libraries (Task 44). */
+function listPackagesProjectConfigs(): string[] {
+  const dir = path.join(repoRoot, "packages");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => path.join(dir, e.name, "project.json"))
+    .filter((f) => existsSync(f));
+}
+
+const SCAN_SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  ".output",
+  ".wxt",
+  ".omo",
+  "playwright-report",
+  "test-results",
+  ".cache",
+  "coverage",
+]);
+const SCAN_EXTS = new Set([".ts", ".tsx", ".js", ".cjs", ".mjs", ".json", ".md"]);
+
+/** Walk source files, skipping build/cache/vendor subtrees (content-scan only). */
+function walkSourceFiles(dir: string, acc: string[] = []): string[] {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      if (!SCAN_SKIP_DIRS.has(e.name)) walkSourceFiles(full, acc);
+    } else if (e.isFile() && SCAN_EXTS.has(path.extname(e.name))) {
+      acc.push(full);
+    }
+  }
+  return acc;
 }
 
 const REQUIRED_RELEASE_SCRIPTS = [
@@ -210,5 +255,91 @@ describe("release readiness: evidence convention", () => {
   it("the .omo/evidence directory exists for release verification records", () => {
     const evidenceDir = path.join(repoRoot, ".omo", "evidence");
     expect(existsSync(evidenceDir), ".omo/evidence must exist for release records").toBe(true);
+  });
+});
+
+describe("release readiness: publishable package targets (Task 44)", () => {
+  it("every packages/* project.json defines package and publish targets", () => {
+    const configs = listPackagesProjectConfigs();
+    expect(configs.length, "packages/* project.json must be discoverable").toBeGreaterThan(20);
+    const missing: string[] = [];
+    for (const config of configs) {
+      const parsed = readJson(config) as NxProjectConfig;
+      const targets = new Set(Object.keys(parsed.targets ?? {}));
+      if (!targets.has("package")) {
+        missing.push(`${path.relative(repoRoot, config)}: missing "package"`);
+      }
+      if (!targets.has("publish")) {
+        missing.push(`${path.relative(repoRoot, config)}: missing "publish"`);
+      }
+    }
+    expect(
+      missing,
+      `publishable packages must define package+publish targets:\n${missing.join("\n")}`,
+    ).toEqual([]);
+  });
+});
+
+describe("release readiness: e2e stub discipline (Task 41 / PRD §31.5)", () => {
+  it("every test.fixme in extension e2e specs carries an OUT rationale", () => {
+    const e2eDir = path.join(repoRoot, "apps", "extension", "e2e");
+    expect(existsSync(e2eDir), "extension e2e directory must exist").toBe(true);
+    const specs = readdirSync(e2eDir)
+      .filter((f) => f.endsWith(".spec.ts"))
+      .sort();
+    expect(specs.length, "extension e2e specs must exist").toBeGreaterThan(0);
+    const violations: string[] = [];
+    for (const name of specs) {
+      const lines = readFileSync(path.join(e2eDir, name), "utf8").split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line === undefined || !line.includes("test.fixme(")) continue;
+        let prev = i - 1;
+        while (prev >= 0 && lines[prev]?.trim() === "") prev--;
+        if (prev < 0 || !lines[prev]?.includes("// OUT:")) {
+          violations.push(`${name}:${i + 1} — test.fixme without a "// OUT:" rationale`);
+        }
+      }
+    }
+    expect(
+      violations,
+      `e2e test.fixme stubs must carry explicit OUT rationale:\n${violations.join("\n")}`,
+    ).toEqual([]);
+  });
+});
+
+// Concatenation so this source holds no literal forbidden token (Task 33).
+const REMOVED_PLAN_TOKEN = "STUB_" + "VERIFICATION_" + "PLAN";
+
+describe("release readiness: removed plan token is absent (Task 33)", () => {
+  it("no source file re-introduces the removed verification-plan constant", () => {
+    const files = walkSourceFiles(repoRoot);
+    expect(files.length, "source tree must be walkable").toBeGreaterThan(100);
+    const hits: string[] = [];
+    for (const file of files) {
+      if (readFileSync(file, "utf8").includes(REMOVED_PLAN_TOKEN)) {
+        hits.push(path.relative(repoRoot, file));
+      }
+    }
+    expect(hits, `the removed plan constant must not reappear:\n${hits.join("\n")}`).toEqual([]);
+  });
+});
+
+describe("release readiness: vanilla-css graduated from V1 stubs (Task 45)", () => {
+  it("VANILLA_CSS_ADAPTER is absent from V1_NOT_IMPLEMENTED_ADAPTERS", () => {
+    const source = readFileSync(
+      path.join(repoRoot, "packages", "source-resolver", "src", "v1-stubs.ts"),
+      "utf8",
+    );
+    const decl = source.indexOf("V1_NOT_IMPLEMENTED_ADAPTERS");
+    expect(decl, "V1_NOT_IMPLEMENTED_ADAPTERS must still be declared").toBeGreaterThan(-1);
+    const start = source.indexOf("[", decl);
+    const end = source.indexOf("];", start);
+    expect(end, "V1_NOT_IMPLEMENTED_ADAPTERS array must be terminated").toBeGreaterThan(-1);
+    const body = source.slice(start, end).toLowerCase();
+    expect(
+      body,
+      "V1_NOT_IMPLEMENTED_ADAPTERS must not list vanilla-css (Task 45 graduated it)",
+    ).not.toContain("vanilla");
   });
 });

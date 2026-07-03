@@ -33,6 +33,7 @@
 
 import type {
   ChangesetOperationSummary,
+  ChangesetPrivacyReport,
   ChangesetSummary,
   CoordinationResult,
   Diagnostic,
@@ -66,6 +67,8 @@ export interface CurrentChangesetRead {
   /** Stable changeset id used to scope §25.2 dispatch (verification/clear). */
   readonly changesetId?: string;
   readonly operations: readonly ChangesetOperationSummary[];
+  /** Privacy report computed by the context-compiler redaction engine. */
+  readonly privacyReport?: ChangesetPrivacyReport;
 }
 
 /** Read model: a verification plan for the current changeset. */
@@ -219,6 +222,7 @@ export function createDaemonMcpDeps(services: DaemonMcpDepsServices): McpServerD
         sessionId: active.sessionId,
         operationCount: operations.length,
         operations,
+        ...(current?.privacyReport !== undefined ? { privacyReport: current.privacyReport } : {}),
       };
     },
 

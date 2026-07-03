@@ -208,11 +208,19 @@ export const WarningSchema = z.object({
 });
 export type Warning = z.infer<typeof WarningSchema>;
 
-/** Redaction entry, mirroring `@vision-control/security#PrivacyReportRedaction`. */
+/**
+ * Redaction entry, mirroring `@vision-control/security#PrivacyReportRedaction`
+ * plus a `source` discriminator (PRD §27.2 selector vs ADR-009 string-pattern)
+ * so a reader can tell which redaction layer fired.
+ */
+export const PrivacyRedactionSourceSchema = z.enum(["selector", "string-pattern"]);
+export type PrivacyRedactionSource = z.infer<typeof PrivacyRedactionSourceSchema>;
+
 export const PrivacyReportRedactionSchema = z.object({
   field: z.string(),
   patternId: z.string(),
   description: z.string(),
+  source: PrivacyRedactionSourceSchema,
 });
 export type PrivacyReportRedaction = z.infer<typeof PrivacyReportRedactionSchema>;
 

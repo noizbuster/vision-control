@@ -8,6 +8,7 @@ export {
   createChangeSet,
   migrateChangeset_1_to_2,
   removeOperation,
+  withPrivacyReport,
 } from "./changeset.js";
 export {
   type PageContext,
@@ -50,6 +51,8 @@ export {
 } from "./operations/index.js";
 export {
   type PrivacyRedaction,
+  type PrivacyRedactionSource,
+  PrivacyRedactionSourceSchema,
   PrivacyRedactionSchema,
   type PrivacyReport,
   PrivacyReportSchema,

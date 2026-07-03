@@ -12,9 +12,12 @@ import {
   migrateChangeset_1_to_2,
   type Operation,
   OperationSchema,
+  type PrivacyReport,
+  PrivacyReportSchema,
   removeOperation,
   serializeChangeSet,
   supersedeChangeSet,
+  withPrivacyReport,
 } from "./index.js";
 import type { ReorderChildOperation, StyleEditOperation } from "./operations/index.js";
 import { arbByKind, arbChangeSet, arbOperation } from "./property-arbitraries.test.js";
@@ -470,6 +473,44 @@ describe("PRD §12.2 schema v2.0.0", () => {
     const result = deserializeChangeSet(serializeChangeSet(cs));
     expect(result.success).toBe(true);
     if (result.success) expect(result.data).toEqual(cs);
+  });
+
+  describe("withPrivacyReport", () => {
+    const passwordReport: PrivacyReport = {
+      redactions: [
+        {
+          field: "target.attributes.value",
+          patternId: "password-input",
+          description: "input[type=password] value masked (PRD §27.2).",
+          source: "selector",
+        },
+      ],
+      totalRedacted: 1,
+    };
+
+    it("stamps a computed report onto a fresh changeset (replacing the empty baseline)", () => {
+      const cs = createChangeSet({ workspaceId: "ws", sessionId: "sess", now: BASE_TIME });
+      expect(cs.privacyReport.totalRedacted).toBe(0);
+      const stamped = withPrivacyReport(cs, passwordReport);
+      expect(stamped.privacyReport).toEqual(passwordReport);
+      expect(cs.privacyReport.totalRedacted).toBe(0);
+    });
+
+    it("the stamped report validates against PrivacyReportSchema and survives a round-trip", () => {
+      const cs = createChangeSet({ workspaceId: "ws", sessionId: "sess-priv", id: "cs-priv01", now: BASE_TIME });
+      const stamped = withPrivacyReport(cs, passwordReport);
+      expect(PrivacyReportSchema.safeParse(stamped.privacyReport).success).toBe(true);
+      expect(ChangeSetSchema.safeParse(stamped).success).toBe(true);
+      const round = deserializeChangeSet(serializeChangeSet(stamped));
+      expect(round.success).toBe(true);
+      if (round.success) expect(round.data.privacyReport).toEqual(passwordReport);
+    });
+
+    it("every redaction entry carries a source discriminator", () => {
+      const cs = createChangeSet({ workspaceId: "ws", sessionId: "sess-priv", id: "cs-priv02", now: BASE_TIME });
+      const stamped = withPrivacyReport(cs, passwordReport);
+      expect(stamped.privacyReport.redactions.every((r) => r.source === "selector")).toBe(true);
+    });
   });
 
   it("createChangeSet honors explicit page/viewport/title overrides", () => {

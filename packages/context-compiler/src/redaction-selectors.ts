@@ -205,6 +205,7 @@ export const redactTarget = (
           field: "target.attributes.value",
           patternId: rule.id,
           description: rule.description,
+          source: "selector",
         });
       }
       if (textContentPreview.length > 0 && !alreadyRedacted(textContentPreview)) {
@@ -213,6 +214,7 @@ export const redactTarget = (
           field: "target.semantic.textContentPreview",
           patternId: rule.id,
           description: rule.description,
+          source: "selector",
         });
       }
     } else {
@@ -226,6 +228,7 @@ export const redactTarget = (
           field: "target.attributes",
           patternId: rule.id,
           description: rule.description,
+          source: "selector",
         });
       }
       if (textContentPreview.length > 0 && !alreadyRedacted(textContentPreview)) {
@@ -234,6 +237,7 @@ export const redactTarget = (
           field: "target.semantic.textContentPreview",
           patternId: rule.id,
           description: rule.description,
+          source: "selector",
         });
       }
     }

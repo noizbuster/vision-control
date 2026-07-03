@@ -18,6 +18,7 @@
 
 export const PACKAGE_NAME = "@vision-control/context-compiler";
 
+export { type ComputeChangesetPrivacyReportOptions, computeChangesetPrivacyReport } from "./changeset-privacy.js";
 export { type CompileContextInputs, compileContext } from "./compiler.js";
 export * from "./context-schema.js";
 export { redactContext } from "./redaction.js";
@@ -35,4 +36,5 @@ export {
 } from "./redaction-selectors.js";
 export { renderJson } from "./renderers/json-renderer.js";
 export { renderMarkdown } from "./renderers/markdown-renderer.js";
+export { projectSelectionToTarget } from "./target-projection.js";
 export { TokenBudget } from "./token-budget.js";

@@ -46,6 +46,7 @@ import {
   redactTarget,
   resolveSelectorRules,
 } from "./redaction-selectors.js";
+import { projectSelectionToTarget } from "./target-projection.js";
 import { TokenBudget } from "./token-budget.js";
 import { projectVerificationPlan } from "./verification-plan-projector.js";
 
@@ -169,68 +170,8 @@ export const compileContext = (inputs: CompileContextInputs): CompiledContext =>
 const projectTarget = (
   selection: SelectionSummary,
   rules: readonly RedactionSelectorRule[],
-): { readonly target: TargetSummary; readonly redactions: readonly PrivacyReportRedaction[] } => {
-  const projected: TargetSummary = {
-    identity: {
-      ...(selection.identity.runtimeId !== undefined
-        ? { runtimeId: selection.identity.runtimeId }
-        : {}),
-      ...(selection.identity.sourceId !== undefined
-        ? { sourceId: selection.identity.sourceId }
-        : {}),
-      ...(selection.identity.fingerprint !== undefined
-        ? { fingerprint: selection.identity.fingerprint }
-        : {}),
-      ...(selection.identity.confidence !== undefined
-        ? { confidence: selection.identity.confidence }
-        : {}),
-      selectors: collectSelectors(selection),
-    },
-    semantic: {
-      tagName: selection.semantic.tagName,
-      ...(selection.semantic.role !== undefined ? { role: selection.semantic.role } : {}),
-      ...(selection.semantic.name !== undefined ? { name: selection.semantic.name } : {}),
-      ...(selection.semantic.description !== undefined
-        ? { description: selection.semantic.description }
-        : {}),
-      textContentPreview: selection.semantic.textContentPreview,
-    },
-    breadcrumb: selection.breadcrumb.map((item) => ({
-      tagName: item.tagName,
-      ...(item.id !== undefined ? { id: item.id } : {}),
-      ...(item.className !== undefined ? { className: item.className } : {}),
-      ...(item.role !== undefined ? { role: item.role } : {}),
-      ...(item.selector !== undefined ? { selector: item.selector } : {}),
-    })),
-    computedStyle: { ...selection.computedStyle },
-    boxModel: {
-      contentWidth: selection.boxModel.content.width,
-      contentHeight: selection.boxModel.content.height,
-      positionX: selection.boxModel.position.x,
-      positionY: selection.boxModel.position.y,
-    },
-    classList: selection.classList.map((entry) => ({ name: entry.name, source: entry.source })),
-    attributes: selection.attributes.map((entry) => ({ name: entry.name, value: entry.value })),
-  };
-  return redactTarget(projected, rules);
-};
-
-const collectSelectors = (selection: SelectionSummary): string[] => {
-  const selectors: string[] = [];
-  if (selection.identity.selector !== undefined && selection.identity.selector.length > 0) {
-    selectors.push(selection.identity.selector);
-  }
-  for (const item of selection.breadcrumb) {
-    if (
-      item.selector !== undefined &&
-      item.selector.length > 0 &&
-      !selectors.includes(item.selector)
-    ) {
-      selectors.push(item.selector);
-    }
-  }
-  return selectors;
-};
+): { readonly target: TargetSummary; readonly redactions: readonly PrivacyReportRedaction[] } =>
+  redactTarget(projectSelectionToTarget(selection), rules);
 
 /** Project source-resolver candidates into the context source summary. */
 const projectSource = (candidates: readonly SourceCandidate[]): SourceSummary => {

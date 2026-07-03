@@ -38,6 +38,23 @@ export interface ChangesetSummary {
   readonly sessionId: string;
   readonly operationCount: number;
   readonly operations: readonly ChangesetOperationSummary[];
+  /**
+   * Redacted privacy summary for the changeset (PRD §12.2 / Appendix D.6):
+   * which fields the redaction engine would mask and why. Absent until the
+   * engine computes one. The report never carries original secret values.
+   */
+  readonly privacyReport?: ChangesetPrivacyReport;
+}
+
+/** Privacy report surfaced on the changeset summary (mirrors change-ir). */
+export interface ChangesetPrivacyReport {
+  readonly totalRedacted: number;
+  readonly redactions: readonly {
+    readonly field: string;
+    readonly patternId: string;
+    readonly description: string;
+    readonly source: "selector" | "string-pattern";
+  }[];
 }
 
 /** One operation in a changeset, reduced to agent-facing essentials. */

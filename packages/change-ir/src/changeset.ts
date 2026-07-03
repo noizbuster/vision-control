@@ -13,7 +13,7 @@ import {
 import { ElementRefSchema } from "./element-ref.js";
 import { OPERATION_ID_PATTERN } from "./operation-base.js";
 import { type Operation, OperationSchema } from "./operations/index.js";
-import { DEFAULT_PRIVACY_REPORT, PrivacyReportSchema } from "./privacy.js";
+import { DEFAULT_PRIVACY_REPORT, type PrivacyReport, PrivacyReportSchema } from "./privacy.js";
 
 const ID = z.string().regex(OPERATION_ID_PATTERN);
 
@@ -171,6 +171,17 @@ export const appendOperation = (cs: ChangeSet, op: Operation): ChangeSet => ({
 export const removeOperation = (cs: ChangeSet, opId: string): ChangeSet => ({
   ...cs,
   operations: cs.operations.filter((op) => op.id !== opId),
+  updatedAt: Date.now(),
+});
+
+/**
+ * Stamp a computed {@link PrivacyReport} onto the set, replacing the
+ * {@link DEFAULT_PRIVACY_REPORT} baseline. Does not mutate the input. The
+ * report is produced by `@vision-control/context-compiler#computeChangesetPrivacyReport`.
+ */
+export const withPrivacyReport = (cs: ChangeSet, report: PrivacyReport): ChangeSet => ({
+  ...cs,
+  privacyReport: report,
   updatedAt: Date.now(),
 });
 

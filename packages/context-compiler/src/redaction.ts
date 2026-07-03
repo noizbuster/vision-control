@@ -70,4 +70,5 @@ const toContextRedaction = (entry: SecurityPrivacyReportRedaction): PrivacyRepor
   field: entry.field,
   patternId: entry.patternId,
   description: entry.description,
+  source: "string-pattern",
 });

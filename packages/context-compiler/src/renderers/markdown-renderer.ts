@@ -319,9 +319,11 @@ const renderPrivacyReport = (context: CompiledContext, lines: string[]): void =>
     lines.push("_No fields required redaction._");
     return;
   }
-  lines.push("| Field | Rule | Reason |", "| --- | --- | --- |");
+  lines.push("| Field | Rule | Layer | Reason |", "| --- | --- | --- | --- |");
   for (const entry of privacyReport.redactions) {
-    lines.push(`| ${entry.field} | ${entry.patternId} | ${escapeCell(entry.description)} |`);
+    lines.push(
+      `| ${entry.field} | ${entry.patternId} | ${entry.source} | ${escapeCell(entry.description)} |`,
+    );
   }
 };
 

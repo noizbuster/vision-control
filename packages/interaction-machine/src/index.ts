@@ -5,7 +5,12 @@ export {
 export type {
   InteractionEvent,
   InteractionEventType,
+  PreviewKind,
   ResizeHandle,
+} from "./events.js";
+export {
+  isPointerAcquireEvent,
+  POINTER_ACQUIRE_EVENTS,
 } from "./events.js";
 export {
   buildGroupReorderOperation,
@@ -26,6 +31,8 @@ export {
   type InteractionMachineState,
   type MachineContext,
   type TransitionError,
+  type TransitionLog,
+  type TransitionOutcome,
   type TransitionResult,
   transition,
 } from "./machine.js";
@@ -99,8 +106,14 @@ export {
   INTERACTION_STATES,
   type InteractionStateValue,
   InteractionStateValueSchema,
+  isInDraggingSubtree,
+  isInSelectedSubtree,
   isPointerOwningState,
+  isPreviewState,
   POINTER_OWNING_STATES,
+  TOP_LEVEL_COMPOUNDS,
+  type TopLevelCompound,
+  topLevelOf,
 } from "./states.js";
 
 export const PACKAGE_NAME = "@vision-control/interaction-machine";

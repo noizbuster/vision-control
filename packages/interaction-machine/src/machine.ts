@@ -1,23 +1,27 @@
-import type { ElementRef } from "@vision-control/element-identity";
-
-import type { InteractionEvent, ResizeHandle } from "./events.js";
+import type { InteractionEvent, InteractionEventType } from "./events.js";
+import { isPointerAcquireEvent } from "./events.js";
+import { cancelActiveGesture } from "./handlers/cancel.js";
+import { dispatchRootCompound } from "./handlers/root.js";
+import { dispatchSelectedSubtree } from "./handlers/selected.js";
 import {
-  assertNeverState,
-  deselect,
-  endGesture,
+  attachLog,
+  hardResetDisconnected,
+  INITIAL_CONTEXT,
   type InteractionMachineState,
   illegalTransition,
-  noEffects,
+  type RawResult,
   rejectPointerBusy,
+  rejectSelectionLocked,
   type TransitionResult,
   withContext,
 } from "./machine-types.js";
-import { acquirePointer, type PointerId } from "./pointer-ownership.js";
-import { isPointerOwningState } from "./states.js";
+import type { PointerOwnerKind } from "./pointer-ownership.js";
+import { isPointerOwningState, topLevelOf } from "./states.js";
 
-// allow: SIZE_OK — a state machine's legal transition set is indivisible;
-// splitting the per-state handlers across files would scatter one cohesive
-// concern and break the reviewer's ability to see the whole transition graph.
+// allow: SIZE_OK — a state machine's invariant-guard ordering is indivisible;
+// the global guards must be readable as one block (PRD 10 invariants 1-5) and
+// the dispatch is a thin fan-out to the per-compound handlers. Splitting the
+// guard chain across files would hide the invariant precedence from reviewers.
 export {
   createInitialState,
   type Effect,
@@ -25,238 +29,88 @@ export {
   type InteractionMachineState,
   type MachineContext,
   type TransitionError,
+  type TransitionLog,
+  type TransitionOutcome,
   type TransitionResult,
 } from "./machine-types.js";
 
+/** Map a pointer-acquire event to the owner kind it attempts to claim. */
+const acquireKindOf = (type: InteractionEventType): PointerOwnerKind =>
+  type === "resize-start" ? "resize" : "drag";
+
+/** PRD 10 invariant 5 (page-reload) — handled first, from any state. */
+const isPageReload = (event: InteractionEvent): boolean => event.type === "page-reload";
+
+/** `disconnect` from any live state transitions to the `disconnected` sink. */
+const goToDisconnected = (state: InteractionMachineState): RawResult => ({
+  state: withContext(state, {}, "disconnected"),
+  effects: [{ kind: "disconnect" }],
+});
+
+/** `reconnect` from `disconnected` resets to a clean `idle` (no stale selection). */
+const reconnect = (): RawResult => ({
+  state: { value: "idle", context: { ...INITIAL_CONTEXT } },
+  effects: [{ kind: "reconnect" }],
+});
+
 /**
- * The transition function: a pure reducer. `(state, event) -> { state, effects }`.
- * Illegal transitions return the UNCHANGED state plus a single `error` effect;
- * the caller decides whether to log it. The machine has no side effects.
+ * The transition function: a pure reducer. `(state, event) -> { state, effects, log }`.
+ *
+ * The five PRD section 10 invariants are enforced as global guards, evaluated
+ * in precedence order BEFORE the per-compound dispatch:
+ *
+ * 1. one pointer-owning interaction at a time — a pointer-acquire event while a
+ *    pointer-owning state is active is rejected with `pointer-busy`.
+ * 2. no selection change mid-drag — `element-clicked` while pointer-owning is
+ *    rejected with `selection-locked`.
+ * 3. preview transaction commit-or-rollback — enforced inside the preview leaf
+ *    handler (only terminal events are accepted; else `preview-open`).
+ * 4. iframe-navigation cancels the active interaction — `iframe-navigate`
+ *    rolls back any open preview and releases the pointer.
+ * 5. page-reload discards runtime ids — `page-reload` hard-resets to
+ *    `disconnected` clearing every runtime-id-bearing context field.
+ *
+ * Illegal transitions return the UNCHANGED state plus a single `error` effect.
+ * Every transition — applied, rejected, or no-op — attaches a debug-log record
+ * (PRD 10:776). The machine has no side effects.
  */
 export const transition = (
   state: InteractionMachineState,
   event: InteractionEvent,
 ): TransitionResult => {
-  // Pointer-ownership invariant: a drag/resize start while a pointer-owning
-  // gesture is already active is rejected with an explicit `pointer-busy`
-  // error (e.g. `drag-start` while `resizing`). This is the
-  // one-owner-at-a-time guarantee (PRD section 10).
-  if (event.type === "drag-start" && isPointerOwningState(state.value)) {
-    return rejectPointerBusy(state, "drag");
-  }
-  if (event.type === "resize-start" && isPointerOwningState(state.value)) {
-    return rejectPointerBusy(state, "resize");
+  const prev = state;
+  let raw: RawResult;
+
+  // Invariant 5: page-reload discards runtime ids (from ANY state).
+  if (isPageReload(event)) {
+    raw = hardResetDisconnected();
+  } else if (state.value === "disconnected") {
+    // `disconnected` is a sink: only `reconnect` exits (page-reload handled above).
+    raw = event.type === "reconnect" ? reconnect() : illegalTransition(state, event);
+  } else if (event.type === "iframe-navigate") {
+    // Invariant 4: iframe-navigation cancels the active interaction.
+    raw = cancelActiveGesture(state);
+  } else if (event.type === "disconnect") {
+    raw = goToDisconnected(state);
+  } else if (isPointerAcquireEvent(event.type) && isPointerOwningState(state.value)) {
+    // Invariant 1: one pointer-owning interaction at a time.
+    raw = rejectPointerBusy(state, acquireKindOf(event.type));
+  } else if (event.type === "element-clicked" && isPointerOwningState(state.value)) {
+    // Invariant 2: no selection change mid-drag.
+    raw = rejectSelectionLocked(state);
+  } else {
+    // Dispatch by PRD 10 compound state. `disconnected` is unreachable here
+    // (handled as a sink above) but the dotted-string union can't express
+    // that, so the explicit guard keeps the dispatch exhaustive.
+    const compound = topLevelOf(state.value);
+    if (compound === "selected") {
+      raw = dispatchSelectedSubtree(state, event);
+    } else if (compound === "disconnected") {
+      raw = illegalTransition(state, event);
+    } else {
+      raw = dispatchRootCompound(compound, state, event);
+    }
   }
 
-  switch (state.value) {
-    case "idle":
-      return fromIdle(state, event);
-    case "inspecting":
-      return fromInspecting(state, event);
-    case "selecting":
-      return fromSelecting(state, event);
-    case "selected":
-      return fromSelected(state, event);
-    case "dragging":
-      return fromDragging(state, event);
-    case "resizing":
-      return fromResizing(state, event);
-    case "editing-text":
-      return fromEditingText(state, event);
-    case "previewing":
-      return fromPreviewing(state, event);
-    default:
-      return assertNeverState(state.value);
-  }
-};
-
-const fromIdle = (state: InteractionMachineState, event: InteractionEvent): TransitionResult => {
-  switch (event.type) {
-    case "pick-start":
-      return { state: withContext(state, {}, "inspecting"), effects: [] };
-    case "element-clicked":
-      return {
-        state: withContext(state, { pendingSelection: event.target }, "selecting"),
-        effects: [{ kind: "show-outline", target: event.target }],
-      };
-    case "escape":
-    case "deselect":
-      return noEffects(state);
-    default:
-      return illegalTransition(state, event);
-  }
-};
-
-const fromInspecting = (
-  state: InteractionMachineState,
-  event: InteractionEvent,
-): TransitionResult => {
-  switch (event.type) {
-    case "pick-end":
-      return { state: withContext(state, {}, "idle"), effects: [] };
-    case "element-clicked":
-      return {
-        state: withContext(state, { pendingSelection: event.target }, "selecting"),
-        effects: [{ kind: "show-outline", target: event.target }],
-      };
-    case "escape":
-    case "deselect":
-      return { state: withContext(state, {}, "idle"), effects: [] };
-    default:
-      return illegalTransition(state, event);
-  }
-};
-
-const fromSelecting = (
-  state: InteractionMachineState,
-  event: InteractionEvent,
-): TransitionResult => {
-  const pending = state.context.pendingSelection;
-  switch (event.type) {
-    case "pick-end":
-      // Commit the pending selection: inspector opens, outline stays.
-      return pending === null
-        ? illegalTransition(state, event)
-        : {
-            state: withContext(state, { selection: pending, pendingSelection: null }, "selected"),
-            effects: [{ kind: "open-inspector", target: pending }],
-          };
-    case "element-clicked":
-      return {
-        state: withContext(state, { pendingSelection: event.target }, "selecting"),
-        effects: [{ kind: "show-outline", target: event.target }],
-      };
-    case "escape":
-    case "deselect":
-      return {
-        state: withContext(state, { pendingSelection: null }, "idle"),
-        effects: [{ kind: "hide-outline" }],
-      };
-    default:
-      return illegalTransition(state, event);
-  }
-};
-
-const fromSelected = (
-  state: InteractionMachineState,
-  event: InteractionEvent,
-): TransitionResult => {
-  switch (event.type) {
-    case "element-clicked":
-      return {
-        state: withContext(state, { selection: event.target, pendingSelection: null }, "selecting"),
-        effects: [{ kind: "show-outline", target: event.target }, { kind: "close-inspector" }],
-      };
-    case "drag-start":
-      return startDrag(state, event.pointerId, event.target);
-    case "resize-start":
-      return startResize(state, event.handle, event.pointerId);
-    case "text-edit-start":
-      return { state: withContext(state, {}, "editing-text"), effects: [] };
-    case "escape":
-    case "deselect":
-      return deselect(state);
-    default:
-      return illegalTransition(state, event);
-  }
-};
-
-const startDrag = (
-  state: InteractionMachineState,
-  pointerId: PointerId,
-  target: ElementRef,
-): TransitionResult => {
-  const acquired = acquirePointer(state.context.activePointer, pointerId, "drag");
-  if (!acquired.ok) {
-    return rejectPointerBusy(state, "drag");
-  }
-  return {
-    state: withContext(state, { activePointer: acquired.state, dragTarget: target }, "dragging"),
-    effects: [{ kind: "begin-drag", target, pointerId }],
-  };
-};
-
-const startResize = (
-  state: InteractionMachineState,
-  handle: ResizeHandle,
-  pointerId: PointerId,
-): TransitionResult => {
-  const acquired = acquirePointer(state.context.activePointer, pointerId, "resize");
-  if (!acquired.ok) {
-    return rejectPointerBusy(state, "resize");
-  }
-  return {
-    state: withContext(state, { activePointer: acquired.state, resizeHandle: handle }, "resizing"),
-    effects: [{ kind: "begin-resize", handle, pointerId }],
-  };
-};
-
-const fromDragging = (
-  state: InteractionMachineState,
-  event: InteractionEvent,
-): TransitionResult => {
-  switch (event.type) {
-    case "drag-move":
-      return { state, effects: [{ kind: "move-drag-preview", delta: event.delta }] };
-    case "drag-end":
-      return endGesture(state, "drag", [{ kind: "end-drag" }]);
-    case "preview-start":
-      return { state: withContext(state, {}, "previewing"), effects: [{ kind: "begin-preview" }] };
-    case "escape":
-      return endGesture(state, "drag", [{ kind: "rollback-preview" }, { kind: "end-drag" }]);
-    default:
-      return illegalTransition(state, event);
-  }
-};
-
-const fromResizing = (
-  state: InteractionMachineState,
-  event: InteractionEvent,
-): TransitionResult => {
-  switch (event.type) {
-    case "resize-end":
-      return endGesture(state, "resize", [{ kind: "end-resize" }]);
-    case "escape":
-      return endGesture(state, "resize", [{ kind: "end-resize" }]);
-    default:
-      return illegalTransition(state, event);
-  }
-};
-
-const fromEditingText = (
-  state: InteractionMachineState,
-  event: InteractionEvent,
-): TransitionResult => {
-  switch (event.type) {
-    case "text-edit-end":
-      return { state: withContext(state, {}, "selected"), effects: [] };
-    case "escape":
-      return { state: withContext(state, {}, "selected"), effects: [] };
-    default:
-      return illegalTransition(state, event);
-  }
-};
-
-const fromPreviewing = (
-  state: InteractionMachineState,
-  event: InteractionEvent,
-): TransitionResult => {
-  switch (event.type) {
-    case "preview-commit":
-      return {
-        state: withContext(state, { dragTarget: null }, "selected"),
-        effects: [{ kind: "commit-preview" }],
-      };
-    case "preview-rollback":
-      return {
-        state: withContext(state, { dragTarget: null }, "selected"),
-        effects: [{ kind: "rollback-preview" }],
-      };
-    case "drag-end":
-      return endGesture(state, "drag", [{ kind: "commit-preview" }, { kind: "end-drag" }]);
-    case "escape":
-      return endGesture(state, "drag", [{ kind: "rollback-preview" }, { kind: "end-drag" }]);
-    default:
-      return illegalTransition(state, event);
-  }
+  return attachLog(prev, event, raw);
 };

@@ -69,7 +69,10 @@ node packages/cli/dist/bin.js doctor
 
 ## MVP Status
 
-v0.1.0 implements the full MVP scope. What works:
+v0.1.0 implements the full MVP scope. v0.2.0 adds the V1 editing model
+(multi-select, group move, Auto Layout, CSS Grid, breakpoints, framework
+adapters) and selected V2 capabilities (Firefox at tested parity, advisory
+accessibility repair, collaboration share bundles). What works:
 
 - **DevTools panel** — shadow-DOM overlay, element picker, inspector (breadcrumb,
   computed style, box model, classes, attributes, semantics), and style/class/text
@@ -98,7 +101,12 @@ collaboration, Firefox, direct codemod, and a mandatory `chrome.debugger`. See
 [Vision-Control-PRD.md](./Vision-Control-PRD.md) sections 7.2 and 7.3.
 
 For the full feature list and limitations, see
-[docs/release-notes-v0.1.0.md](./docs/release-notes-v0.1.0.md).
+[docs/feature-matrix.md](./docs/feature-matrix.md) and
+[docs/known-limitations.md](./docs/known-limitations.md). The v0.2.0 release
+notes are at [docs/release-notes-v0.2.0.md](./docs/release-notes-v0.2.0.md); to
+upgrade from v0.1.0 see
+[docs/migration-v0.1.0-to-v0.2.0.md](./docs/migration-v0.1.0-to-v0.2.0.md).
+Earlier release notes: [docs/release-notes-v0.1.0.md](./docs/release-notes-v0.1.0.md).
 
 ---
 

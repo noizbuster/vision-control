@@ -17,6 +17,7 @@
     "@vision-control/change-ir": "workspace:*",
     "@vision-control/change-journal": "workspace:*",
     "@vision-control/daemon-client": "workspace:*",
+    "@vision-control/editor-core": "workspace:*",
     "@vision-control/element-identity": "workspace:*",
     "@vision-control/geometry": "workspace:*",
     "@vision-control/inspector-core": "workspace:*",

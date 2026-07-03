@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -128,9 +128,9 @@ describe("docs freshness: ADR registry", () => {
     expect(errors, `ADR section audit failures:\n${errors.join("\n")}`).toEqual([]);
   });
 
-  it("the V1/V2 policy-gate ADRs (011-017) all exist", () => {
+  it("the V1/V2 policy-gate ADRs (011-018) all exist", () => {
     const nums = new Set(listAdrFiles().map((a) => a.num));
-    for (const n of [11, 12, 13, 14, 15, 16, 17]) {
+    for (const n of [11, 12, 13, 14, 15, 16, 17, 18]) {
       expect(nums, `ADR-${String(n).padStart(3, "0")} must exist`).toContain(n);
     }
   });
@@ -191,6 +191,188 @@ describe("docs freshness: MCP read-only policy", () => {
     const offenders = poisonedTools.filter(isSourceMutatingTool);
     expect(offenders, `the forbidden tool must be rejected by the read-only guard`).toContain(
       FORBIDDEN_TOOL,
+    );
+  });
+});
+
+/**
+ * Canonical MCP tool names, sourced from the server's TOOL_NAMES const so this
+ * check cannot drift when a tool is added or renamed. Parsed out of source
+ * (not imported) so packages/testing stays a leaf with no workspace dependency
+ * on @vision-control/mcp-server.
+ */
+function loadCanonicalToolNames(): readonly string[] {
+  const source = readFileSync(
+    path.join(repoRoot, "packages", "mcp-server", "src", "tools", "index.ts"),
+    "utf8",
+  );
+  const names: string[] = [];
+  const arrayStart = source.indexOf("export const TOOL_NAMES");
+  const arrayEnd = source.indexOf("] as const;", arrayStart);
+  const arrayBlock = source.slice(arrayStart, arrayEnd);
+  for (const match of arrayBlock.matchAll(/"((?:vision_)[a-z_]+)"/g)) {
+    if (match[1]) names.push(match[1]);
+  }
+  return names;
+}
+
+function listFiles(dir: string, exts: readonly string[]): string[] {
+  let out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out = out.concat(listFiles(full, exts));
+    } else if (exts.some((e) => entry.name.endsWith(e))) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function extractToolRefs(text: string): string[] {
+  const refs: string[] = [];
+  for (const match of text.matchAll(/\bvision_[a-z][a-z_]*\b/g)) {
+    if (match[0]) refs.push(match[0]);
+  }
+  return refs;
+}
+
+describe("docs freshness: OpenCode and Pi integration docs", () => {
+  const integrationDocs: { label: string; root: string }[] = [
+    { label: "opencode", root: path.join(repoRoot, "integrations", "opencode") },
+    { label: "pi", root: path.join(repoRoot, "integrations", "pi") },
+  ];
+
+  // markdown docs + json examples only; .ts source holds test-only regex
+  // patterns and is out of scope for a docs-freshness scan.
+  const DOC_EXTS = [".md", ".json"];
+
+  for (const { label, root } of integrationDocs) {
+    it(`${label}: every vision_* reference is a current tool name`, () => {
+      const canonical = new Set(loadCanonicalToolNames());
+      const files = listFiles(root, DOC_EXTS);
+      expect(files.length, `${label} docs must exist`).toBeGreaterThan(0);
+
+      const stale: string[] = [];
+      for (const file of files) {
+        const text = readFileSync(file, "utf8");
+        for (const ref of extractToolRefs(text)) {
+          if (!canonical.has(ref)) {
+            stale.push(`${path.relative(repoRoot, file)}: unknown tool "${ref}"`);
+          }
+        }
+      }
+      expect(
+        stale,
+        `${label} docs reference tool names that are not in packages/mcp-server TOOL_NAMES: ${stale.join(", ")}. Use a current name or rephrase to avoid naming a tool that does not exist.`,
+      ).toEqual([]);
+    });
+
+    it(`${label}: docs never reference a source-mutating or forbidden tool`, () => {
+      const files = listFiles(root, DOC_EXTS);
+      const offenders: string[] = [];
+      for (const file of files) {
+        const text = readFileSync(file, "utf8");
+        for (const ref of extractToolRefs(text)) {
+          if (isSourceMutatingTool(ref)) {
+            offenders.push(`${path.relative(repoRoot, file)}: forbidden tool "${ref}"`);
+          }
+        }
+      }
+      expect(
+        offenders,
+        `${label} docs reference a forbidden source-mutating tool: ${offenders.join(", ")}. The MCP server is read-only; describe the absent tool in words rather than naming it.`,
+      ).toEqual([]);
+    });
+  }
+
+  it("the forbidden-tool guard catches a doc that names it (negative fixture)", () => {
+    const poisoned = `Call ${FORBIDDEN_TOOL} to apply the change.`;
+    const offenders = extractToolRefs(poisoned).filter(isSourceMutatingTool);
+    expect(offenders, `a doc naming the forbidden tool must fail the read-only guard`).toContain(
+      FORBIDDEN_TOOL,
+    );
+  });
+
+  it("the canonical tool list is the expected read-only set", () => {
+    const canonical = loadCanonicalToolNames();
+    expect(canonical).toHaveLength(11);
+    expect(canonical.filter(isSourceMutatingTool)).toEqual([]);
+    expect(canonical).toContain("vision_get_active_session");
+    expect(canonical).toContain("vision_mark_patch_completed");
+  });
+});
+
+const RELEASE_DOCS: { file: string; mustContain: readonly string[] }[] = [
+  {
+    file: "release-notes-v0.2.0.md",
+    mustContain: ["v0.2.0", "ADR-016", "ADR-017"],
+  },
+  {
+    file: "feature-matrix.md",
+    mustContain: ["MVP", "V1", "V2"],
+  },
+  {
+    file: "migration-v0.1.0-to-v0.2.0.md",
+    mustContain: ["1.1.0", "codemod"],
+  },
+  {
+    file: "known-limitations.md",
+    mustContain: ["ADR-018", "ADR-017", "advisory"],
+  },
+];
+
+describe("docs freshness: v0.2.0 release docs", () => {
+  for (const { file, mustContain } of RELEASE_DOCS) {
+    it(`${file} exists and covers its required topics`, () => {
+      const full = path.join(repoRoot, "docs", file);
+      expect(existsSync(full), `${file} must exist for the v0.2.0 release`).toBe(true);
+      const content = readFileSync(full, "utf8");
+      const missing = mustContain.filter((token) => !content.includes(token));
+      expect(
+        missing,
+        `${file} must mention: ${mustContain.join(", ")} (missing: ${missing.join(", ")})`,
+      ).toEqual([]);
+    });
+  }
+
+  it("release docs do not overclaim full Firefox parity", () => {
+    const notes = readFileSync(path.join(repoRoot, "docs", "release-notes-v0.2.0.md"), "utf8");
+    const matrix = readFileSync(path.join(repoRoot, "docs", "feature-matrix.md"), "utf8");
+    const limitations = readFileSync(path.join(repoRoot, "docs", "known-limitations.md"), "utf8");
+    // The phrase "full Firefox parity" must only appear in a caveat/limitation
+    // context, never as an unconditional claim. Known-limitations may use it in
+    // the negative ("does not claim full Firefox parity").
+    for (const [label, text] of [
+      ["release-notes", notes],
+      ["feature-matrix", matrix],
+    ] as const) {
+      const unqualified =
+        /full Firefox parity/i.test(text) &&
+        !/not.*full Firefox parity|does not claim.*full Firefox parity/i.test(text);
+      expect(
+        unqualified,
+        `${label} must not claim unconditional full Firefox parity (ADR-016 bounds it to tested scope)`,
+      ).toBe(false);
+    }
+    expect(limitations, "known-limitations must bound the Firefox claim").toMatch(
+      /not.*claim full Firefox parity/i,
+    );
+  });
+
+  it("release docs do not claim automated accessibility repair", () => {
+    const notes = readFileSync(path.join(repoRoot, "docs", "release-notes-v0.2.0.md"), "utf8");
+    const limitations = readFileSync(path.join(repoRoot, "docs", "known-limitations.md"), "utf8");
+    // "automated accessibility repair" may only appear in a caveat, never as a
+    // shipped capability claim.
+    const unqualifiedClaim =
+      /automated accessibility repair(?!.*beyond|.*deferred|.*advisory)/i.test(notes);
+    expect(
+      unqualifiedClaim,
+      "release notes must not claim automated accessibility repair as shipped (ADR-017: advisory only)",
+    ).toBe(false);
+    expect(limitations, "known-limitations must state a11y is advisory only").toMatch(
+      /advisory( suggestions)? only/i,
     );
   });
 });

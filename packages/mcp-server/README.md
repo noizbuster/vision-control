@@ -17,17 +17,22 @@ pnpm nx run mcp-server:build   # tsc -p tsconfig.build.json -> dist/
 
 ## Binary (stdio)
 
-The `vision-control-mcp` binary (`src/bin.ts`) serves the server over stdio with
-stub deps. An agent (OpenCode, Claude Code, Cursor, generic stdio MCP) spawns it
-as a child process and communicates via JSON-RPC over stdin/stdout.
+The `vision-control-mcp` binary (`src/bin.ts`) serves the server over stdio.
+An agent (OpenCode, Claude Code, Cursor, generic stdio MCP) spawns it as a
+child process and communicates via JSON-RPC over stdin/stdout.
 
 ```bash
 node packages/mcp-server/dist/bin.js
 ```
 
-With `VC_DAEMON_URL` set, the server is wired to live daemon data; otherwise
-every tool responds with a "no daemon connected" message (still a valid MCP
-server for testing the tool list).
+The binary honors `VC_DAEMON_URL`:
+
+- **Set** (`VC_DAEMON_URL=http://127.0.0.1:4321`) — the server reads live
+  session/selection/changeset data from the daemon over loopback HTTP and serves
+  it through the daemon-backed deps.
+- **Unset** — the server falls back to stub deps (every tool responds with a "no
+  daemon connected" message) **and prints a warning to stderr** so the fallback
+  is never silent. This is still a valid MCP server for testing the tool list.
 
 ## Tools
 

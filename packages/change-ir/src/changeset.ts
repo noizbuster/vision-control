@@ -450,6 +450,97 @@ export const computeInverse = (op: Operation): Operation => {
         preconditions: op.preconditions,
         applied: false,
       };
+    case "remove-style":
+      // Inverse: restore the removed inline style via a style-edit.
+      return {
+        ...base,
+        kind: "style-edit",
+        confidence: op.confidence,
+        target: op.target,
+        property: op.property,
+        value: op.previousValue ?? "",
+        important: op.important ?? false,
+        previousValue: op.previousValue ?? "",
+      };
+    case "set-attribute":
+      // Inverse: a set-attribute restoring the prior value.
+      return {
+        ...base,
+        kind: "set-attribute",
+        confidence: op.confidence,
+        target: op.target,
+        name: op.name,
+        value: op.previousValue ?? "",
+        previousValue: op.value,
+      };
+    case "position-element":
+      // Inverse: swap the from/to position values.
+      return {
+        ...base,
+        kind: "position-element",
+        confidence: op.confidence,
+        target: op.target,
+        property: op.property,
+        fromValue: op.toValue,
+        toValue: op.fromValue,
+      };
+    case "insert-element":
+      // Inverse: remove the inserted element (Insert ↔ Remove are mutual).
+      return {
+        ...base,
+        kind: "remove-element",
+        confidence: op.confidence,
+        element: op.element,
+        parent: op.parent,
+        index: op.index,
+        tagName: op.tagName,
+        ...(op.attributes !== undefined ? { attributes: op.attributes } : {}),
+      };
+    case "remove-element":
+      // Inverse: re-insert the removed element (Remove ↔ Insert are mutual).
+      return {
+        ...base,
+        kind: "insert-element",
+        confidence: op.confidence,
+        element: op.element,
+        parent: op.parent,
+        index: op.index,
+        tagName: op.tagName,
+        ...(op.attributes !== undefined ? { attributes: op.attributes } : {}),
+      };
+    case "duplicate-element":
+      // Inverse: remove the duplicated node (the copy), leaving the source.
+      return {
+        ...base,
+        kind: "remove-element",
+        confidence: op.confidence,
+        element: op.duplicate,
+        parent: op.parent,
+        index: op.index,
+        tagName: op.tagName,
+      };
+    case "wrap-elements":
+      // Inverse: unwrap the wrapper (Wrap ↔ Unwrap are mutual).
+      return {
+        ...base,
+        kind: "unwrap-element",
+        confidence: op.confidence,
+        wrapper: op.wrapper,
+        parent: op.parent,
+        tagName: op.tagName,
+        targets: op.targets,
+      };
+    case "unwrap-element":
+      // Inverse: re-wrap the targets (Unwrap ↔ Wrap are mutual).
+      return {
+        ...base,
+        kind: "wrap-elements",
+        confidence: op.confidence,
+        targets: op.targets,
+        wrapper: op.wrapper,
+        parent: op.parent,
+        tagName: op.tagName,
+      };
     default: {
       // Exhaustiveness guard: a new kind without a branch is a compile error.
       const exhaustive: never = op;

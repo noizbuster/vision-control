@@ -139,6 +139,15 @@ export function summarizeOperation(op: Operation): OperationSummary {
       return { subject: "screenshot", from: "", to: op.artifactId, variant: "set" };
     case "suggested-diff":
       return { subject: "suggested-diff", from: "", to: op.confidence, variant: "set" };
+    case "remove-style":
+    case "set-attribute":
+    case "position-element":
+    case "insert-element":
+    case "remove-element":
+    case "duplicate-element":
+    case "wrap-elements":
+    case "unwrap-element":
+      throw new Error(`summarizeOperation: not yet implemented for ${op.kind}`);
     default: {
       const exhaustive: never = op;
       throw new Error(`summarizeOperation: unhandled kind: ${JSON.stringify(exhaustive)}`);
@@ -148,12 +157,15 @@ export function summarizeOperation(op: Operation): OperationSummary {
 
 const KIND_LABEL: Record<OperationKind, string> = {
   "style-edit": "Style",
+  "remove-style": "Remove style",
   "class-add": "Class",
   "class-remove": "Class",
   "class-replace": "Class",
+  "set-attribute": "Attribute",
   "text-edit": "Text",
   "reorder-child": "Reorder",
   "reparent-element": "Reparent",
+  "position-element": "Position",
   "resize-element": "Resize",
   "multi-select-group": "Multi-select",
   "group-reorder": "Group reorder",
@@ -164,6 +176,11 @@ const KIND_LABEL: Record<OperationKind, string> = {
   "set-child-sizing": "Child sizing",
   "grid-reorder": "Grid reorder",
   "grid-span": "Grid span",
+  "insert-element": "Insert",
+  "remove-element": "Remove",
+  "duplicate-element": "Duplicate",
+  "wrap-elements": "Wrap",
+  "unwrap-element": "Unwrap",
   "breakpoint-style-edit": "BP style",
   "breakpoint-class-edit": "BP class",
   "breakpoint-text-edit": "BP text",

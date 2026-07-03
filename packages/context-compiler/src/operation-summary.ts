@@ -167,6 +167,15 @@ const describeOperation = (
           preconditions: op.preconditions.join("; "),
         },
       };
+    case "remove-style":
+    case "set-attribute":
+    case "position-element":
+    case "insert-element":
+    case "remove-element":
+    case "duplicate-element":
+    case "wrap-elements":
+    case "unwrap-element":
+      throw new Error(`describeOperation: summary not yet implemented for ${op.kind}`);
     default: {
       const exhaustive: never = op;
       throw new Error(`describeOperation: unhandled kind: ${JSON.stringify(exhaustive)}`);
@@ -216,6 +225,15 @@ const describeTarget = (op: Operation): string | undefined => {
       return op.target.sourceId ?? op.target.selector;
     case "suggested-diff":
       return op.target?.sourceId ?? op.target?.selector;
+    case "remove-style":
+    case "set-attribute":
+    case "position-element":
+    case "insert-element":
+    case "remove-element":
+    case "duplicate-element":
+    case "wrap-elements":
+    case "unwrap-element":
+      throw new Error(`describeTarget: summary not yet implemented for ${op.kind}`);
     default: {
       const exhaustive: never = op;
       throw new Error(`describeTarget: unhandled kind: ${JSON.stringify(exhaustive)}`);

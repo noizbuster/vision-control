@@ -13,7 +13,9 @@ import {
   SetChildSizingOperationSchema,
   SetContainerLayoutOperationSchema,
 } from "./container-layout.js";
+import { DuplicateElementOperationSchema } from "./duplicate-element.js";
 import { GridReorderOperationSchema, GridSpanOperationSchema } from "./grid.js";
+import { InsertElementOperationSchema } from "./insert-element.js";
 import {
   AlignElementsOperationSchema,
   DistributeElementsOperationSchema,
@@ -21,26 +23,40 @@ import {
   GroupReparentOperationSchema,
   MultiSelectGroupOperationSchema,
 } from "./multi-select.js";
+import { PositionElementOperationSchema } from "./position-element.js";
+import { RemoveElementOperationSchema } from "./remove-element.js";
+import { RemoveStyleOperationSchema } from "./remove-style.js";
 import { ReorderChildOperationSchema } from "./reorder.js";
 import { ReparentElementOperationSchema } from "./reparent.js";
 import { ResizeElementOperationSchema } from "./resize.js";
 import { ScreenshotCropRefOperationSchema } from "./screenshot.js";
+import { SetAttributeOperationSchema } from "./set-attribute.js";
 import { StyleEditOperationSchema } from "./style.js";
 import { SuggestedDiffOperationSchema } from "./suggested-diff.js";
 import { TextEditOperationSchema } from "./text.js";
+import { UnwrapElementOperationSchema } from "./unwrap-element.js";
+import { WrapElementsOperationSchema } from "./wrap-elements.js";
 
 export * from "./breakpoint.js";
 export * from "./class.js";
 export * from "./container-layout.js";
+export * from "./duplicate-element.js";
 export * from "./grid.js";
+export * from "./insert-element.js";
 export * from "./multi-select.js";
+export * from "./position-element.js";
+export * from "./remove-element.js";
+export * from "./remove-style.js";
 export * from "./reorder.js";
 export * from "./reparent.js";
 export * from "./resize.js";
 export * from "./screenshot.js";
+export * from "./set-attribute.js";
 export * from "./style.js";
 export * from "./suggested-diff.js";
 export * from "./text.js";
+export * from "./unwrap-element.js";
+export * from "./wrap-elements.js";
 
 /**
  * Discriminated union of every operation, keyed by `kind`. To add a new kind:
@@ -53,12 +69,15 @@ export * from "./text.js";
  */
 export const OperationSchema = z.discriminatedUnion("kind", [
   StyleEditOperationSchema,
+  RemoveStyleOperationSchema,
   ClassAddOperationSchema,
   ClassRemoveOperationSchema,
   ClassReplaceOperationSchema,
+  SetAttributeOperationSchema,
   TextEditOperationSchema,
   ReorderChildOperationSchema,
   ReparentElementOperationSchema,
+  PositionElementOperationSchema,
   ResizeElementOperationSchema,
   MultiSelectGroupOperationSchema,
   GroupReorderOperationSchema,
@@ -69,6 +88,11 @@ export const OperationSchema = z.discriminatedUnion("kind", [
   SetChildSizingOperationSchema,
   GridReorderOperationSchema,
   GridSpanOperationSchema,
+  InsertElementOperationSchema,
+  RemoveElementOperationSchema,
+  DuplicateElementOperationSchema,
+  WrapElementsOperationSchema,
+  UnwrapElementOperationSchema,
   BreakpointStyleEditOperationSchema,
   BreakpointClassEditOperationSchema,
   BreakpointTextEditOperationSchema,
@@ -84,12 +108,15 @@ export type Operation = z.infer<typeof OperationSchema>;
  */
 export const OPERATION_KINDS = [
   "style-edit",
+  "remove-style",
   "class-add",
   "class-remove",
   "class-replace",
+  "set-attribute",
   "text-edit",
   "reorder-child",
   "reparent-element",
+  "position-element",
   "resize-element",
   "multi-select-group",
   "group-reorder",
@@ -100,6 +127,11 @@ export const OPERATION_KINDS = [
   "set-child-sizing",
   "grid-reorder",
   "grid-span",
+  "insert-element",
+  "remove-element",
+  "duplicate-element",
+  "wrap-elements",
+  "unwrap-element",
   "breakpoint-style-edit",
   "breakpoint-class-edit",
   "breakpoint-text-edit",

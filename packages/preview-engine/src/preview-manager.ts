@@ -166,10 +166,18 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
       case "breakpoint-text-edit":
       case "screenshot-crop-ref":
       case "suggested-diff":
-        // V1 operation kinds have schemas + inverses (change-ir v1.1.0) but
-        // their preview rendering lands in Wave 2 (tasks 5-10). No Wave 2 UI
-        // emits them yet, so this path is unreachable until then.
-        throw new Error(`Preview not yet implemented for V1 operation kind: ${operation.kind}`);
+      case "remove-style":
+      case "set-attribute":
+      case "position-element":
+      case "insert-element":
+      case "remove-element":
+      case "duplicate-element":
+      case "wrap-elements":
+      case "unwrap-element":
+        // V1/structural operation kinds have schemas + inverses (change-ir) but
+        // their preview rendering lands in a later wave. No UI emits them yet,
+        // so this path is unreachable until then.
+        throw new Error(`Preview not yet implemented for operation kind: ${operation.kind}`);
       default: {
         const _: never = operation;
         _;

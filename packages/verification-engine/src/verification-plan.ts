@@ -252,6 +252,21 @@ function assertionsForOperation(operation: Operation): AssertionEntry[] {
     case "suggested-diff":
       return [];
 
+    // PRD §12.3 structural kinds (Task 6): schemas + inverses are in place, but
+    // the verification assertions land in Task 33. No UI emits them yet, so this
+    // path is unreachable until then; throw loud rather than silently passing.
+    case "remove-style":
+    case "set-attribute":
+    case "position-element":
+    case "insert-element":
+    case "remove-element":
+    case "duplicate-element":
+    case "wrap-elements":
+    case "unwrap-element":
+      throw new Error(
+        `Verification plan not yet implemented for operation kind: ${operation.kind}`,
+      );
+
     default: {
       const _: never = operation;
       _;

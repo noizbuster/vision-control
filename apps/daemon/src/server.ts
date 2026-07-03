@@ -24,6 +24,7 @@ import { runMigrations } from "@vision-control/storage";
 import type Database from "better-sqlite3";
 import { type WebSocket, WebSocketServer } from "ws";
 import { createDaemonMcpAdapters } from "./mcp-adapters.js";
+import type { SourcePipeline } from "./source-pipeline.js";
 
 /** Hosts that count as loopback; the daemon refuses to bind anything else. */
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
@@ -57,6 +58,13 @@ export interface DaemonServerOptions {
   readonly protocolHandler: ProtocolHandler;
   readonly changesetService: ChangesetService;
   readonly sourceRegistryService: SourceRegistryService;
+  /**
+   * Source-resolution pipeline (PRD §24.1): workspace index + marker registry +
+   * V1 adapter registry + resolver. Wired into the MCP context-compiler and
+   * verification-coordinator ports. Optional only when the daemon runs without
+   * `--mcp-port`; the WS `source.request` flow uses it when present.
+   */
+  readonly sourcePipeline?: SourcePipeline;
   readonly originConfig: OriginAllowlistConfig;
   readonly logger: Logger;
   /** MCP HTTP transport port. When set, serves the read-only MCP server over loopback HTTP (ADR-013). */
@@ -197,6 +205,14 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
     const serviceAdapters = createDaemonMcpAdapters({
       changesetService: options.changesetService,
       sourceRegistryService: options.sourceRegistryService,
+      ...(options.sourcePipeline !== undefined
+        ? {
+            resolver: options.sourcePipeline.resolver,
+            registry: options.sourcePipeline.registry,
+            workspaceRoot: options.workspaceRoot,
+            logger: options.logger,
+          }
+        : {}),
     });
     const mcpDeps = createDaemonMcpDeps({
       sessionService: {

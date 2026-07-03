@@ -122,24 +122,60 @@ importers:
 
   apps/daemon:
     dependencies:
+      '@vision-control/change-ir':
+        specifier: workspace:*
+        version: link:../../packages/change-ir
+      '@vision-control/context-compiler':
+        specifier: workspace:*
+        version: link:../../packages/context-compiler
+      '@vision-control/css-modules':
+        specifier: workspace:*
+        version: link:../../integrations/css-modules
       '@vision-control/daemon-core':
         specifier: workspace:*
         version: link:../../packages/daemon-core
+      '@vision-control/element-identity':
+        specifier: workspace:*
+        version: link:../../packages/element-identity
       '@vision-control/logger':
         specifier: workspace:*
         version: link:../../packages/logger
       '@vision-control/mcp-server':
         specifier: workspace:*
         version: link:../../packages/mcp-server
+      '@vision-control/next-react':
+        specifier: workspace:*
+        version: link:../../integrations/next-react
       '@vision-control/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       '@vision-control/security':
         specifier: workspace:*
         version: link:../../packages/security
+      '@vision-control/source-registry':
+        specifier: workspace:*
+        version: link:../../packages/source-registry
+      '@vision-control/source-resolver':
+        specifier: workspace:*
+        version: link:../../packages/source-resolver
       '@vision-control/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      '@vision-control/svelte':
+        specifier: workspace:*
+        version: link:../../integrations/svelte
+      '@vision-control/tailwind':
+        specifier: workspace:*
+        version: link:../../integrations/tailwind
+      '@vision-control/verification-engine':
+        specifier: workspace:*
+        version: link:../../packages/verification-engine
+      '@vision-control/vue':
+        specifier: workspace:*
+        version: link:../../integrations/vue
+      '@vision-control/workspace-index':
+        specifier: workspace:*
+        version: link:../../packages/workspace-index
       better-sqlite3:
         specifier: 'catalog:'
         version: 12.11.1

@@ -124,6 +124,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   } = await import("@vision-control/storage");
   const { defaultAllowlistConfig } = await import("@vision-control/security");
   const { loadConfig } = await import("./config-loader.js");
+  const { buildSourcePipeline, resolveSourceRequest } = await import("./source-pipeline.js");
   const Database = (await import("better-sqlite3")).default;
 
   const logger = new RedactingLogger(new ConsoleLogger());
@@ -177,6 +178,34 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
     logger,
   });
 
+  // Map persisted marker rows to in-memory SourceEntry values for the resolver's
+  // marker cascade. `range_json` is raw JSON; a malformed row is skipped, not fatal.
+  const persistedSourceRows = sourceRegistryService.listByWorkspace(workspaceId);
+  const initialEntries = persistedSourceRows
+    .map((row): import("@vision-control/source-registry").SourceEntry | undefined => {
+      let range: { startLine: number; startColumn: number; endLine: number; endColumn: number };
+      try {
+        range = JSON.parse(row.range_json) as typeof range;
+      } catch {
+        return undefined;
+      }
+      return {
+        sourceId: row.source_id,
+        workspaceRelativePath: row.file_path,
+        range,
+        componentName: row.component_name ?? "component",
+        fingerprint: row.fingerprint,
+        registeredAt: row.captured_at,
+      };
+    })
+    .filter((e): e is import("@vision-control/source-registry").SourceEntry => e !== undefined);
+
+  const sourcePipeline = await buildSourcePipeline({
+    workspaceRoot,
+    initialEntries,
+    logger,
+  });
+
   // The pairing session id is minted inside createDaemonServer; capture it
   // here so the changeset.updated handler can persist against the real DB
   // session row. onReady fires after listen, before any WS frame arrives.
@@ -184,6 +213,22 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 
   const protocolHandler = new ProtocolHandler({
     logger,
+    onSourceRequest: (payload, sender) => {
+      // §25.1.6 source.request → §25.2.3 source.resolved. The resolver runs the
+      // full never-wrong-HIGH cascade; a registered marker resolves HIGH, an
+      // unknown id falls through to the LOW fallback. Never a false HIGH.
+      const resolved = resolveSourceRequest(
+        sourcePipeline.resolver,
+        sourcePipeline.registry,
+        payload.elementId,
+      );
+      sender.sendSourceResolved({
+        requestId: payload.requestId,
+        elementId: payload.elementId,
+        sourceToken: resolved.sourceToken,
+        confidence: resolved.confidence,
+      });
+    },
     onChangesetUpdated: (payload) => {
       if (activeSessionId === undefined) {
         return;
@@ -214,6 +259,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       protocolHandler,
       changesetService,
       sourceRegistryService,
+      sourcePipeline,
       originConfig,
       logger,
       ...(resolvedMcpPort !== undefined ? { mcpPort: resolvedMcpPort } : {}),

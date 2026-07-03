@@ -3,7 +3,7 @@
   "name": "mcp-server",
   "sourceRoot": "packages/mcp-server/src",
   "projectType": "library",
-  "tags": ["platform:isomorphic", "type:library", "scope:mcp-server"],
+  "tags": ["platform:node", "type:library", "scope:mcp-server"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",

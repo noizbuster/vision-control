@@ -16,6 +16,7 @@ allowBuilds:
 # these via the `catalog:` protocol so a version bump lives in exactly one
 # place. Add new shared externals here, never inline version ranges.
 catalog:
+  "@modelcontextprotocol/sdk": "1.29.0"
   "@babel/parser": "7.29.7"
   "@babel/traverse": "7.29.7"
   "@babel/types": "7.29.7"

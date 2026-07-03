@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Node library skeleton for @vision-control/cli.",
+  "bin": {
+    "vision-control": "./dist/bin.js"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -15,6 +18,12 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@vision-control/context-compiler": "workspace:*",
+    "@vision-control/daemon-client": "workspace:*",
+    "@vision-control/mcp-server": "workspace:*",
+    "@vision-control/security": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:",

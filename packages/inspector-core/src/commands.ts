@@ -1,9 +1,13 @@
 /**
- * Command factories for panel editors.
+ * Style, class, and text command factories for panel editors.
  *
  * These factories build change-ir operations WITHOUT mutating a ChangeSet. The
  * caller (the React panel) sends the returned operation to the journal via the
  * message bus; task 18 wires the journal to apply it to a ChangeSet.
+ *
+ * Structural commands (duplicate, wrap, free-position, ...) live in sibling
+ * modules — see `./structural-commands.js` and `./position-command.js` — and
+ * reuse the same shared base helpers from `./command-base.js`.
  */
 
 import type {
@@ -15,39 +19,7 @@ import type {
   TextEditOperation,
 } from "@vision-control/change-ir";
 
-/** Options shared by every command factory. */
-interface CommandBaseOptions {
-  /** Epoch timestamp; defaults to `Date.now()`. */
-  readonly timestamp?: number;
-  /** Operation id; defaults to `crypto.randomUUID()`. */
-  readonly id?: string;
-}
-
-function newOperationId(): string {
-  return crypto.randomUUID();
-}
-
-function commandBase(options: CommandBaseOptions): {
-  id: string;
-  timestamp: number;
-  runtime: false;
-  origin: "property-panel";
-  confidence: number;
-} {
-  return {
-    id: options.id ?? newOperationId(),
-    timestamp: options.timestamp ?? Date.now(),
-    runtime: false,
-    origin: "property-panel",
-    confidence: 1,
-  };
-}
-
-function toElementRef(target: ElementRef | { readonly runtimeId: string }): ElementRef {
-  return "selector" in target || "sourceId" in target
-    ? (target as ElementRef)
-    : { runtimeId: target.runtimeId };
-}
+import { type CommandBaseOptions, commandBase, toElementRef } from "./command-base.js";
 
 /** Create a {@link StyleEditOperation} for setting an inline style property. */
 export function createStyleEditCommand(

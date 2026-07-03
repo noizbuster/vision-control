@@ -41,7 +41,13 @@ export {
   bridgeRectToTopFrame,
   OpaqueFrameError,
 } from "./iframe-coordinate-bridge.js";
-export { createKeyboardController, type KeyboardController } from "./keyboard.js";
+export {
+  createKeyboardController,
+  type InteractionMode,
+  type KeyboardController,
+  type KeyboardControllerCallbacks,
+  type ModifierState,
+} from "./keyboard.js";
 export {
   createMultiSelectOverlay,
   type MultiSelectOverlay,

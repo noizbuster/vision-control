@@ -302,6 +302,31 @@ describe("interaction wiring", () => {
     expect(kinds.has("position-element")).toBe(false);
   });
 
+  it("Move mode on a normal-flow element emits reorder-child, never position-element (D41)", () => {
+    const parent = document.createElement("div");
+    parent.style.display = "flex";
+    parent.style.flexDirection = "row";
+    const children = ["alpha", "beta", "gamma"].map((label) => {
+      const child = document.createElement("div");
+      child.textContent = label;
+      parent.appendChild(child);
+      return child;
+    });
+    document.body.appendChild(parent);
+
+    controllers.attach();
+    controllers.reorder.setSelectedElement(children[0] as Element);
+
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }),
+    );
+
+    const operations = controllers.getRecordedOperations();
+    expect(operations).toHaveLength(1);
+    expect(operations[0]?.kind).toBe("reorder-child");
+    assertNoPositionElement(operations);
+  });
+
   it("detach stops the reorder controller from recording", () => {
     const parent = document.createElement("div");
     parent.style.display = "flex";

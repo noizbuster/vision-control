@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { EditorMode } from "../../hooks/useEditor.js";
 import { InspectorPanel } from "./InspectorPanel.js";
 
 function makeSummary(): SelectionSummary {
@@ -75,8 +76,8 @@ function makeProps(
   overrides: {
     summary?: SelectionSummary | null;
     onSelectElement?: (selector: string) => void;
-    editorMode?: "style" | "class" | "text" | null;
-    onChangeEditorMode?: (mode: "style" | "class" | "text" | null) => void;
+    editorMode?: EditorMode;
+    onChangeEditorMode?: (mode: EditorMode) => void;
     onEditorCommand?: (command: unknown) => void;
     onValidationError?: (error: string | null) => void;
   } = {},

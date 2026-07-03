@@ -57,6 +57,8 @@ export interface Inspector {
   readonly cycleChild: () => void;
   readonly sync: () => void;
   readonly dispose: () => void;
+  /** The keyboard controller (PRD §8.3 mode management). */
+  readonly getKeyboardController: () => KeyboardController;
 }
 
 /**
@@ -243,6 +245,7 @@ export function createInspector(options: InspectorOptions): Inspector {
     cycleChild,
     sync,
     dispose,
+    getKeyboardController: () => keyboard,
   };
 }
 

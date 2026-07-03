@@ -18,6 +18,7 @@ import {
 import {
   attachOverlayRoot,
   createOverlayElement,
+  type InteractionMode,
   isOverlayElement,
   type OverlayRoot,
 } from "@vision-control/overlay-ui";
@@ -61,6 +62,9 @@ export interface OverlayRuntime {
   readonly dispose: () => void;
   readonly getInspector: () => Inspector;
   readonly getInteractionControllers: () => InteractionControllers | null;
+  /** Switch the active PRD §8.3 interaction mode (gates controller behavior). */
+  readonly setInteractionMode: (mode: InteractionMode) => void;
+  readonly getInteractionMode: () => InteractionMode;
 }
 
 /**
@@ -109,6 +113,27 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   const notifySelection = (target: Element): void => {
     controllers?.onSelectionChange(buildSelectionContext(target));
   };
+
+  // PRD §8.3 interaction mode management. The keyboard controller lives inside
+  // the inspector; the runtime drives its mode and gates which Task-19
+  // controller receives pointer events. Move mode attaches the reorder
+  // controller; Inspect/Text/Layout detach it so arrow keys cycle the
+  // breadcrumb instead of reordering. Resize keeps the resize handles that
+  // attach on selection.
+  const keyboard = inspector.getKeyboardController();
+  let interactionMode: InteractionMode = "Inspect";
+
+  const setInteractionMode = (mode: InteractionMode): void => {
+    interactionMode = mode;
+    keyboard.setMode(mode);
+    if (mode === "Move") {
+      controllers?.attach();
+    } else if (mode !== "Resize") {
+      controllers?.detach();
+    }
+  };
+
+  const getInteractionMode = (): InteractionMode => interactionMode;
 
   // RAF throttle on the hover path (PRD §28.1: 60fps target, <8ms update).
   let hoverRafId: number | null = null;
@@ -169,8 +194,8 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     doc.addEventListener("mousemove", onMouseMoveCapture, true);
     doc.addEventListener("click", onClickCapture, true);
     inspector.setInspectMode(true);
+    keyboard.setMode(interactionMode);
     selectElementUnsub = bus.on("select-element", onSelectElement);
-    controllers?.attach();
   };
 
   const stop = (): void => {
@@ -196,6 +221,8 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     dispose,
     getInspector: () => inspector,
     getInteractionControllers: () => controllers,
+    setInteractionMode,
+    getInteractionMode,
   };
 }
 

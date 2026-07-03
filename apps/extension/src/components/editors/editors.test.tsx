@@ -85,6 +85,30 @@ describe("EditorToolbar", () => {
     screen.getByRole("button", { name: "Edit Style" }).click();
     expect(onChange).toHaveBeenCalledWith(null);
   });
+
+  it("switches to an interaction mode when its button is clicked (PRD §8.3)", () => {
+    const onChange = vi.fn();
+    render(<EditorToolbar activeMode={null} onChangeMode={onChange} />);
+
+    screen.getByRole("button", { name: "Move" }).click();
+    expect(onChange).toHaveBeenCalledWith("Move");
+  });
+
+  it("toggles off an active interaction mode", () => {
+    const onChange = vi.fn();
+    render(<EditorToolbar activeMode="Resize" onChangeMode={onChange} />);
+
+    screen.getByRole("button", { name: "Resize" }).click();
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("renders all five interaction mode buttons", () => {
+    render(<EditorToolbar activeMode={null} onChangeMode={vi.fn()} />);
+
+    for (const label of ["Inspect", "Move", "Resize", "Text", "Layout"]) {
+      expect(screen.getByRole("button", { name: label })).toBeDefined();
+    }
+  });
 });
 
 describe("StyleEditor", () => {

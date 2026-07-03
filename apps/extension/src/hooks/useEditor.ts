@@ -1,7 +1,18 @@
 import type { Operation } from "@vision-control/change-ir";
+import type { InteractionMode } from "@vision-control/overlay-ui";
 import { useCallback, useState } from "react";
 
-export type EditorMode = "style" | "class" | "text" | null;
+export type { InteractionMode };
+
+/** Panel-side property-editing sub-modes that open a panel editor. */
+export type PropertyEditorKind = "style" | "class" | "text";
+
+/**
+ * The active editing mode. A PRD §8.3 interaction mode (Inspect/Move/Resize/
+ * Text/Layout — governs overlay pointer behavior and keyboard shortcuts) or a
+ * panel-side {@link PropertyEditorKind} sub-mode. `null` = no mode active.
+ */
+export type EditorMode = InteractionMode | PropertyEditorKind | null;
 
 export interface EditorState {
   readonly mode: EditorMode;

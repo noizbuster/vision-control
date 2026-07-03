@@ -1,6 +1,27 @@
+import type { InteractionMode } from "@vision-control/overlay-ui";
 import type { ReactElement } from "react";
 
-import type { EditorMode } from "../../hooks/useEditor.js";
+import type { EditorMode, PropertyEditorKind } from "../../hooks/useEditor.js";
+
+const INTERACTION_MODES: ReadonlyArray<{
+  readonly mode: InteractionMode;
+  readonly label: string;
+}> = [
+  { mode: "Inspect", label: "Inspect" },
+  { mode: "Move", label: "Move" },
+  { mode: "Resize", label: "Resize" },
+  { mode: "Text", label: "Text" },
+  { mode: "Layout", label: "Layout" },
+];
+
+const PROPERTY_EDITORS: ReadonlyArray<{
+  readonly mode: PropertyEditorKind;
+  readonly label: string;
+}> = [
+  { mode: "style", label: "Edit Style" },
+  { mode: "class", label: "Edit Classes" },
+  { mode: "text", label: "Edit Text" },
+];
 
 interface EditorToolbarProps {
   readonly activeMode: EditorMode;
@@ -8,14 +29,12 @@ interface EditorToolbarProps {
 }
 
 interface ToolbarButtonProps {
-  readonly mode: EditorMode;
   readonly label: string;
-  readonly activeMode: EditorMode;
+  readonly isActive: boolean;
   readonly onClick: () => void;
 }
 
-function ToolbarButton({ mode, label, activeMode, onClick }: ToolbarButtonProps): ReactElement {
-  const isActive = activeMode === mode;
+function ToolbarButton({ label, isActive, onClick }: ToolbarButtonProps): ReactElement {
   return (
     <button
       type="button"
@@ -30,25 +49,27 @@ function ToolbarButton({ mode, label, activeMode, onClick }: ToolbarButtonProps)
 
 export function EditorToolbar({ activeMode, onChangeMode }: EditorToolbarProps): ReactElement {
   return (
-    <fieldset className="editor-toolbar" aria-label="Element editors">
-      <ToolbarButton
-        mode="style"
-        label="Edit Style"
-        activeMode={activeMode}
-        onClick={() => onChangeMode(activeMode === "style" ? null : "style")}
-      />
-      <ToolbarButton
-        mode="class"
-        label="Edit Classes"
-        activeMode={activeMode}
-        onClick={() => onChangeMode(activeMode === "class" ? null : "class")}
-      />
-      <ToolbarButton
-        mode="text"
-        label="Edit Text"
-        activeMode={activeMode}
-        onClick={() => onChangeMode(activeMode === "text" ? null : "text")}
-      />
+    <fieldset className="editor-toolbar" aria-label="Interaction modes and element editors">
+      <div className="editor-toolbar__group">
+        {INTERACTION_MODES.map(({ mode, label }) => (
+          <ToolbarButton
+            key={mode}
+            label={label}
+            isActive={activeMode === mode}
+            onClick={() => onChangeMode(activeMode === mode ? null : mode)}
+          />
+        ))}
+      </div>
+      <div className="editor-toolbar__group">
+        {PROPERTY_EDITORS.map(({ mode, label }) => (
+          <ToolbarButton
+            key={mode}
+            label={label}
+            isActive={activeMode === mode}
+            onClick={() => onChangeMode(activeMode === mode ? null : mode)}
+          />
+        ))}
+      </div>
     </fieldset>
   );
 }

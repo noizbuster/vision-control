@@ -1,6 +1,6 @@
 # change-ir schema version
 
-Current: **1.1.0** (see `CHANGE_IR_SCHEMA_VERSION` in `changeset.ts`).
+Current: **2.0.0** (see `CHANGE_IR_SCHEMA_VERSION` in `changeset.ts`).
 
 ## Versioning rule
 
@@ -9,6 +9,48 @@ kind is a MINOR bump (additive): older consumers that do not recognise the new
 `kind` discriminator will reject it via `z.discriminatedUnion` rather than
 silently misinterpreting it, so the wire is safe within a major. Removing or
 renaming a kind, or changing a field shape, is a MAJOR bump.
+
+## 2.0.0 (breaking — PRD §12.2 ChangeSet reshape)
+
+The ChangeSet **container** was reshaped to the full PRD §12.2 shape. The
+operation union itself is unchanged (the 22 kinds from 1.0.0/1.1.0 carry
+through), so this is a container-level breaking change, not an operation-level
+one.
+
+New required fields on every ChangeSet:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `schemaVersion` | `"2.0.0"` | literal; enforced by `z.literal(CHANGE_IR_SCHEMA_VERSION)` |
+| `workspaceId` | `string` | workspace the set belongs to |
+| `page` | `PageContext` | `{ url, title }` — page the set was captured against |
+| `viewport` | `ViewportContext` | `{ width, height }` — viewport in effect |
+| `title?` | `string` | optional human label |
+| `userInstruction?` | `string` | optional natural-language instruction |
+| `selectedTargets` | `ElementRef[]` | elements in scope |
+| `sourceResolutions` | `SourceResolution[]` | resolved source mappings |
+| `verificationPlan` | `VerificationPlan` | `{ assertions, notes }` |
+| `privacyReport` | `PrivacyReport` | `{ redactions, totalRedacted, note? }` |
+
+Carried forward from v1: `id`, `sessionId`, `createdAt`, `updatedAt`,
+`operations`, `committed`, `supersededBy?`. `createdAt`/`updatedAt` stay epoch
+milliseconds (the PRD §12.2 interface sketches them as `string`, but the
+existing serialization contract and every consumer use epoch ms; the format is
+unchanged to keep the wire stable within the reshape).
+
+A v1 (≤ 1.1.0) document does **not** parse against the v2 schema — it is
+missing `schemaVersion` and the required context fields. Use
+`migrateChangeset_1_to_2(v1Json)` to lift a v1 document to a valid v2 set. The
+migrator applies the R8 binding defaults for the absent fields (empty
+`selectedTargets`/`sourceResolutions`, sentinel `page`/`viewport`, stub
+`verificationPlan`/`privacyReport` carrying a "recompute via engine" note,
+`workspaceId` defaulting to the `"<unknown>"` sentinel) and re-validates the
+result through `ChangeSetSchema`. The migration is covered by round-trip and
+rejection tests in `index.test.ts`.
+
+The new context types (`PageContext`, `ViewportContext`, `SourceResolution`,
+`VerificationPlan`) live in `src/context.ts`; the real `PrivacyReport` lives in
+`src/privacy.ts` (the v1 `PrivacyReportPlaceholder` was replaced).
 
 ## 1.1.0 (additive — V1 operation kinds)
 

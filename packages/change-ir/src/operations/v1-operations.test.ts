@@ -15,6 +15,17 @@ const BASE_TIME = 1_700_000_000_000;
 
 const el = (runtimeId: string) => ({ runtimeId });
 
+const v2Defaults = {
+  schemaVersion: "2.0.0" as const,
+  workspaceId: "ws-v1-test-001",
+  page: { url: "https://localhost/page", title: null },
+  viewport: { width: 1280, height: 720 },
+  selectedTargets: [],
+  sourceResolutions: [],
+  verificationPlan: { assertions: [], notes: "test plan" },
+  privacyReport: { redactions: [], totalRedacted: 0 },
+};
+
 const base = (id: string, ts: number, runtime = false) => ({ id, timestamp: ts, runtime });
 
 const multiSelectGroupOp: Operation = {
@@ -294,6 +305,7 @@ describe("V1 computeInverse — every new kind has a computable inverse", () => 
 
 describe("V1 serialization round-trip", () => {
   const fixedChangeSet = (): ChangeSet => ({
+    ...v2Defaults,
     id: "cs-v1roundtrip01",
     sessionId: "sess-v1roundtrp",
     operations: [
@@ -320,7 +332,12 @@ describe("V1 serialization round-trip", () => {
   });
 
   it("a changeset containing every V1 kind round-trips through the schema", () => {
-    let cs = createChangeSet({ sessionId: "sess-all-v1", id: "cs-allv1kind0001", now: BASE_TIME });
+    let cs = createChangeSet({
+      workspaceId: "ws-all-v1",
+      sessionId: "sess-all-v1",
+      id: "cs-allv1kind0001",
+      now: BASE_TIME,
+    });
     for (const [, op] of v1Ops) cs = appendOperation(cs, op);
     const result = deserializeChangeSet(serializeChangeSet(cs));
     expect(result.success).toBe(true);

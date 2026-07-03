@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   appendOperation,
   type ChangeSet,
+  ChangeSetSchema,
   computeInverse,
   createChangeSet,
   deserializeChangeSet,
   mergeChangeSets,
+  migrateChangeset_1_to_2,
   type Operation,
   OperationSchema,
   removeOperation,
@@ -18,6 +20,17 @@ import type { ReorderChildOperation, StyleEditOperation } from "./operations/ind
 const BASE_TIME = 1_700_000_000_000;
 
 const el = (runtimeId: string) => ({ runtimeId });
+
+const v2Defaults = {
+  schemaVersion: "2.0.0" as const,
+  workspaceId: "ws-test-0001",
+  page: { url: "https://localhost/page", title: null },
+  viewport: { width: 1280, height: 720 },
+  selectedTargets: [],
+  sourceResolutions: [],
+  verificationPlan: { assertions: [], notes: "test plan" },
+  privacyReport: { redactions: [], totalRedacted: 0 },
+};
 
 /** A forward style edit (runtime:false = source intent) with a captured prior value. */
 const styleEdit = (): Operation => ({
@@ -276,7 +289,11 @@ describe("resize and reparent inverses", () => {
 
 describe("changeset operations", () => {
   it("createChangeSet yields an empty uncommitted set", () => {
-    const cs = createChangeSet({ sessionId: "sess-create001", now: BASE_TIME });
+    const cs = createChangeSet({
+      workspaceId: "ws-create001",
+      sessionId: "sess-create001",
+      now: BASE_TIME,
+    });
     expect(cs.operations).toEqual([]);
     expect(cs.committed).toBe(false);
     expect(cs.sessionId).toBe("sess-create001");
@@ -284,7 +301,11 @@ describe("changeset operations", () => {
   });
 
   it("appendOperation and removeOperation update the operations list", () => {
-    let cs = createChangeSet({ sessionId: "sess-append0001", now: BASE_TIME });
+    let cs = createChangeSet({
+      workspaceId: "ws-append001",
+      sessionId: "sess-append0001",
+      now: BASE_TIME,
+    });
     cs = appendOperation(cs, styleEdit());
     expect(cs.operations).toHaveLength(1);
     cs = removeOperation(cs, "op-style-00001");
@@ -295,6 +316,7 @@ describe("changeset operations", () => {
 
 describe("serialization", () => {
   const fixedChangeSet = (): ChangeSet => ({
+    ...v2Defaults,
     id: "cs-fixed-000001",
     sessionId: "sess-fixed-001",
     operations: [styleEdit()],
@@ -341,6 +363,7 @@ describe("serialization", () => {
 
 describe("merge and supersede", () => {
   const baseCs = (operations: readonly Operation[]): ChangeSet => ({
+    ...v2Defaults,
     id: `cs-${operations[0]?.id ?? "empty"}`,
     sessionId: "sess-merge-0001",
     operations: [...operations],
@@ -395,9 +418,117 @@ describe("merge and supersede", () => {
 
   it("supersedeChangeSet marks old as superseded by next", () => {
     const old = baseCs([styleEdit()]);
-    const next = createChangeSet({ sessionId: "sess-next-0001" });
+    const next = createChangeSet({ workspaceId: "ws-next-0001", sessionId: "sess-next-0001" });
     const { old: updatedOld, next: returnedNext } = supersedeChangeSet(old, next);
     expect(updatedOld.supersededBy).toBe(next.id);
     expect(returnedNext.id).toBe(next.id);
+  });
+});
+
+describe("PRD §12.2 schema v2.0.0", () => {
+  it("createChangeSet stamps schemaVersion 2.0.0 and all PRD §12.2 required fields", () => {
+    const cs = createChangeSet({ workspaceId: "ws-001", sessionId: "sess-001" });
+    expect(cs.schemaVersion).toBe("2.0.0");
+    expect(ChangeSetSchema.safeParse(cs).success).toBe(true);
+    expect(cs.page).toEqual({ url: "<unknown>", title: null });
+    expect(cs.viewport).toEqual({ width: 0, height: 0 });
+    expect(cs.selectedTargets).toEqual([]);
+    expect(cs.sourceResolutions).toEqual([]);
+    expect(cs.verificationPlan.assertions).toEqual([]);
+    expect(cs.privacyReport.totalRedacted).toBe(0);
+    expect(cs.committed).toBe(false);
+  });
+
+  it("a v2 changeset round-trips through serialize -> parse deep-equal", () => {
+    const cs: ChangeSet = {
+      ...v2Defaults,
+      id: "cs-v2roundtrip01",
+      sessionId: "sess-v2roundtrp",
+      operations: [styleEdit(), reorderOp],
+      createdAt: BASE_TIME,
+      updatedAt: BASE_TIME + 2,
+      committed: true,
+      title: "Round-trip suite",
+      userInstruction: "make it blue",
+    };
+    const result = deserializeChangeSet(serializeChangeSet(cs));
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toEqual(cs);
+  });
+
+  it("createChangeSet honors explicit page/viewport/title overrides", () => {
+    const cs = createChangeSet({
+      workspaceId: "ws-override",
+      sessionId: "sess-override",
+      page: { url: "https://localhost/app", title: "App" },
+      viewport: { width: 1920, height: 1080 },
+      title: "Custom",
+      userInstruction: "fix header",
+    });
+    expect(cs.page).toEqual({ url: "https://localhost/app", title: "App" });
+    expect(cs.viewport).toEqual({ width: 1920, height: 1080 });
+    expect(cs.title).toBe("Custom");
+    expect(cs.userInstruction).toBe("fix header");
+    expect(ChangeSetSchema.safeParse(cs).success).toBe(true);
+  });
+});
+
+describe("migrateChangeset_1_to_2", () => {
+  const v1Document = {
+    id: "cs-v1-0001",
+    sessionId: "sess-v1-0001",
+    operations: [styleEdit()],
+    createdAt: BASE_TIME,
+    updatedAt: BASE_TIME + 1,
+    committed: true,
+  };
+
+  it("produces a v2 ChangeSet that passes the v2 schema with the R8 binding defaults", () => {
+    const migrated = migrateChangeset_1_to_2(v1Document);
+    expect(ChangeSetSchema.safeParse(migrated).success).toBe(true);
+    expect(migrated.schemaVersion).toBe("2.0.0");
+    expect(migrated.workspaceId).toBe("<unknown>");
+    expect(migrated.page).toEqual({ url: "<unknown>", title: null });
+    expect(migrated.viewport).toEqual({ width: 0, height: 0 });
+    expect(migrated.selectedTargets).toEqual([]);
+    expect(migrated.sourceResolutions).toEqual([]);
+    expect(migrated.verificationPlan).toEqual({
+      assertions: [],
+      notes: "migrated from v1 — recompile via verification engine",
+    });
+    expect(migrated.privacyReport).toEqual({
+      redactions: [],
+      totalRedacted: 0,
+      note: "migrated v1 — recompute via redaction engine",
+    });
+    expect(migrated.committed).toBe(true);
+    expect(migrated.operations).toHaveLength(1);
+  });
+
+  it("preserves v1 supersededBy and operations through the migration", () => {
+    const v1WithSupersede = {
+      ...v1Document,
+      supersededBy: "cs-v1-newer01",
+      operations: [styleEdit(), classAddOp],
+    };
+    const migrated = migrateChangeset_1_to_2(v1WithSupersede);
+    expect(migrated.supersededBy).toBe("cs-v1-newer01");
+    expect(migrated.operations).toHaveLength(2);
+  });
+
+  it("a v1 document fed to the v2 parser WITHOUT the migrator fails clearly", () => {
+    const result = deserializeChangeSet(JSON.stringify(v1Document));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toBe("ChangeSet validation failed");
+    }
+  });
+
+  it("rejects a malformed v1 document (bad operation) instead of producing an invalid v2 set", () => {
+    const malformedV1 = {
+      ...v1Document,
+      operations: [{ kind: "style-edit", id: "x" }],
+    };
+    expect(() => migrateChangeset_1_to_2(malformedV1)).toThrow();
   });
 });

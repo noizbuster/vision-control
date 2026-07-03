@@ -6,8 +6,21 @@ export {
   type CreateChangeSetOptions,
   computeInverse,
   createChangeSet,
+  migrateChangeset_1_to_2,
   removeOperation,
 } from "./changeset.js";
+export {
+  type PageContext,
+  PageContextSchema,
+  type SourceResolution,
+  SourceResolutionSchema,
+  type VerificationAssertion,
+  VerificationAssertionSchema,
+  type VerificationPlan,
+  VerificationPlanSchema,
+  type ViewportContext,
+  ViewportContextSchema,
+} from "./context.js";
 export { type ElementRef, ElementRefSchema } from "./element-ref.js";
 export {
   type MergeConflict,
@@ -28,7 +41,12 @@ export {
   type OperationKind,
   OperationSchema,
 } from "./operations/index.js";
-export { type PrivacyReportPlaceholder, PrivacyReportPlaceholderSchema } from "./privacy.js";
+export {
+  type PrivacyRedaction,
+  PrivacyRedactionSchema,
+  type PrivacyReport,
+  PrivacyReportSchema,
+} from "./privacy.js";
 export {
   type DeserializeError,
   type DeserializeResult,

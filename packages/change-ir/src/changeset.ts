@@ -1,27 +1,57 @@
 import { z } from "zod";
+import {
+  DEFAULT_PAGE_CONTEXT,
+  DEFAULT_VERIFICATION_PLAN,
+  DEFAULT_VIEWPORT_CONTEXT,
+  type PageContext,
+  PageContextSchema,
+  SourceResolutionSchema,
+  VerificationPlanSchema,
+  type ViewportContext,
+  ViewportContextSchema,
+} from "./context.js";
+import { ElementRefSchema } from "./element-ref.js";
 import { OPERATION_ID_PATTERN } from "./operation-base.js";
 import { type Operation, OperationSchema } from "./operations/index.js";
+import { DEFAULT_PRIVACY_REPORT, PrivacyReportSchema } from "./privacy.js";
 
 const ID = z.string().regex(OPERATION_ID_PATTERN);
 
 /**
  * change-ir schema version. v1.0.0 = the 8 MVP kinds. v1.1.0 added the 14 V1
- * kinds (multi-select, group, layout, grid, breakpoint, screenshot-ref,
- * suggested-diff) — additive, no breaking shape change. See `src/SCHEMA_VERSION.md`.
+ * kinds (additive). v2.0.0 reshaped the ChangeSet container to the full PRD
+ * §12.2 shape (schemaVersion, workspaceId, page, viewport, selectedTargets,
+ * sourceResolutions, verificationPlan, privacyReport). See
+ * `src/SCHEMA_VERSION.md` and {@link migrateChangeset_1_to_2}.
  */
-export const CHANGE_IR_SCHEMA_VERSION = "1.1.0";
+export const CHANGE_IR_SCHEMA_VERSION = "2.0.0" as const;
 
 /**
- * A ChangeSet is the unit of grouped visual operations for one editing session.
- * Operations are append-only; `committed` marks the set as finalized for
- * source resolution, and `supersededBy` marks it as replaced by a newer set.
+ * A ChangeSet is the unit of grouped visual operations for one editing session
+ * (PRD §12.2). Carries the page/viewport context the set was captured in, the
+ * selected targets and their source resolutions, the operations, and the
+ * verification + privacy reports. Operations are append-only; `committed` marks
+ * the set as finalized for source resolution, and `supersededBy` marks it as
+ * replaced by a newer set (both carried forward from v1).
  */
 export const ChangeSetSchema = z.object({
+  schemaVersion: z.literal(CHANGE_IR_SCHEMA_VERSION),
   id: ID,
+  workspaceId: z.string().min(1),
   sessionId: ID,
-  operations: z.array(OperationSchema),
+  page: PageContextSchema,
+  viewport: ViewportContextSchema,
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
+  /** Optional human-readable label for the set. */
+  title: z.string().optional(),
+  /** Optional natural-language instruction that produced the set. */
+  userInstruction: z.string().optional(),
+  selectedTargets: z.array(ElementRefSchema),
+  operations: z.array(OperationSchema),
+  sourceResolutions: z.array(SourceResolutionSchema),
+  verificationPlan: VerificationPlanSchema,
+  privacyReport: PrivacyReportSchema,
   committed: z.boolean(),
   /** Present when another changeset has superseded this one (merge/supersede). */
   supersededBy: ID.optional(),
@@ -30,25 +60,104 @@ export const ChangeSetSchema = z.object({
 export type ChangeSet = z.infer<typeof ChangeSetSchema>;
 
 export interface CreateChangeSetOptions {
+  readonly workspaceId: string;
   readonly sessionId: string;
   readonly id?: string;
   readonly now?: number;
+  readonly page?: PageContext;
+  readonly viewport?: ViewportContext;
+  readonly title?: string;
+  readonly userInstruction?: string;
 }
 
 /**
  * Create an empty, uncommitted ChangeSet. `id` and `now` default to a fresh
- * UUID and `Date.now()`; pass them explicitly for deterministic tests.
+ * UUID and `Date.now()`; pass them explicitly for deterministic tests. Page and
+ * viewport default to sentinels (`<unknown>` / 0x0); pass them for real context.
+ * The verification plan and privacy report default to empty stubs the engines
+ * overwrite when they run.
  */
 export const createChangeSet = (options: CreateChangeSetOptions): ChangeSet => {
   const now = options.now ?? Date.now();
   return {
+    schemaVersion: CHANGE_IR_SCHEMA_VERSION,
     id: options.id ?? crypto.randomUUID(),
+    workspaceId: options.workspaceId,
     sessionId: options.sessionId,
-    operations: [],
+    page: options.page ?? DEFAULT_PAGE_CONTEXT,
+    viewport: options.viewport ?? DEFAULT_VIEWPORT_CONTEXT,
     createdAt: now,
     updatedAt: now,
+    ...(options.title !== undefined ? { title: options.title } : {}),
+    ...(options.userInstruction !== undefined ? { userInstruction: options.userInstruction } : {}),
+    selectedTargets: [],
+    operations: [],
+    sourceResolutions: [],
+    verificationPlan: DEFAULT_VERIFICATION_PLAN,
+    privacyReport: DEFAULT_PRIVACY_REPORT,
     committed: false,
   };
+};
+
+/**
+ * Permissive reader for the v1 ChangeSet shape (no `schemaVersion`, no PRD §12.2
+ * context fields). Used by {@link migrateChangeset_1_to_2}. `passthrough` keeps
+ * any extra keys so a v1 document that already carries some v2-adjacent data
+ * (e.g. `workspaceId`, `title`) is preserved.
+ */
+const V1_CHANGESET_READER = z
+  .object({
+    id: z.string(),
+    sessionId: z.string(),
+    operations: z.array(OperationSchema).default([]),
+    createdAt: z.number().int().nonnegative(),
+    updatedAt: z.number().int().nonnegative(),
+    committed: z.boolean().default(false),
+    supersededBy: z.string().optional(),
+    workspaceId: z.string().optional(),
+    title: z.string().optional(),
+    userInstruction: z.string().optional(),
+    selectedTargets: z.array(ElementRefSchema).default([]),
+    sourceResolutions: z.array(SourceResolutionSchema).default([]),
+  })
+  .passthrough();
+
+/**
+ * Migrate a v1 (schema ≤ 1.1.0) ChangeSet JSON document to a valid v2.0.0
+ * ChangeSet, applying the R8 binding defaults for the PRD §12.2 fields v1 did
+ * not carry (visible in the body below). `workspaceId` defaults to the
+ * `"<unknown>"` sentinel — R8 leaves it unspecified, matching the page-url
+ * default. The result is re-validated through {@link ChangeSetSchema} so a
+ * malformed v1 document surfaces as a Zod error, not a silently-broken v2 set.
+ */
+export const migrateChangeset_1_to_2 = (v1Json: unknown): ChangeSet => {
+  const v1 = V1_CHANGESET_READER.parse(v1Json);
+  return ChangeSetSchema.parse({
+    schemaVersion: CHANGE_IR_SCHEMA_VERSION,
+    id: v1.id,
+    workspaceId: v1.workspaceId ?? "<unknown>",
+    sessionId: v1.sessionId,
+    page: DEFAULT_PAGE_CONTEXT,
+    viewport: DEFAULT_VIEWPORT_CONTEXT,
+    createdAt: v1.createdAt,
+    updatedAt: v1.updatedAt,
+    ...(v1.title !== undefined ? { title: v1.title } : {}),
+    ...(v1.userInstruction !== undefined ? { userInstruction: v1.userInstruction } : {}),
+    selectedTargets: v1.selectedTargets,
+    operations: v1.operations,
+    sourceResolutions: v1.sourceResolutions,
+    verificationPlan: {
+      assertions: [],
+      notes: "migrated from v1 — recompile via verification engine",
+    },
+    privacyReport: {
+      redactions: [],
+      totalRedacted: 0,
+      note: "migrated v1 — recompute via redaction engine",
+    },
+    committed: v1.committed,
+    ...(v1.supersededBy !== undefined ? { supersededBy: v1.supersededBy } : {}),
+  });
 };
 
 /** Append an operation and bump `updatedAt`. Does not mutate the input. */

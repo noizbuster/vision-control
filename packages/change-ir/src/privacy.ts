@@ -1,17 +1,30 @@
 import { z } from "zod";
 
 /**
- * Placeholder privacy report carried by a ChangeSet.
+ * Privacy report carried by a ChangeSet (PRD §12.2 / Appendix D.6).
  *
- * Task 24 (security / redaction) replaces this with the real redaction engine
- * that scrubs sensitive DOM and network data before context export. The shape
- * is fixed now: which fields were redacted and why each was redacted. Privacy
- * is a hard constraint — sensitive DOM/network data must never reach the
- * default context (PRD Appendix D.6).
+ * Records which fields were redacted before context export and why. This is the
+ * IR-level shape persisted on the set; the security package owns the redaction
+ * engine that populates it. Sensitive DOM/network data must never reach the
+ * default context export (Appendix D.6).
  */
-export const PrivacyReportPlaceholderSchema = z.object({
-  redactedFields: z.array(z.string()),
-  redactionReasons: z.record(z.string(), z.string()),
+export const PrivacyRedactionSchema = z.object({
+  field: z.string(),
+  patternId: z.string(),
+  description: z.string(),
 });
+export type PrivacyRedaction = z.infer<typeof PrivacyRedactionSchema>;
 
-export type PrivacyReportPlaceholder = z.infer<typeof PrivacyReportPlaceholderSchema>;
+export const PrivacyReportSchema = z.object({
+  redactions: z.array(PrivacyRedactionSchema),
+  totalRedacted: z.number().int().nonnegative(),
+  /** Optional provenance note (e.g. "migrated v1 — recompute via redaction engine"). */
+  note: z.string().optional(),
+});
+export type PrivacyReport = z.infer<typeof PrivacyReportSchema>;
+
+/** Empty privacy report used until the redaction engine computes one. */
+export const DEFAULT_PRIVACY_REPORT: PrivacyReport = {
+  redactions: [],
+  totalRedacted: 0,
+};

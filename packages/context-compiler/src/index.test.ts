@@ -100,7 +100,19 @@ const classAddOperation: Operation = {
   runtime: false,
 };
 
+const v2Defaults = {
+  schemaVersion: "2.0.0" as const,
+  workspaceId: "ws-ctx-test-001",
+  page: { url: "https://localhost/page", title: null },
+  viewport: { width: 1280, height: 720 },
+  selectedTargets: [],
+  sourceResolutions: [],
+  verificationPlan: { assertions: [], notes: "test plan" },
+  privacyReport: { redactions: [], totalRedacted: 0 },
+};
+
 const makeChangeSet = (operations: readonly Operation[] = [styleEditOperation]): ChangeSet => ({
+  ...v2Defaults,
   id: "cs-00000001",
   sessionId: "sess-00001",
   operations: [...operations],

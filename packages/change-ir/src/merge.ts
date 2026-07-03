@@ -1,5 +1,7 @@
-import type { ChangeSet } from "./changeset.js";
+import { CHANGE_IR_SCHEMA_VERSION, type ChangeSet } from "./changeset.js";
+import { DEFAULT_VERIFICATION_PLAN } from "./context.js";
 import type { Operation } from "./operations/index.js";
+import { DEFAULT_PRIVACY_REPORT } from "./privacy.js";
 
 export interface MergeConflict {
   readonly reason: string;
@@ -93,11 +95,19 @@ export const mergeChangeSets = (a: ChangeSet, b: ChangeSet): MergeResult => {
   return {
     ok: true,
     changeSet: {
+      schemaVersion: CHANGE_IR_SCHEMA_VERSION,
       id: crypto.randomUUID(),
+      workspaceId: a.workspaceId,
       sessionId: a.sessionId,
-      operations: [...a.operations, ...b.operations],
+      page: a.page,
+      viewport: a.viewport,
       createdAt: now,
       updatedAt: now,
+      selectedTargets: [...a.selectedTargets, ...b.selectedTargets],
+      operations: [...a.operations, ...b.operations],
+      sourceResolutions: [],
+      verificationPlan: DEFAULT_VERIFICATION_PLAN,
+      privacyReport: DEFAULT_PRIVACY_REPORT,
       committed: false,
     },
   };

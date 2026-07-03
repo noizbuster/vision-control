@@ -33,6 +33,14 @@
         "command": "vitest run",
         "cwd": "apps/extension"
       }
+    },
+    "e2e": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "playwright test",
+        "cwd": "apps/extension"
+      },
+      "outputs": ["{projectRoot}/playwright-report", "{projectRoot}/test-results"]
     }
   }
 }

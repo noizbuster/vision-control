@@ -14,7 +14,9 @@
       "!**/.git",
       "!**/.omo",
       "!**/pnpm-lock.yaml",
-      "!**/*.md"
+      "!**/*.md",
+      "!**/test-results",
+      "!**/playwright-report"
     ]
   },
   "formatter": {

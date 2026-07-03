@@ -21,6 +21,9 @@ catalogs:
     '@modelcontextprotocol/sdk':
       specifier: 1.29.0
       version: 1.29.0
+    '@playwright/test':
+      specifier: 1.61.1
+      version: 1.61.1
     '@types/babel__traverse':
       specifier: 7.28.0
       version: 7.28.0
@@ -196,6 +199,9 @@ importers:
         specifier: 'catalog:'
         version: 19.2.7(react@19.2.7)
     devDependencies:
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.61.1
       '@testing-library/react':
         specifier: 16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -211,6 +217,27 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.2.3(@types/react@19.2.17)
+      '@vision-control/context-compiler':
+        specifier: workspace:*
+        version: link:../../packages/context-compiler
+      '@vision-control/security':
+        specifier: workspace:*
+        version: link:../../packages/security
+      '@vision-control/source-registry':
+        specifier: workspace:*
+        version: link:../../packages/source-registry
+      '@vision-control/source-resolver':
+        specifier: workspace:*
+        version: link:../../packages/source-resolver
+      '@vision-control/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@vision-control/verification-engine':
+        specifier: workspace:*
+        version: link:../../packages/verification-engine
+      '@vision-control/workspace-index':
+        specifier: workspace:*
+        version: link:../../packages/workspace-index
       '@wxt-dev/module-react':
         specifier: 'catalog:'
         version: 1.2.2(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))(wxt@0.20.27(@types/node@26.1.0)(jiti@2.7.0)(rolldown@1.1.3)(rollup@4.62.2)(yaml@2.9.0))
@@ -239,6 +266,9 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.61.1
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.0
@@ -1541,6 +1571,11 @@ packages:
 
   '@oxc-project/types@0.137.0':
     resolution: {integrity: sha512-WT+Gb24i8hmvo85AIv2oEYouEXkRlKAlT9WaCa3TfLgNCN+GhrJOGZuIlMouAh38Qe4QOx26eUOVsq70qXrywA==}
+
+  '@playwright/test@1.61.1':
+    resolution: {integrity: sha512-8nKv6+0RJSL9FE4jYOEGXnPeM/Hg12qZpmqzZjRh3qM0Y7c3z1mrOTfFLids72RDQYVh9WpLEfR5WdpNX4fkig==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   '@pnpm/config.env-replace@1.1.0':
     resolution: {integrity: sha512-htyl8TWnKL7K/ESFa1oW2UB5lVDxuF5DpM7tBi6Hu2LNL3mWkIzNLG6N4zoCUP1lCKNxWy/3iu8mS8MvToGd6w==}
@@ -4968,6 +5003,10 @@ snapshots:
     optional: true
 
   '@oxc-project/types@0.137.0': {}
+
+  '@playwright/test@1.61.1':
+    dependencies:
+      playwright: 1.61.1
 
   '@pnpm/config.env-replace@1.1.0': {}
 

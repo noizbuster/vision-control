@@ -17,7 +17,11 @@
   ],
   "devDependencies": {
     "@types/node": "catalog:",
+    "@vision-control/geometry": "workspace:*",
+    "@vision-control/layout-engine": "workspace:*",
+    "@vision-control/overlay-ui": "workspace:*",
     "@vision-control/verification-engine": "workspace:*",
+    "jsdom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

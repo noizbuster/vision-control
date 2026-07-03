@@ -396,9 +396,21 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.0
+      '@vision-control/geometry':
+        specifier: workspace:*
+        version: link:../../packages/geometry
+      '@vision-control/layout-engine':
+        specifier: workspace:*
+        version: link:../../packages/layout-engine
+      '@vision-control/overlay-ui':
+        specifier: workspace:*
+        version: link:../../packages/overlay-ui
       '@vision-control/verification-engine':
         specifier: workspace:*
         version: link:../../packages/verification-engine
+      jsdom:
+        specifier: 'catalog:'
+        version: 29.1.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -525,6 +537,18 @@ importers:
       tailwindcss:
         specifier: 'catalog:'
         version: 3.4.17
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
+
+  integrations/vanilla-css:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -1089,6 +1113,9 @@ importers:
       '@vision-control/tailwind':
         specifier: workspace:*
         version: link:../../integrations/tailwind
+      '@vision-control/vanilla-css':
+        specifier: workspace:*
+        version: link:../../integrations/vanilla-css
       '@vision-control/vue':
         specifier: workspace:*
         version: link:../../integrations/vue

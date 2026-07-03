@@ -42,6 +42,12 @@ function createFakeOverlay(): {
     setResizeHandles: (rect) => calls.push({ method: "setResizeHandles", rect }),
     getResizeHandle: () => null,
     updateResizeHandleCursor: () => calls.push({ method: "updateResizeHandleCursor" }),
+    setParentOutline: () => {},
+    setBoxModel: () => {},
+    setFlexGridAxis: () => {},
+    setRotationHandle: () => {},
+    setChangedBadge: () => {},
+    setDragGhost: () => {},
     clear: () => calls.push({ method: "clear" }),
   };
 

@@ -47,8 +47,9 @@ Node-only packages (`workspace-index`, `daemon-core`, `storage`, `mcp-server`,
   re-handshakes when the daemon restarts.
 - The origin allowlist prevents a malicious local web page from talking to the
   daemon even if it guesses the port.
-- MCP HTTP transport is deferred (PRD open question 7, line 2698). The MVP uses
-  stdio for MCP, which avoids exposing another network surface.
+- MCP HTTP transport is now loopback-only (ADR-013). The server binds to
+  `127.0.0.1` behind Bearer-token and origin-allowlist auth. Non-loopback HTTP
+  remains deferred (PRD open question 7, line 2698).
 
 ## MVP Guardrail
 

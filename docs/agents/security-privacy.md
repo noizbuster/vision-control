@@ -5,7 +5,10 @@ covers the loopback daemon, source path handling, redaction, and audit logging.
 
 Related: [ADR-007](../adr/ADR-007-loopback-daemon.md),
 [ADR-008](../adr/ADR-008-dev-only-source-markers.md),
-[ADR-009](../adr/ADR-009-privacy-redaction.md).
+[ADR-009](../adr/ADR-009-privacy-redaction.md),
+[ADR-011](../adr/ADR-011-v1-screenshot-crops.md),
+[ADR-013](../adr/ADR-013-mcp-loopback-http-policy.md),
+[ADR-015](../adr/ADR-015-share-bundles-collaboration-trust.md).
 
 ---
 
@@ -26,8 +29,8 @@ port, because the origin check fails first. Another local process cannot talk to
 the daemon without the session token.
 
 The daemon and the MCP server are separate processes on separate transports. The
-daemon serves the extension. The MCP server serves agent tooling over stdio. They
-do not share an auth domain.
+daemon serves the extension. The MCP server serves agent tooling over stdio and
+loopback HTTP (ADR-013). They do not share an auth domain.
 
 ---
 
@@ -71,6 +74,49 @@ Rules for agents:
   excluded it for a reason.
 - Do not log redacted values. If you encounter a value that looks like a secret,
   do not echo it into evidence files or commit messages.
+
+---
+
+## Screenshots (V1)
+
+V1 adds element screenshot crops (PRD section 7.2, line 296). Screenshots are an
+image privacy surface that the text redaction layer cannot fully reach, so the
+policy is strict (ADR-011):
+
+- **Opt-in only.** No crop is captured unless explicitly requested. Crops are
+  excluded from every default context export and every share bundle. A context
+  export carries a crop reference only when the caller opts in.
+- **Masked and redacted.** Before capture, `[data-private]` regions, credential
+  inputs (password, credit card), and hidden auth tokens are masked. The crop is
+  re-checked after capture so an overlay or late-rendered value cannot leak.
+- **Local storage, short retention.** Crops are written to local artifact
+  storage only, with a content hash and path, and a bounded default retention.
+  They are never uploaded or relayed.
+- **Metadata-only in context.** Context and MCP responses carry a crop as a
+  reference plus a redaction report, never as an unredacted image blob.
+
+No screenshot payload may contain passwords, cookies, auth headers, hidden auth
+tokens, private keys, bearer tokens, unrelated DOM, or network bodies.
+
+---
+
+## Share bundles (V2)
+
+V2 collaboration defaults to local export/import share bundles (PRD section 7.3,
+line 308; ADR-015):
+
+- **Local export/import.** A bundle is a redacted, signed artifact (ChangeSet +
+  context, screenshot metadata only when explicitly included and redacted). It
+  carries a signature/hash and an audit log. Import reconstructs operations and
+  source candidates without secrets.
+- **Token-free.** No raw daemon, MCP, or session token enters a bundle. A tamper
+  or unknown-hash bundle is rejected on import.
+- **No network relay.** The default path has no relay, cloud sync, or remote
+  session. Remote real-time collaboration is deferred until a separate
+  trust-model ADR approves identity, revocation, and encryption.
+
+No share bundle payload may bypass redaction or carry credentials, auth tokens,
+or network bodies.
 
 ---
 

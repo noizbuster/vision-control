@@ -5,6 +5,8 @@ MCP server exposes read-only tools only. There is no source mutation path throug
 MCP.
 
 Related: [ADR-010](../adr/ADR-010-readonly-mcp.md),
+[ADR-012](../adr/ADR-012-deterministic-patch-suggestions.md),
+[ADR-013](../adr/ADR-013-mcp-loopback-http-policy.md),
 [security-privacy.md](./security-privacy.md).
 
 ---
@@ -15,8 +17,10 @@ The MCP server (`packages/mcp-server`) gives a coding agent read access to page
 state and workspace context. It does not give the agent a way to write source,
 modify the preview state machine, or mutate the change journal.
 
-There is no `vision_apply_deterministic_patch` tool. There will not be one in the
-MVP.
+There is no source-mutating MCP tool. There is no
+`vision_apply_deterministic_patch` tool and there will not be one in the MVP or
+V1 scope. Deterministic patch suggestions (V1) are returned as inert
+`suggestedDiff` data, never applied through a tool (ADR-012).
 
 ---
 
@@ -90,13 +94,34 @@ truth. The MCP server holds no write path.
 
 ---
 
+## Transports
+
+The MCP server serves two transports, both loopback-only and both read-only
+(ADR-013):
+
+- **stdio** - `startStdioTransport` uses `StdioServerTransport`. The standard
+  transport for local agent integration. Spawn the `vision-control-mcp` binary
+  as a child process and communicate via JSON-RPC over stdin/stdout.
+- **loopback HTTP/WS** - `startHttpTransport` uses
+  `StreamableHTTPServerTransport` and binds to `127.0.0.1` only (never
+  `0.0.0.0` or a public interface). Every request passes through `checkAuth`
+  (Bearer token plus origin allowlist) before the transport sees it. The CLI
+  and `vision-control doctor` reach it at `VC_MCP_URL` with `VC_MCP_TOKEN`.
+
+The read-only tool contract (ADR-010) is unchanged by transport. No tool on
+either transport writes source, applies patches, or mutates state. Binding the
+HTTP transport to a non-loopback interface requires a future ADR; there is no
+flag or env var that silently widens the bind.
+
+---
+
 ## V1: deterministic patch suggestions
 
 Deterministic patch suggestions are a V1 feature (PRD section 7.2, line 298).
-When they arrive, they will be returned as data (a suggested diff string), not
-applied through a tool. The agent reads the suggestion, decides whether to apply
-it, and applies it through its own file-writing mechanism. The MCP server never
-writes.
+They are returned as inert data (a `suggestedDiff` payload with diff text, source
+ranges, confidence, and preconditions), not applied through a tool. The agent
+reads the suggestion, decides whether to apply it, and applies it through its own
+file-writing mechanism. The MCP server never writes. See ADR-012.
 
 ---
 
@@ -109,5 +134,6 @@ writes.
   append-only from the extension side.
 - **Do not add a tool that bypasses redaction.** Context exports go through the
   redaction layer (ADR-009). There is no unredacted export path.
-- **Do not add HTTP transport for MCP in the MVP.** The MVP uses stdio. HTTP
-  transport is deferred (PRD open question 7, line 2698).
+- **Do not bind the MCP transport to a non-loopback interface.** Both stdio and
+  loopback HTTP bind locally only. Non-loopback HTTP requires a future ADR that
+  approves a transport and threat model (ADR-013; PRD open question 7, line 2698).

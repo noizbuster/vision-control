@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -83,5 +83,114 @@ describe("docs freshness: README commands resolve to real scripts", () => {
       stale,
       `README.md references pnpm commands that are not defined in root package.json scripts, not pnpm builtins, and not repo binaries: ${stale.join(", ")}. Either add the script to package.json or fix the README.`,
     ).toEqual([]);
+  });
+});
+
+const ADR_DIR = path.join(repoRoot, "docs", "adr");
+
+interface AdrEntry {
+  num: number;
+  file: string;
+}
+
+function listAdrFiles(): AdrEntry[] {
+  return readdirSync(ADR_DIR)
+    .filter((f) => /^ADR-\d{3}-.+\.md$/.test(f))
+    .map((f) => ({ num: Number(f.slice(4, 7)), file: f }))
+    .sort((a, b) => a.num - b.num);
+}
+
+const REQUIRED_ADR_SECTIONS = [
+  "## Status",
+  "## Context",
+  "## Decision",
+  "## Consequences",
+  "## MVP Guardrail",
+];
+
+describe("docs freshness: ADR registry", () => {
+  it("every ADR file has the 5 required sections in order", () => {
+    const adrs = listAdrFiles();
+    expect(adrs.length, "expected the MVP + V1/V2 ADRs to exist").toBeGreaterThanOrEqual(17);
+    const errors: string[] = [];
+    for (const { file } of adrs) {
+      const content = readFileSync(path.join(ADR_DIR, file), "utf8");
+      let last = -1;
+      for (const section of REQUIRED_ADR_SECTIONS) {
+        const idx = content.indexOf(section, last + 1);
+        if (idx === -1) {
+          errors.push(`${file}: missing or out-of-order section "${section}"`);
+          break;
+        }
+        last = idx;
+      }
+    }
+    expect(errors, `ADR section audit failures:\n${errors.join("\n")}`).toEqual([]);
+  });
+
+  it("the V1/V2 policy-gate ADRs (011-017) all exist", () => {
+    const nums = new Set(listAdrFiles().map((a) => a.num));
+    for (const n of [11, 12, 13, 14, 15, 16, 17]) {
+      expect(nums, `ADR-${String(n).padStart(3, "0")} must exist`).toContain(n);
+    }
+  });
+
+  it("the ADR index registers every ADR file", () => {
+    const index = readFileSync(path.join(ADR_DIR, "README.md"), "utf8");
+    for (const { file } of listAdrFiles()) {
+      expect(index, `ADR index must reference ${file}`).toContain(file);
+    }
+  });
+});
+
+const POLICY_DIR = path.join(repoRoot, "docs", "agents");
+
+// Split via concatenation so this source holds no literal token a future scan flags
+// (same pattern as the boundary-checker fixtures). Do not "simplify" to a literal.
+const FORBIDDEN_TOOL = "vision_" + "apply_deterministic_patch";
+
+// vision_mark_patch_started/completed are coordination signals (record an external
+// cycle); they never apply a patch, so they are intentionally excluded.
+const SOURCE_MUTATING_PATTERNS: readonly (string | RegExp)[] = [
+  FORBIDDEN_TOOL,
+  /^vision_apply_/,
+  /^vision_write_/,
+  /^vision_codemod_/,
+];
+
+function isSourceMutatingTool(name: string): boolean {
+  return SOURCE_MUTATING_PATTERNS.some((p) => (typeof p === "string" ? name === p : p.test(name)));
+}
+
+describe("docs freshness: MCP read-only policy", () => {
+  it("mcp-policy.md states the no-source-mutation rule verbatim", () => {
+    const policy = readFileSync(path.join(POLICY_DIR, "mcp-policy.md"), "utf8");
+    expect(policy).toContain("no source-mutating MCP tool");
+  });
+
+  it("a clean read-only tool list passes the guard (coordination signals allowed)", () => {
+    const cleanTools = [
+      "vision_get_active_session",
+      "vision_get_selection",
+      "vision_get_changeset",
+      "vision_get_source_context",
+      "vision_get_verification_plan",
+      "vision_get_diagnostics",
+      "vision_capture_element",
+      "vision_request_verification",
+      "vision_clear_preview",
+      "vision_mark_patch_started",
+      "vision_mark_patch_completed",
+    ];
+    const offenders = cleanTools.filter(isSourceMutatingTool);
+    expect(offenders, `clean tool list must contain no source-mutating tool`).toEqual([]);
+  });
+
+  it("a tool list containing the forbidden tool fails the guard (negative fixture)", () => {
+    const poisonedTools = ["vision_get_active_session", FORBIDDEN_TOOL];
+    const offenders = poisonedTools.filter(isSourceMutatingTool);
+    expect(offenders, `the forbidden tool must be rejected by the read-only guard`).toContain(
+      FORBIDDEN_TOOL,
+    );
   });
 });

@@ -63,8 +63,14 @@ See ADR-004 for the full rationale.
 
 ## Evidence convention
 
-Every plan task produces a file at `.omo/evidence/task-<N>-vision-control-mvp.md`.
-The file must contain:
+Every plan task produces an evidence file at
+`.omo/evidence/task-<N>-<plan-slug>.md`, where `<plan-slug>` matches the plan
+name. For the MVP plan the path is
+`.omo/evidence/task-<N>-vision-control-mvp.md`. For the V1/V2 plan the path is
+`.omo/evidence/task-1-vision-control-v1-v2.md` (e.g. `task-1-`, `task-2-`, ...
+through `task-24-`, plus the final-verification files
+`final-f1-`...`final-f4-`). The suffix does not change the convention; it only
+names the plan. The file must contain:
 
 1. **Timestamp and environment**: the date, Node version, pnpm version, OS.
 2. **Files created or modified**: a list with paths.

@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "envelope": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+        },
+        "messageId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,128}$"
+        },
+        "messageType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlationId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "tabId": {
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string"
+        },
+        "payload": {},
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": ["protocolVersion", "messageId", "messageType", "payload", "timestamp"],
+      "additionalProperties": false
+    },
+    "message": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "hello"
+            },
+            "clientVersion": {
+              "type": "string"
+            },
+            "clientCapabilities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["type", "clientVersion", "clientCapabilities"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "welcome"
+            },
+            "serverVersion": {
+              "type": "string"
+            },
+            "serverCapabilities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "sessionId": {
+              "type": "string"
+            },
+            "sessionToken": {
+              "type": "string"
+            }
+          },
+          "required": ["type", "serverVersion", "serverCapabilities", "sessionId", "sessionToken"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "page-event"
+            },
+            "event": {
+              "type": "string",
+              "enum": [
+                "load",
+                "reload",
+                "navigation",
+                "tab-focus",
+                "devtools-open",
+                "devtools-close"
+              ]
+            },
+            "url": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "framePath": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["type", "event", "url", "title", "framePath"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "session-event"
+            },
+            "payload": {}
+          },
+          "required": ["type", "payload"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string",
+              "enum": [
+                "PROTOCOL_VERSION_MISMATCH",
+                "UNKNOWN_MESSAGE_TYPE",
+                "INVALID_PAYLOAD",
+                "MISSING_FIELD",
+                "UNAUTHORIZED",
+                "ORIGIN_NOT_ALLOWED",
+                "SESSION_NOT_FOUND",
+                "FRAME_NOT_FOUND",
+                "WORKSPACE_NOT_BOUND",
+                "RATE_LIMITED",
+                "INTERNAL_ERROR",
+                "VERIFICATION_FAILED"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {}
+          },
+          "required": ["type", "code", "message"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "ack"
+            },
+            "messageId": {
+              "type": "string"
+            }
+          },
+          "required": ["type", "messageId"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "nack"
+            },
+            "messageId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["type", "messageId"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "required": ["envelope", "message"],
+  "additionalProperties": false
+}

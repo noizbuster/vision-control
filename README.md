@@ -50,20 +50,55 @@ pnpm doctor             # print the Nx environment report
 pnpm boundaries         # run the package boundary checker
 ```
 
-Build the two runnable skeletons that exist today:
+Build the runnable artifacts:
 
 ```bash
-pnpm nx run extension:build
-pnpm nx run playground-react-vite:build
+pnpm nx run extension:build    # -> apps/extension/.output/chrome-mv3/
+pnpm nx run cli:build          # -> packages/cli/dist/bin.js  (the `vision-control` CLI)
+pnpm nx run mcp-server:build   # -> packages/mcp-server/dist/bin.js  (MCP stdio server)
+pnpm nx run daemon:dev         # build + run the authenticated loopback daemon
 ```
 
-### Commands not available yet
+Run the CLI health check (workspace gates + runtime services):
 
-The PRD quick-start suggests `pnpm nx run daemon:dev`. That target does not
-exist yet because the daemon, the extension dev server, and the playground dev
-server land in later tasks. Running it today fails with
-`Cannot find target 'dev' for project 'daemon'`. The commands above are the ones
-that actually pass today.
+```bash
+node packages/cli/dist/bin.js doctor
+```
+
+---
+
+## MVP Status
+
+v0.1.0 implements the full MVP scope. What works:
+
+- **DevTools panel** — shadow-DOM overlay, element picker, inspector (breadcrumb,
+  computed style, box model, classes, attributes, semantics), and style/class/text
+  editors. Per-tab/per-frame session isolation.
+- **Editing model** — a change IR with computed inverses, a reversible preview
+  engine (style/class/text/structural transactions with rollback and React
+  reconciliation detection), semantic resize, and guarded reparent. Normal-flow
+  drags never collapse to absolute positioning.
+- **Source markers** — dev-only, opaque `data-vc-source` markers via a Vite +
+  React plugin; a source registry, resolver (never returns a wrong HIGH), and
+  workspace file index. Production builds are untouched.
+- **Context export** — redacted JSON/Markdown agent context with a privacy report
+  and token-budget truncation.
+- **Verification** — an HMR assertion engine that proves the source-patched
+  runtime matches the preview.
+- **Daemon** — authenticated loopback WebSocket service with SQLite persistence
+  and an append-only audit log.
+- **MCP server** — read-only, 7 read tools + 4 coordination signals over stdio
+  and loopback HTTP. No source-changing tool.
+- **CLI** — `daemon`, `status`, `sessions`, `context`, `changes`, `verify`,
+  `preview`, and `doctor`.
+
+Explicitly deferred to V1/V2: multi-select, group move, Auto Layout, CSS Grid
+reorder, Tailwind token-aware editing, CSS Modules mapping, Next.js/Vue/Svelte,
+collaboration, Firefox, direct codemod, and a mandatory `chrome.debugger`. See
+[Vision-Control-PRD.md](./Vision-Control-PRD.md) sections 7.2 and 7.3.
+
+For the full feature list and limitations, see
+[docs/release-notes-v0.1.0.md](./docs/release-notes-v0.1.0.md).
 
 ---
 
@@ -143,3 +178,14 @@ conventions, the package generator, and the PR checklist.
 If you are an AI coding agent working in this repo, read
 [AGENTS.md](./AGENTS.md) first. It covers the hard guardrails: no source-mutating
 MCP tools, no production source markers, no V1 features beyond stubs.
+
+## Troubleshooting and docs
+
+- Problems installing, building, or connecting? See
+  [docs/troubleshooting.md](./docs/troubleshooting.md).
+- Security and privacy posture: [docs/security-privacy-overview.md](./docs/security-privacy-overview.md).
+- MCP server setup for OpenCode / Claude Code / generic stdio + HTTP:
+  [docs/mcp-config-examples.md](./docs/mcp-config-examples.md).
+- Generated protocol JSON Schema: [docs/json-schemas/protocol-envelope.json](./docs/json-schemas/protocol-envelope.json).
+- Architecture decisions: [docs/adr/](./docs/adr/). Agent-facing engineering
+  contracts: [docs/agents/](./docs/agents/).

@@ -9,10 +9,23 @@ and changeset persistence.
 
 ## Run
 
+The daemon is a long-running loopback process. Start it either through the CLI
+(recommended — it resolves and spawns the binary with inherited stdio) or
+directly via Nx:
+
 ```bash
-pnpm nx run daemon:dev -- --help     # print help, exit 0, never binds
-pnpm nx run daemon:dev               # build + run against the discovered workspace
+vision-control daemon                 # via the CLI binary (packages/cli)
+pnpm nx run daemon:dev -- --help      # print help, exit 0, never binds
+pnpm nx run daemon:dev                # build + run against the discovered workspace
 ```
+
+On a successful start the daemon prints one JSON line to stdout:
+
+```
+{"event":"ready","port":4321,"host":"127.0.0.1","pairingUrl":"vision-control://pair?token=...","sessionId":"..."}
+```
+
+The pairing token is shown exactly once; only its SHA-256 hash is persisted.
 
 ## CLI
 

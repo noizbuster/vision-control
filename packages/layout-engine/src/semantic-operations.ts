@@ -1,3 +1,4 @@
+import { GRID_AWARE_FLOW_POINTER } from "./grid/index.js";
 import type { LayoutRole } from "./layout-role.js";
 
 /**
@@ -39,7 +40,11 @@ const isGridRole = (role: LayoutRole): boolean => role === "grid";
 
 /**
  * Classify a drag's semantic intent. Decision order:
- * 1. grid context (either parent) → `unsupported-grid` (no grid editing in MVP).
+ * 1. grid context (either parent) → `unsupported-grid` — a DIAGNOSTIC that now
+ *    forwards to the V1 grid-aware flow (`./grid/`) instead of a hard "not
+ *    supported" block. The kind stays `unsupported-grid` so the single-element
+ *    classifier and its callers keep their exhaustive handling; the message
+ *    points to cell inference + the DOM-order-vs-grid-area choice.
  * 2. positioned/transformed free-move context (either parent) →
  *    `unsupported-free-move` (DIAGNOSTIC, not an absolute-position intent).
  * 3. same parent, in flow → `reorder-child`.
@@ -50,7 +55,7 @@ export const classifySemanticIntent = (input: SemanticInput): SemanticIntent => 
   if (isGridRole(input.sourceParentRole) || isGridRole(input.targetParentRole)) {
     return {
       kind: "unsupported-grid",
-      message: "grid reordering and reparenting are not supported in the MVP",
+      message: GRID_AWARE_FLOW_POINTER,
     };
   }
 

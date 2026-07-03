@@ -8,6 +8,18 @@ export type {
   ResizeHandle,
 } from "./events.js";
 export {
+  buildGroupReorderOperation,
+  buildGroupReparentOperation,
+  createInitialGroupMoveState,
+  type GroupMoveEffect,
+  type GroupMoveEvent,
+  type GroupMoveOperation,
+  type GroupMoveReducerOptions,
+  type GroupMoveState,
+  type GroupMoveTransitionResult,
+  transitionGroupMove,
+} from "./group-move-transitions.js";
+export {
   createInitialState,
   type Effect,
   INITIAL_CONTEXT,
@@ -17,6 +29,15 @@ export {
   type TransitionResult,
   transition,
 } from "./machine.js";
+export {
+  createInitialMultiSelectState,
+  type MultiSelectEffect,
+  type MultiSelectEvent,
+  type MultiSelectReducerOptions,
+  type MultiSelectState,
+  type MultiSelectTransitionResult,
+  transitionMultiSelect,
+} from "./multi-select-transitions.js";
 export {
   beginReorder,
   commitReorder,

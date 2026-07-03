@@ -1,9 +1,18 @@
+export * from "./alignment/index.js";
+export * from "./auto-layout/index.js";
 export {
   type ContentModelViolation,
   isValidChild,
   type ValidateReparentResult,
   validateReparent,
 } from "./content-model.js";
+export * from "./grid/index.js";
+export {
+  classifyGroupMove,
+  type GroupFreeMoveIntent,
+  type GroupMoveCandidate,
+  type GroupMoveInput,
+} from "./group-move-candidates.js";
 export {
   type ChildBox,
   computeInsertionIndex,

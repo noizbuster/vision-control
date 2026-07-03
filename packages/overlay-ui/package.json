@@ -17,6 +17,7 @@
   ],
   "dependencies": {
     "@vision-control/change-ir": "workspace:*",
+    "@vision-control/editor-core": "workspace:*",
     "@vision-control/element-identity": "workspace:*",
     "@vision-control/geometry": "workspace:*"
   },

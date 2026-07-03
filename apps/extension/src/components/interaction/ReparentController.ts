@@ -1,6 +1,13 @@
-import type { Operation, ReparentElementOperation } from "@vision-control/change-ir";
+import type {
+  GroupReparentOperation,
+  Operation,
+  ReparentElementOperation,
+} from "@vision-control/change-ir";
+import type { MultiSelectGroup } from "@vision-control/editor-core";
+import type { ElementRef } from "@vision-control/element-identity";
 import {
   beginReparent,
+  buildGroupReparentOperation,
   type CandidateContainer,
   cancelReparent,
   createPointerId,
@@ -13,6 +20,7 @@ import {
   type ReparentResult,
   type ReparentSession,
 } from "@vision-control/interaction-machine";
+import { classifyGroupMove, type LayoutRole } from "@vision-control/layout-engine";
 import type { PreviewManager } from "@vision-control/preview-engine";
 
 export type {
@@ -66,6 +74,15 @@ export interface ReparentController {
   readonly end: () => ReparentResult;
   readonly cancel: (reason: string) => void;
   readonly getState: () => ReparentControllerState;
+  readonly reparentGroup: (
+    group: MultiSelectGroup,
+    sourceParent: ElementRef,
+    sourceIndices: readonly number[],
+    targetParent: ElementRef,
+    targetIndices: readonly number[],
+    targetRole: LayoutRole,
+    ownershipRisk: boolean,
+  ) => GroupReparentOperation | null;
 }
 
 const initialFeasibility: FeasibilityReport = {
@@ -213,5 +230,36 @@ export function createReparentController(options: ReparentControllerOptions): Re
 
   const getState = (): ReparentControllerState => state;
 
-  return { begin, move, end, cancel, getState };
+  const reparentGroup: ReparentController["reparentGroup"] = (
+    group,
+    sourceParent,
+    sourceIndices,
+    targetParent,
+    targetIndices,
+    targetRole,
+    ownershipRisk,
+  ) => {
+    const candidate = classifyGroupMove({
+      sameParent: sourceParent.runtimeId === targetParent.runtimeId,
+      sourceParentRole: targetRole,
+      targetParentRole: targetRole,
+      validContentModel: true,
+      ownershipRisk,
+    });
+    if (candidate.kind !== "group-reparent") {
+      return null;
+    }
+
+    const operation = buildGroupReparentOperation(
+      group,
+      sourceParent,
+      sourceIndices,
+      targetParent,
+      targetIndices,
+    );
+    journal?.record(operation);
+    return operation;
+  };
+
+  return { begin, move, end, cancel, getState, reparentGroup };
 }

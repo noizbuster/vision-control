@@ -18,6 +18,10 @@ export {
   OpaqueFrameError,
 } from "./iframe-coordinate-bridge.js";
 export { createKeyboardController, type KeyboardController } from "./keyboard.js";
+export {
+  createMultiSelectOverlay,
+  type MultiSelectOverlay,
+} from "./multi-select-overlay.js";
 export { createPositionObserver, type PositionObserver } from "./observers.js";
 export {
   createOverlayElement,

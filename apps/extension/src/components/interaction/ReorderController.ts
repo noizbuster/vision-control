@@ -1,7 +1,16 @@
-import type { Operation, ReorderChildOperation } from "@vision-control/change-ir";
+import type {
+  GridReorderOperation,
+  GridSpanOperation,
+  GroupReorderOperation,
+  Operation,
+  ReorderChildOperation,
+} from "@vision-control/change-ir";
+import type { MultiSelectGroup } from "@vision-control/editor-core";
+import type { ElementRef } from "@vision-control/element-identity";
 import type { Rect } from "@vision-control/geometry";
 import {
   beginReorder,
+  buildGroupReorderOperation,
   commitReorder,
   createPointerId,
   endReorder,
@@ -11,10 +20,13 @@ import {
   updateReorder,
 } from "@vision-control/interaction-machine";
 import {
+  classifyGroupMove,
   classifyLayoutRole,
   classifySemanticIntent,
+  type GridUserChoice,
   isNormalFlowRole,
   type LayoutRole,
+  resolveGridIntent,
 } from "@vision-control/layout-engine";
 import { createDropIndicator, type DropIndicatorApi } from "@vision-control/overlay-ui";
 import {
@@ -29,8 +41,35 @@ const PREVIEW_DRAG_ID = "preview-drag";
 
 /** Diagnostic surfaced when a reorder cannot or should not be auto-applied. */
 export interface ReorderDiagnostic {
-  readonly kind: "unsupported-context" | "css-order-warning";
+  readonly kind:
+    | "unsupported-context"
+    | "css-order-warning"
+    | "unsupported-group-free-move"
+    | "grid-a11y-warning"
+    | "grid-reorder-rejected";
   readonly message: string;
+}
+
+/** Request for a CSS Grid reorder (VC-V1V2-09). */
+export interface GridReorderRequest {
+  readonly grid: ElementRef;
+  readonly child: ElementRef;
+  readonly fromIndex: number;
+  readonly toIndex: number;
+  readonly previousGridArea?: string;
+  readonly newGridArea: string;
+  readonly userChoice: GridUserChoice;
+  readonly accessibilitySemanticMatch: boolean;
+  readonly visualMatchesReadingOrder: boolean;
+}
+
+/** Request for a CSS Grid span resize (VC-V1V2-09). */
+export interface GridSpanRequest {
+  readonly grid: ElementRef;
+  readonly child: ElementRef;
+  readonly axis: "column" | "row";
+  readonly fromSpan: number;
+  readonly toSpan: number;
 }
 
 /** Dependencies required by {@link ReorderController}. */
@@ -71,6 +110,7 @@ export class ReorderController {
   private state: ReorderState | null = null;
   private previewRollback: (() => void) | null = null;
   private active = false;
+  private multiSelectGroup: MultiSelectGroup | null = null;
 
   private readonly boundPointerDown: (event: PointerEvent) => void;
   private readonly boundPointerMove: (event: PointerEvent) => void;
@@ -95,6 +135,157 @@ export class ReorderController {
     this.selectedElement = element;
     this.parentElement = element?.parentElement ?? null;
     this.registerElements();
+  }
+
+  /**
+   * Set or clear the active multi-select group. When a group is active, the
+   * controller can issue a group-reorder of the group's siblings within their
+   * shared parent. Pass `null` to revert to single-element reorder.
+   */
+  setMultiSelectGroup(group: MultiSelectGroup | null): void {
+    this.multiSelectGroup = group;
+  }
+
+  /**
+   * Reorder the active multi-select group's members within their shared parent.
+   * `newOrder` is parallel to the group's members: `newOrder[i]` is the target
+   * DOM index for member i. The previous order is read from the live DOM.
+   *
+   * Builds a `group-reorder` operation (per-element source refs + before/after
+   * index arrays for a lossless inverse) and records it via `recordOperation`.
+   * Preview application is deferred: the preview engine does not yet render V1
+   * group kinds (Wave-2 gap), so the operation is recorded as source intent
+   * without a live structural preview.
+   *
+   * Returns the recorded operation, or `null` when no group is active, the
+   * context rejects the move, or the order is unchanged.
+   */
+  reorderGroup(newOrder: readonly number[]): GroupReorderOperation | null {
+    const group = this.multiSelectGroup;
+    if (group === null || group.commonParent === null) {
+      return null;
+    }
+
+    const role = this.getParentLayoutRole() ?? "block";
+    const candidate = classifyGroupMove({
+      sameParent: true,
+      sourceParentRole: role,
+      targetParentRole: role,
+      validContentModel: true,
+    });
+    if (candidate.kind === "unsupported-group-free-move") {
+      this.onDiagnostic({ kind: "unsupported-group-free-move", message: candidate.message });
+      return null;
+    }
+    if (candidate.kind !== "group-reorder") {
+      this.onDiagnostic({
+        kind: "unsupported-context",
+        message: `group reorder not allowed in this context (${candidate.kind})`,
+      });
+      return null;
+    }
+
+    const parent = group.commonParent;
+    const previousOrder = group.members.map((m) => {
+      const el = document.querySelector(`[${PREVIEW_ID_ATTR}="${m.runtimeId}"]`);
+      if (el === null || el.parentElement === null) return -1;
+      return Array.from(el.parentElement.children).indexOf(el);
+    });
+    if (previousOrder.some((i) => i < 0)) {
+      this.onDiagnostic({
+        kind: "unsupported-context",
+        message: "one or more group members are no longer in the DOM (stale selection)",
+      });
+      return null;
+    }
+
+    const unchanged =
+      previousOrder.length === newOrder.length && previousOrder.every((v, i) => v === newOrder[i]);
+    if (unchanged) return null;
+
+    const operation = buildGroupReorderOperation(group, parent, previousOrder, newOrder);
+    this.recordOperation(operation);
+    return operation;
+  }
+
+  /**
+   * Resolve a CSS Grid reorder through the V1 grid-aware flow (VC-V1V2-09):
+   * cell-inferred indices/areas → user-visible DOM-order-vs-grid-area choice →
+   * semantic source intent. The accessibility guard lives in the layout-engine
+   * `resolveGridIntent`: a visual grid placement never silently rewrites DOM
+   * order.
+   *
+   * When the resolution is `grid-area` and the placement desyncs visual order
+   * from DOM reading order, a `grid-a11y-warning` diagnostic is surfaced (the
+   * operation is still recorded — grid-area does not touch the DOM). When the
+   * resolution is `rejected`, a `grid-reorder-rejected` diagnostic is surfaced
+   * and nothing is recorded.
+   *
+   * Returns the recorded `grid-reorder` operation, or `null` when rejected.
+   */
+  reorderGrid(request: GridReorderRequest): GridReorderOperation | null {
+    const resolution = resolveGridIntent({
+      userChoice: request.userChoice,
+      fromIndex: request.fromIndex,
+      toIndex: request.toIndex,
+      ...(request.previousGridArea !== undefined
+        ? { previousGridArea: request.previousGridArea }
+        : {}),
+      newGridArea: request.newGridArea,
+      accessibilitySemanticMatch: request.accessibilitySemanticMatch,
+      visualMatchesReadingOrder: request.visualMatchesReadingOrder,
+    });
+
+    if (resolution.kind === "rejected") {
+      this.onDiagnostic({ kind: "grid-reorder-rejected", message: resolution.reason });
+      return null;
+    }
+
+    if (resolution.a11yWarning !== null) {
+      this.onDiagnostic({ kind: "grid-a11y-warning", message: resolution.a11yWarning });
+    }
+
+    const operation: GridReorderOperation = {
+      id: globalThis.crypto.randomUUID(),
+      kind: "grid-reorder",
+      runtime: false,
+      timestamp: Date.now(),
+      grid: request.grid,
+      child: request.child,
+      placement: resolution.kind,
+      fromIndex: request.fromIndex,
+      toIndex: request.toIndex,
+      ...(resolution.kind === "grid-area" && resolution.previousGridArea !== undefined
+        ? { previousGridArea: resolution.previousGridArea }
+        : {}),
+      ...(resolution.kind === "grid-area" ? { newGridArea: resolution.newGridArea } : {}),
+    };
+    this.recordOperation(operation);
+    return operation;
+  }
+
+  /**
+   * Resize a grid child's column or row span (VC-V1V2-09). Builds and records a
+   * `grid-span` operation with the before/after span pair (lossless inverse via
+   * change-ir). Returns the recorded operation, or `null` for a no-op resize.
+   */
+  resizeGridSpan(request: GridSpanRequest): GridSpanOperation | null {
+    if (request.fromSpan === request.toSpan || request.toSpan < 1) {
+      return null;
+    }
+    const operation: GridSpanOperation = {
+      id: globalThis.crypto.randomUUID(),
+      kind: "grid-span",
+      runtime: false,
+      timestamp: Date.now(),
+      grid: request.grid,
+      child: request.child,
+      axis: request.axis,
+      fromSpan: request.fromSpan,
+      toSpan: request.toSpan,
+    };
+    this.recordOperation(operation);
+    return operation;
   }
 
   /** Attach global pointer and keyboard listeners. */

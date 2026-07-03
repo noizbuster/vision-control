@@ -1,0 +1,156 @@
+import { expect, test } from "@playwright/test";
+
+import { type ChangeSet, isBaseOverwriteAllowed, type Operation } from "@vision-control/change-ir";
+import { compileContext } from "@vision-control/context-compiler";
+import { buildConfidenceUiData, createSourceCandidate } from "@vision-control/source-resolver";
+
+/**
+ * @breakpoint-confidence — VC-V1V2-10 breakpoint context + source-confidence UI.
+ *
+ * Verifies, at the unit level, the end-to-end contract:
+ * 1. A `breakpoint-style-edit` op at `md:` is scoped to `md` and does NOT touch
+ *    base styles unless `applyToBase: true` is set (PRD constraint 2).
+ * 2. The context compiler derives a breakpoint context (active viewport, media
+ *    query source, responsive prefix, scoped change count) from the changeset.
+ * 3. The confidence-ui-data shape carries method/reason badges, repeated/stale
+ *    markers, the selected candidate, and alternative candidates — LOW/MEDIUM
+ *    never hidden.
+ *
+ * Browser tests (panel rendering) are deferred; these unit tests exercise the
+ * pure IR + compiler + resolver chain.
+ */
+
+const BASE_TIME = 1_700_000_000_000;
+
+const mdStyleOp: Operation = {
+  id: "op-bp-e2e0001",
+  kind: "breakpoint-style-edit",
+  target: { runtimeId: "rt-1", sourceId: "src-1", selector: ".card" },
+  breakpoint: "md",
+  activeViewport: "tablet",
+  responsivePrefix: "md",
+  mediaSource: "@media (min-width: 768px)",
+  property: "padding",
+  value: "16px",
+  important: false,
+  previousValue: "8px",
+  timestamp: BASE_TIME,
+  runtime: false,
+};
+
+test.describe("@breakpoint-confidence unit", () => {
+  test("a breakpoint-style-edit at md: is scoped and never overwrites base without explicit intent", () => {
+    expect(isBaseOverwriteAllowed(mdStyleOp)).toBe(false);
+
+    const overwrite: Operation = { ...mdStyleOp, id: "op-bp-e2e0002", applyToBase: true };
+    expect(isBaseOverwriteAllowed(overwrite)).toBe(true);
+  });
+
+  test("the context compiler derives breakpoint context from a breakpoint changeset", () => {
+    const changeset: ChangeSet = {
+      id: "cs-e2e-bp01",
+      sessionId: "sess-e2e-bp",
+      operations: [mdStyleOp],
+      createdAt: BASE_TIME,
+      updatedAt: BASE_TIME + 1,
+      committed: false,
+    };
+    const ctx = compileContext({
+      goal: "Edit padding at md",
+      selection: {
+        identity: {
+          runtimeId: "rt-1",
+          tagName: "div",
+          sourceId: "src-1",
+          selector: ".card",
+          frameId: "main",
+          fingerprint: "abcd",
+          confidence: "high",
+        },
+        breadcrumb: [{ tagName: "div", selector: ".card" }],
+        computedStyle: {
+          display: "block",
+          position: "static",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          flexBasis: "auto",
+          flexGrow: "0",
+          width: "100px",
+          height: "50px",
+          padding: "8px",
+          margin: "0",
+          border: "0",
+          color: "black",
+          backgroundColor: "white",
+          fontSize: "14px",
+          fontWeight: "400",
+          lineHeight: "1.5",
+        },
+        boxModel: {
+          margin: { top: 0, right: 0, bottom: 0, left: 0 },
+          border: { top: 0, right: 0, bottom: 0, left: 0 },
+          padding: { top: 0, right: 0, bottom: 0, left: 0 },
+          content: { width: 100, height: 50 },
+          position: { x: 0, y: 0 },
+        },
+        classList: [],
+        attributes: [],
+        semantic: { tagName: "div", textContentPreview: "Card" },
+        siblingSummary: { count: 1, index: 0, parentTagName: "main", parentLayoutRole: "block" },
+        parentLayout: { mode: "block", display: "block" },
+        sourceConfidence: "high",
+      },
+      changeset,
+      sourceCandidates: [
+        createSourceCandidate({
+          workspaceRelativePath: "src/Card.tsx",
+          confidence: "high",
+          evidence: ["marker"],
+          warnings: [],
+          selected: true,
+        }),
+      ],
+      warnings: [],
+      compiledAt: BASE_TIME,
+    });
+
+    expect(ctx.breakpoint).toBeDefined();
+    expect(ctx.breakpoint?.activeViewport).toBe("tablet");
+    expect(ctx.breakpoint?.responsivePrefix).toBe("md");
+    expect(ctx.breakpoint?.mediaQuerySource).toBe("@media (min-width: 768px)");
+    expect(ctx.breakpoint?.scopedChangeCount).toBe(1);
+  });
+
+  test("the confidence-ui-data shape surfaces full detail and never hides LOW/MEDIUM", () => {
+    const ui = buildConfidenceUiData([
+      createSourceCandidate({
+        workspaceRelativePath: "src/Card.tsx",
+        confidence: "high",
+        evidence: ["marker"],
+        warnings: ["repeated instance: 2 elements share source id"],
+        selected: true,
+        alternativeCount: 1,
+      }),
+      createSourceCandidate({
+        workspaceRelativePath: "src/Card.module.css",
+        confidence: "low",
+        evidence: ["llm-inference"],
+        warnings: ["llm-inferred origin"],
+        selected: false,
+        alternativeCount: 1,
+      }),
+    ]);
+
+    expect(ui.selected?.confidence).toBe("high");
+    expect(ui.selected?.methodBadge).toEqual(["marker"]);
+    expect(ui.alternatives).toHaveLength(1);
+    expect(ui.alternatives[0]?.confidence).toBe("low");
+    expect(ui.alternatives[0]?.methodBadge).toEqual(["llm-inference"]);
+    // LOW surfaces with its warnings intact — never hidden.
+    expect(ui.alternatives[0]?.reasonBadges).toContain("llm-inferred origin");
+    // repeatedInstance is derived from the SELECTED candidate's warnings.
+    expect(ui.repeatedInstance).toBe(true);
+    expect(ui.ambiguous).toBe(true);
+  });
+});

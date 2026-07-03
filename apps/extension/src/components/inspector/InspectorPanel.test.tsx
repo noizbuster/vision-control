@@ -161,4 +161,22 @@ describe("InspectorPanel", () => {
 
     expect(document.querySelector("[data-vc-text-editor-host]")).not.toBeNull();
   });
+
+  it("does not render the Alignment section when no alignmentPanel slot is passed (additive default)", () => {
+    render(<InspectorPanel {...makeProps()} />);
+
+    expect(screen.queryByText("Alignment")).toBeNull();
+  });
+
+  it("renders the Alignment section when an alignmentPanel slot is passed", () => {
+    render(
+      <InspectorPanel
+        {...makeProps()}
+        alignmentPanel={<div data-vc-alignment-panel>alignment slot</div>}
+      />,
+    );
+
+    expect(screen.getByText("Alignment")).toBeDefined();
+    expect(document.querySelector("[data-vc-alignment-panel]")).not.toBeNull();
+  });
 });

@@ -8,20 +8,28 @@ import {
 import {
   add,
   applyToPoint,
+  clientToFrameLocal,
+  clientToLocal,
+  clientToOffsetParent,
   clientToViewport,
+  cssToDevicePixel,
   DEFAULT_POINT_TOLERANCE,
   DEFAULT_RECT_TOLERANCE,
   type DomRectLike,
   decompose,
+  devicePixelToCss,
   distance,
   equals,
+  frameLocalToClient,
   fromString,
   GeometrySnapshotSchema,
   identity,
   invert,
+  localToClient,
   MalformedTransformError,
   type Matrix2D,
   multiply,
+  offsetParentToClient,
   pageToClient,
   rectCenter,
   rectContains,
@@ -239,6 +247,140 @@ describe("coordinate conversion round-trip", () => {
     const vp = clientToViewport(client, scroll);
     expect(pageToClient(vp, scroll)).toEqual(client);
   });
+
+  // Regression: the PRD §11 extension (frame-local / offsetParent /
+  // transformed-local / device-pixel) must NOT alter the pre-existing
+  // scroll-offset round-trip. Pinned explicitly per the task contract.
+  it("regression: existing client<->viewport round-trip is unchanged", () => {
+    for (const c of [
+      { x: 0, y: 0 },
+      { x: -5, y: 7.5 },
+      { x: 1000, y: -200 },
+    ]) {
+      expect(viewportToClient(clientToViewport(c, scroll), scroll)).toEqual(c);
+      expect(pageToClient(clientToViewport(c, scroll), scroll)).toEqual(c);
+    }
+  });
+});
+
+describe("frame-local conversion (same-origin iframe)", () => {
+  // iframe element's border-box top-left in the parent document's client space.
+  const iframeOrigin = { x: 200, y: 150 };
+
+  it("client -> frame-local subtracts the iframe origin", () => {
+    expect(clientToFrameLocal({ x: 250, y: 180 }, iframeOrigin)).toEqual({ x: 50, y: 30 });
+    // pointer at the iframe's top-left corner maps to {0,0}
+    expect(clientToFrameLocal(iframeOrigin, iframeOrigin)).toEqual({ x: 0, y: 0 });
+  });
+
+  it("frame-local -> client -> frame-local round-trips", () => {
+    const local = { x: 73, y: -9 };
+    const back = clientToFrameLocal(frameLocalToClient(local, iframeOrigin), iframeOrigin);
+    expect(back).toEqual(local);
+  });
+});
+
+describe("offsetParent conversion", () => {
+  // offsetParent border-box top-left in client space.
+  const offsetParentOrigin = { x: 40, y: 60 };
+
+  it("client -> offsetParent subtracts the offsetParent origin", () => {
+    expect(clientToOffsetParent({ x: 100, y: 160 }, offsetParentOrigin)).toEqual({ x: 60, y: 100 });
+  });
+
+  it("offsetParent -> client -> offsetParent round-trips", () => {
+    const local = { x: 12.5, y: -3.25 };
+    const back = clientToOffsetParent(
+      offsetParentToClient(local, offsetParentOrigin),
+      offsetParentOrigin,
+    );
+    expect(back).toEqual(local);
+  });
+});
+
+describe("transformed-local conversion (CSS-transformed ancestors)", () => {
+  // Non-trivial transform: scale(2,3) then translate(10,20) — composed so the
+  // scale applies first (matches the matrix decomposition invariant).
+  const transform: Matrix2D = [2, 0, 0, 3, 10, 20];
+  const origin = { x: 5, y: 7 };
+
+  it("localToClient then clientToLocal round-trips (transformed ancestor pointer)", () => {
+    const local = { x: 11, y: -3 };
+    const clientPoint = localToClient(local, transform, origin);
+    const back = clientToLocal(clientPoint, transform, origin);
+    expect(back).toBeDefined();
+    expect(back).toEqual(local);
+  });
+
+  it("clientToLocal then localToClient round-trips", () => {
+    const clientPoint = { x: 27, y: 42 };
+    const local = clientToLocal(clientPoint, transform, origin);
+    expect(local).toBeDefined();
+    expect(localToClient(local ?? { x: 0, y: 0 }, transform, origin)).toEqual(clientPoint);
+  });
+
+  it("respects the transform-origin pivot (origin shift changes the result)", () => {
+    const local = { x: 11, y: -3 };
+    const zeroOrigin = localToClient(local, transform, { x: 0, y: 0 });
+    const pivoted = localToClient(local, transform, origin);
+    // The pivot is not just a translation; the scaled vector rotates around it.
+    expect(zeroOrigin).not.toEqual(pivoted);
+    // Matrix inversion introduces float error, so round-trips use tolerance.
+    const zeroBack = clientToLocal(zeroOrigin, transform, { x: 0, y: 0 });
+    const pivotedBack = clientToLocal(pivoted, transform, origin);
+    expect(zeroBack).toBeDefined();
+    expect(pivotedBack).toBeDefined();
+    expect(approx(zeroBack?.x ?? NaN, local.x, 1e-9)).toBe(true);
+    expect(approx(zeroBack?.y ?? NaN, local.y, 1e-9)).toBe(true);
+    expect(approx(pivotedBack?.x ?? NaN, local.x, 1e-9)).toBe(true);
+    expect(approx(pivotedBack?.y ?? NaN, local.y, 1e-9)).toBe(true);
+  });
+
+  it("identity transform with zero origin is a pass-through", () => {
+    const local = { x: 13, y: 21 };
+    expect(localToClient(local, identityMatrix, { x: 0, y: 0 })).toEqual(local);
+    expect(clientToLocal(local, identityMatrix, { x: 0, y: 0 })).toEqual(local);
+  });
+
+  it("composes with a parsed transform string (translate then rotate)", () => {
+    const m = fromString("translate(10px, 20px) rotate(45deg)");
+    const local = { x: 4, y: 8 };
+    const clientPoint = localToClient(local, m, { x: 0, y: 0 });
+    const back = clientToLocal(clientPoint, m, { x: 0, y: 0 });
+    expect(back).toBeDefined();
+    expect(approx(back?.x ?? NaN, local.x)).toBe(true);
+    expect(approx(back?.y ?? NaN, local.y)).toBe(true);
+  });
+
+  it("clientToLocal returns undefined for a singular (non-invertible) transform", () => {
+    const singular: Matrix2D = [0, 0, 0, 0, 10, 20];
+    expect(clientToLocal({ x: 5, y: 5 }, singular, origin)).toBeUndefined();
+  });
+});
+
+describe("device-pixel conversion", () => {
+  it("css -> device scales by devicePixelRatio", () => {
+    expect(cssToDevicePixel({ x: 100, y: 50 }, 2)).toEqual({ x: 200, y: 100 });
+    expect(cssToDevicePixel({ x: 100, y: 50 }, 1)).toEqual({ x: 100, y: 50 });
+    expect(cssToDevicePixel({ x: 100, y: 50 }, 1.5)).toEqual({ x: 150, y: 75 });
+  });
+
+  it("device -> css divides by devicePixelRatio", () => {
+    expect(devicePixelToCss({ x: 200, y: 100 }, 2)).toEqual({ x: 100, y: 50 });
+  });
+
+  it("css -> device -> css round-trips", () => {
+    const css = { x: 123.5, y: -7.25 };
+    for (const dpr of [1, 2, 1.5, 3]) {
+      expect(devicePixelToCss(cssToDevicePixel(css, dpr), dpr)).toEqual(css);
+    }
+  });
+
+  it("respects the snapshot devicePixelRatio field", () => {
+    const dpr = sampleSnapshot.devicePixelRatio;
+    expect(dpr).toBe(2);
+    expect(cssToDevicePixel({ x: 50, y: 25 }, dpr)).toEqual({ x: 100, y: 50 });
+  });
 });
 
 describe("scroll-parents accumulation", () => {
@@ -256,6 +398,33 @@ describe("scroll-parents accumulation", () => {
 describe("geometry snapshot", () => {
   it("validates against the Zod schema", () => {
     expect(GeometrySnapshotSchema.safeParse(sampleSnapshot).success).toBe(true);
+  });
+
+  it("defaults transformOrigin and devicePixelRatio when omitted (PRD §11 fields)", () => {
+    const minimal = {
+      target: sampleTarget,
+      borderRect: sampleSnapshot.borderRect,
+      paddingRect: sampleSnapshot.paddingRect,
+      contentRect: sampleSnapshot.contentRect,
+      scrollOffset: sampleSnapshot.scrollOffset,
+      viewportSize: sampleSnapshot.viewportSize,
+      capturedAt: sampleSnapshot.capturedAt,
+    };
+    const parsed = GeometrySnapshotSchema.safeParse(minimal);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.transformOrigin).toEqual({ x: 0, y: 0 });
+      expect(parsed.data.devicePixelRatio).toBe(1);
+    }
+  });
+
+  it("rejects a non-positive devicePixelRatio", () => {
+    expect(
+      GeometrySnapshotSchema.safeParse({ ...sampleSnapshot, devicePixelRatio: 0 }).success,
+    ).toBe(false);
+    expect(
+      GeometrySnapshotSchema.safeParse({ ...sampleSnapshot, devicePixelRatio: -1 }).success,
+    ).toBe(false);
   });
 
   it("rejects a negative capturedAt", () => {

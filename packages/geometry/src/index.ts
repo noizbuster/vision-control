@@ -1,4 +1,16 @@
-export { clientToViewport, pageToClient, viewportToClient } from "./coordinate-conversion.js";
+export {
+  clientToFrameLocal,
+  clientToLocal,
+  clientToOffsetParent,
+  clientToViewport,
+  cssToDevicePixel,
+  devicePixelToCss,
+  frameLocalToClient,
+  localToClient,
+  offsetParentToClient,
+  pageToClient,
+  viewportToClient,
+} from "./coordinate-conversion.js";
 export { type GeometrySnapshot, GeometrySnapshotSchema } from "./geometry-snapshot.js";
 export {
   applyToPoint,

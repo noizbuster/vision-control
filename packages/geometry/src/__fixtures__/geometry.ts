@@ -18,7 +18,9 @@ export const sampleSnapshot: GeometrySnapshot = {
   paddingRect: { x: 1, y: 1, width: 38, height: 18 },
   contentRect: { x: 5, y: 5, width: 30, height: 10 },
   transform: [2, 0, 0, 2, 10, 20],
+  transformOrigin: { x: 20, y: 10 },
   scrollOffset: { x: 0, y: 30 },
   viewportSize: { x: 1280, y: 800 },
+  devicePixelRatio: 2,
   capturedAt: 1_700_000_000_000,
 };

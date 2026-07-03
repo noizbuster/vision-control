@@ -17,8 +17,15 @@ import { type Rect, RectSchema } from "./rect.js";
  *   coordinates. `marginRect` is optional (margins collapse, so it may be
  *   omitted when not meaningful).
  * - `transform` — the composed 2D transform matrix, if any.
+ * - `transformOrigin` — the CSS `transform-origin` pivot (in element-local
+ *   coordinates) the transform composes around. Fed to `clientToLocal` /
+ *   `localToClient`. Defaults to `{0,0}` (identity-preserving); the browser
+ *   adapter populates the real computed value.
  * - `scrollOffset` — accumulated scroll offset of the containing scroll parents.
  * - `viewportSize` — the visible viewport dimensions at capture time.
+ * - `devicePixelRatio` — `window.devicePixelRatio` at capture time. Feeds the
+ *   device-pixel coordinate conversions (`cssToDevicePixel` /
+ *   `devicePixelToCss`) used for screenshot alignment. Defaults to `1`.
  * - `capturedAt` — epoch milliseconds when the snapshot was taken.
  */
 export const GeometrySnapshotSchema = z.object({
@@ -28,8 +35,10 @@ export const GeometrySnapshotSchema = z.object({
   contentRect: RectSchema,
   marginRect: RectSchema.optional(),
   transform: Matrix2DSchema.optional(),
+  transformOrigin: PointSchema.default({ x: 0, y: 0 }),
   scrollOffset: PointSchema,
   viewportSize: PointSchema,
+  devicePixelRatio: z.number().positive().default(1),
   capturedAt: z.number().int().nonnegative(),
 });
 
@@ -40,7 +49,9 @@ export type GeometrySnapshot = {
   readonly contentRect: Rect;
   readonly marginRect?: Rect;
   readonly transform?: Matrix2D;
+  readonly transformOrigin: Point;
   readonly scrollOffset: Point;
   readonly viewportSize: Point;
+  readonly devicePixelRatio: number;
   readonly capturedAt: number;
 };

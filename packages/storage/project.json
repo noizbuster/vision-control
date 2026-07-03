@@ -30,6 +30,23 @@
         "command": "vitest run",
         "cwd": "packages/storage"
       }
+    },
+    "package": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "dependsOn": ["build"],
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/*.tgz"],
+      "options": {
+        "command": "pnpm pack",
+        "cwd": "packages/storage"
+      }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "echo \"publish is a no-op stub; gated behind a release ADR (PRD 32.3)\""
+      }
     }
   }
 }

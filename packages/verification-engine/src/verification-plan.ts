@@ -25,26 +25,32 @@
  *   breakpoint-text-edit    → text assertion (newText)
  *   group-reorder           → sibling-order assertion (first child newOrder pos)
  *   group-reparent          → parent assertion (under targetParent selector)
- *   align/distribute-elements → structural note (a11y reading-order is external)
- *   multi-select-group      → structural note (group is a selection record)
+ *   align/distribute-elements → reading-order assertion (dom-vs-visual order)
+ *   multi-select-group      → composition assertion (target count resolves)
  *   screenshot-crop-ref     → none (metadata ref only, ADR-011)
  *   suggested-diff          → none (inert data, no DOM state, ADR-012)
  *
  * Every plan also implicitly includes `assertExists` (added by the runner, not
  * stored here, so plan assertions stay focused on operation-specific checks).
  *
- * The alignment accessibility reading-order assertion
- * (`assertReadingOrderPreserved`) and the screenshot similarity assertion
- * (`assertScreenshotSimilarity`) are STANDALONE assertions a caller invokes when
- * it holds the parallel dom/visual order arrays or before/after crops. They do
- * not fit the single-target `run(target)` model and are therefore not wired
- * here; they are exported from this package for callers to use directly.
+ * The alignment reading-order assertion (`assertReadingOrderPreserved`) is
+ * wired into the align/distribute plans via `buildReadingOrderAssertion`, which
+ * resolves the operation's targets through the DOM adapter and supplies the
+ * parallel dom/visual order arrays. The screenshot similarity assertion
+ * (`assertScreenshotSimilarity`) is a STANDALONE assertion a caller invokes when
+ * it holds before/after crops; it does not fit the single-target `run(target)`
+ * model and is therefore not wired here — it is exported for callers to use
+ * directly.
  */
 
 import type { Operation } from "@vision-control/change-ir";
 
 import { assertClass, type ExpectedClass } from "./assertions/class.js";
 import { assertComputedStyle } from "./assertions/computed-style.js";
+import {
+  buildGroupCompositionAssertion,
+  buildReadingOrderAssertion,
+} from "./assertions/group-verification.js";
 import { assertParent } from "./assertions/parent.js";
 import { assertSiblingOrder } from "./assertions/sibling-order.js";
 import { assertText } from "./assertions/text.js";
@@ -219,26 +225,20 @@ function assertionsForOperation(operation: Operation): AssertionEntry[] {
         },
       ];
 
-    // Alignment / distribution: the real accessibility gate is the standalone
-    // `assertReadingOrderPreserved` assertion which needs parallel dom/visual
-    // order arrays that don't fit the single-target `run(target)` model. We emit
-    // a structural note so the runner records that alignment verification is
-    // pending the external reading-order check. Callers invoke
-    // `assertReadingOrderPreserved` directly when they hold the order arrays.
+    // Alignment / distribution: after the operation lands as source, the DOM
+    // order and visual order of the targets must agree. A divergence means the
+    // alignment introduced a CSS-`order`-style visual reorder that breaks the
+    // reading sequence for assistive-tech users. The assertion resolves each
+    // target via the DOM adapter and delegates to assertReadingOrderPreserved.
     case "align-elements":
     case "distribute-elements":
-      return alignmentNoteAssertions(operation.kind);
+      return [buildReadingOrderAssertion(operation.kind, operation.targets)];
 
-    // Multi-select group: a selection record, not a DOM mutation. The runner's
-    // implicit `assertExists` covers target existence; group composition is
-    // verified by the selection overlay, not the HMR assertion loop.
+    // Multi-select group: every recorded target must resolve in the DOM after
+    // HMR. A count mismatch means a recorded target was dropped during the
+    // source patch.
     case "multi-select-group":
-      return [
-        {
-          name: "multi-select-group:composition",
-          run: () => groupCompositionNote(operation.targets.length),
-        },
-      ];
+      return [buildGroupCompositionAssertion(operation.targets)];
 
     // Screenshot-crop-ref: metadata ref only (ADR-011). The operation carries
     // an artifact id, never image bytes. The standalone
@@ -379,29 +379,6 @@ function groupReorderAssertions(
       run: (target) => assertSiblingOrder(target, firstNewPosition),
     },
   ];
-}
-
-function alignmentNoteAssertions(kind: string): AssertionEntry[] {
-  return [
-    {
-      name: `${kind}:reading-order-pending`,
-      run: () =>
-        contextDependentNote(
-          kind,
-          "Alignment reading-order verification is pending the standalone assertReadingOrderPreserved check.",
-        ),
-    },
-  ];
-}
-
-function groupCompositionNote(targetCount: number): AssertionResult {
-  return {
-    name: "multi-select-group:composition",
-    passed: true,
-    expected: `${targetCount} target(s) in group`,
-    actual: `${targetCount} target(s) recorded`,
-    message: `Multi-select group recorded with ${targetCount} target(s); existence is verified by the runner's assertExists and the selection overlay.`,
-  };
 }
 
 function contextDependentNote(name: string, message: string): AssertionResult {

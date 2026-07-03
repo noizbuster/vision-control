@@ -31,6 +31,50 @@ function fakeTarget(): ResolvedTarget {
   };
 }
 
+/**
+ * Build a fake DOM adapter + ResolvedTarget backed by a map of mock elements
+ * keyed by runtimeId. `querySelector` matches `[data-vc-runtime-id="<id>"]`.
+ * Each mock carries a sibling index and a rect so group-verification assertions
+ * can build dom-order and visual-order arrays from real data.
+ */
+interface MockTarget {
+  readonly identity: string;
+  readonly domIndex: number;
+  readonly rect: { x: number; y: number; width: number; height: number };
+}
+
+function targetWithGroup(mocks: readonly MockTarget[]): ResolvedTarget {
+  const meta = new Map<Element, { domIndex: number; rect: MockTarget["rect"] }>();
+  const byRuntimeId = new Map<string, Element>();
+  for (const m of mocks) {
+    const el = {} as Element;
+    meta.set(el, { domIndex: m.domIndex, rect: m.rect });
+    byRuntimeId.set(m.identity, el);
+  }
+  const dom: VerificationDomAdapter = {
+    querySelector: (selector) => {
+      const match = selector.match(/data-vc-runtime-id="([^"]+)"/);
+      if (match !== null && match[1] !== undefined) {
+        return byRuntimeId.get(match[1]) ?? null;
+      }
+      return null;
+    },
+    querySelectorAll: () => [],
+    getText: () => "",
+    getClasses: () => [],
+    getStyle: () => "",
+    getRect: (el) => meta.get(el)?.rect ?? { x: 0, y: 0, width: 0, height: 0 },
+    getParent: () => null,
+    getSiblingIndex: (el) => meta.get(el)?.domIndex ?? 0,
+    getAttribute: () => null,
+    isConnected: () => true,
+    matchesSelector: () => false,
+    computeFingerprint: () => "fp",
+    getConsoleEntries: () => [],
+  };
+  return { element: {} as Element, dom, runtimeId: "rt-primary", confidence: "high" };
+}
+
 describe("createPlan V1 assertions (VC-V1V2-16)", () => {
   it("grid-reorder dom-order -> sibling-order assertion", () => {
     const op: Extract<Operation, { kind: "grid-reorder" }> = {
@@ -288,26 +332,79 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
     expect(result?.name).toBe("parent");
   });
 
-  it("align-elements -> structural reading-order note", () => {
+  it("align-elements -> reading-order assertion (passes when orders agree)", () => {
     const op: Extract<Operation, { kind: "align-elements" }> = {
       id: ID,
       kind: "align-elements",
-      targets: [ref("a"), ref("b")],
+      targets: [ref("a"), ref("b"), ref("c")],
       alignment: "center",
-      previousValues: ["0", "0"],
-      newValues: ["10px", "10px"],
+      previousValues: ["0", "0", "0"],
+      newValues: ["10px", "10px", "10px"],
       timestamp: 0,
       runtime: false,
       origin: "property-panel" as const,
       confidence: 1,
     };
     const plan = createPlan(op, { selector: "#a" });
-    expect(plan.assertions[0]?.name).toContain("align-elements:reading-order-pending");
-    const result = plan.assertions[0]?.run(fakeTarget());
+    expect(plan.assertions[0]?.name).toBe("align-elements:reading-order");
+    const result = plan.assertions[0]?.run(
+      targetWithGroup([
+        { identity: "a", domIndex: 0, rect: { x: 10, y: 0, width: 50, height: 20 } },
+        { identity: "b", domIndex: 1, rect: { x: 10, y: 30, width: 50, height: 20 } },
+        { identity: "c", domIndex: 2, rect: { x: 10, y: 60, width: 50, height: 20 } },
+      ]),
+    );
     expect(result?.passed).toBe(true);
   });
 
-  it("distribute-elements -> structural reading-order note", () => {
+  it("align-elements reading-order FAILS on a dom-vs-visual desync (adversarial)", () => {
+    const op: Extract<Operation, { kind: "align-elements" }> = {
+      id: ID,
+      kind: "align-elements",
+      targets: [ref("a"), ref("b")],
+      alignment: "left",
+      previousValues: ["0", "0"],
+      newValues: ["0", "0"],
+      timestamp: 0,
+      runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
+    };
+    const plan = createPlan(op, { selector: "#a" });
+    const result = plan.assertions[0]?.run(
+      targetWithGroup([
+        { identity: "a", domIndex: 0, rect: { x: 200, y: 0, width: 50, height: 20 } },
+        { identity: "b", domIndex: 1, rect: { x: 0, y: 0, width: 50, height: 20 } },
+      ]),
+    );
+    expect(result?.passed).toBe(false);
+    expect(result?.name).toBe("reading-order-preserved");
+  });
+
+  it("align-elements reading-order FAILS when a target is unresolvable", () => {
+    const op: Extract<Operation, { kind: "align-elements" }> = {
+      id: ID,
+      kind: "align-elements",
+      targets: [ref("a"), ref("missing")],
+      alignment: "left",
+      previousValues: ["0", "0"],
+      newValues: ["0", "0"],
+      timestamp: 0,
+      runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
+    };
+    const plan = createPlan(op, { selector: "#a" });
+    const result = plan.assertions[0]?.run(
+      targetWithGroup([
+        { identity: "a", domIndex: 0, rect: { x: 0, y: 0, width: 50, height: 20 } },
+      ]),
+    );
+    expect(result?.passed).toBe(false);
+    expect(result?.actual).toContain("missing");
+  });
+
+  it("distribute-elements -> reading-order assertion (passes when orders agree)", () => {
     const op: Extract<Operation, { kind: "distribute-elements" }> = {
       id: ID,
       kind: "distribute-elements",
@@ -322,10 +419,43 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       confidence: 1,
     };
     const plan = createPlan(op, { selector: "#a" });
-    expect(plan.assertions[0]?.name).toContain("distribute-elements:reading-order-pending");
+    expect(plan.assertions[0]?.name).toBe("distribute-elements:reading-order");
+    const result = plan.assertions[0]?.run(
+      targetWithGroup([
+        { identity: "a", domIndex: 0, rect: { x: 0, y: 0, width: 50, height: 20 } },
+        { identity: "b", domIndex: 1, rect: { x: 100, y: 0, width: 50, height: 20 } },
+        { identity: "c", domIndex: 2, rect: { x: 200, y: 0, width: 50, height: 20 } },
+      ]),
+    );
+    expect(result?.passed).toBe(true);
   });
 
-  it("multi-select-group -> composition note", () => {
+  it("distribute-elements reading-order FAILS on a visual reversal (adversarial)", () => {
+    const op: Extract<Operation, { kind: "distribute-elements" }> = {
+      id: ID,
+      kind: "distribute-elements",
+      targets: [ref("a"), ref("b"), ref("c")],
+      axis: "horizontal",
+      mode: "space-between",
+      previousGaps: ["4px", "4px"],
+      newGaps: ["16px", "16px"],
+      timestamp: 0,
+      runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
+    };
+    const plan = createPlan(op, { selector: "#a" });
+    const result = plan.assertions[0]?.run(
+      targetWithGroup([
+        { identity: "a", domIndex: 0, rect: { x: 200, y: 0, width: 50, height: 20 } },
+        { identity: "b", domIndex: 1, rect: { x: 100, y: 0, width: 50, height: 20 } },
+        { identity: "c", domIndex: 2, rect: { x: 0, y: 0, width: 50, height: 20 } },
+      ]),
+    );
+    expect(result?.passed).toBe(false);
+  });
+
+  it("multi-select-group -> composition assertion (passes when all targets resolve)", () => {
     const op: Extract<Operation, { kind: "multi-select-group" }> = {
       id: ID,
       kind: "multi-select-group",
@@ -338,9 +468,39 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
     };
     const plan = createPlan(op, { selector: "#a" });
     expect(plan.assertions[0]?.name).toBe("multi-select-group:composition");
-    const result = plan.assertions[0]?.run(fakeTarget());
+    const result = plan.assertions[0]?.run(
+      targetWithGroup([
+        { identity: "a", domIndex: 0, rect: { x: 0, y: 0, width: 0, height: 0 } },
+        { identity: "b", domIndex: 1, rect: { x: 0, y: 0, width: 0, height: 0 } },
+        { identity: "c", domIndex: 2, rect: { x: 0, y: 0, width: 0, height: 0 } },
+      ]),
+    );
     expect(result?.passed).toBe(true);
     expect(result?.expected).toContain("3 target(s)");
+    expect(result?.actual).toContain("3 target(s)");
+  });
+
+  it("multi-select-group composition FAILS when a recorded target is missing (adversarial)", () => {
+    const op: Extract<Operation, { kind: "multi-select-group" }> = {
+      id: ID,
+      kind: "multi-select-group",
+      targets: [ref("a"), ref("b"), ref("dropped")],
+      groupId: "g1",
+      timestamp: 0,
+      runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
+    };
+    const plan = createPlan(op, { selector: "#a" });
+    const result = plan.assertions[0]?.run(
+      targetWithGroup([
+        { identity: "a", domIndex: 0, rect: { x: 0, y: 0, width: 0, height: 0 } },
+        { identity: "b", domIndex: 1, rect: { x: 0, y: 0, width: 0, height: 0 } },
+      ]),
+    );
+    expect(result?.passed).toBe(false);
+    expect(result?.expected).toContain("3 target(s)");
+    expect(result?.actual).toContain("2 target(s)");
   });
 
   it("screenshot-crop-ref -> no assertions (metadata only)", () => {

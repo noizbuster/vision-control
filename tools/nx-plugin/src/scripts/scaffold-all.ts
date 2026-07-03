@@ -66,6 +66,8 @@ const manifest: readonly GeneratePackageOptions[] = [
   integrationPackage("next-react", "integrations/next-react"),
   integrationPackage("tailwind", "integrations/tailwind"),
   integrationPackage("css-modules", "integrations/css-modules"),
+  integrationPackage("vue", "integrations/vue"),
+  integrationPackage("svelte", "integrations/svelte"),
   integrationPackage("opencode", "integrations/opencode"),
   integrationPackage("pi", "integrations/pi"),
 ];

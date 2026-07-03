@@ -31,10 +31,17 @@ export {
 } from "./layout-role.js";
 export {
   classifyAndGenerateResizeCandidates,
+  type GridResizeContext,
   generateResizeCandidates,
   type ResizeCandidate,
+  type ResizeCandidateKind,
   type ResizeCandidateSet,
+  type ResizeCssPropertyCandidate,
+  type ResizeDesignTokenCandidate,
+  type ResizeGridSpanCandidate,
+  type ResizeIntrinsicCandidate,
   type ResizePropertyKind,
+  type ResizeTailwindClassCandidate,
   type ResizeUnsupportedDiagnostic,
 } from "./resize-candidates.js";
 export {

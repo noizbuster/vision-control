@@ -1,12 +1,22 @@
 import type { ResizeElementOperation } from "@vision-control/change-ir";
-import type { ResizeCandidateSet, ResizePropertyKind } from "@vision-control/layout-engine";
+import type {
+  ResizeCandidateKind,
+  ResizeCandidateSet,
+  ResizePropertyKind,
+} from "@vision-control/layout-engine";
 
 import type { BusMessage } from "./types.js";
 
 export type ResizeCandidatesPayload = ResizeCandidateSet;
 
+/**
+ * Selection payload for a resize candidate. `kind` identifies which of the PRD
+ * section 9.5 candidate kinds the user picked; `property` is carried only for
+ * `css-property` selections (the pixel-drag controller consumes those).
+ */
 export interface ResizeCandidateSelectPayload {
-  readonly property: ResizePropertyKind;
+  readonly kind: ResizeCandidateKind;
+  readonly property?: ResizePropertyKind;
 }
 
 export function createResizeCandidatesMessage(candidates: ResizeCandidateSet): BusMessage {
@@ -20,13 +30,18 @@ export function createResizeCandidatesMessage(candidates: ResizeCandidateSet): B
   };
 }
 
-export function createResizeCandidateSelectMessage(property: ResizePropertyKind): BusMessage {
+export function createResizeCandidateSelectMessage(
+  kind: ResizeCandidateKind,
+  property?: ResizePropertyKind,
+): BusMessage {
+  const payload: ResizeCandidateSelectPayload =
+    property === undefined ? { kind } : { kind, property };
   return {
     protocolVersion: "1.0.0",
     messageId: `resize-candidate-select-${Date.now()}`,
     messageType: "resize-candidate-select",
     targetRoute: "content",
-    payload: { property } satisfies ResizeCandidateSelectPayload,
+    payload,
     timestamp: Date.now(),
   };
 }
@@ -57,7 +72,7 @@ export function isResizeCandidateSelectPayload(
   return (
     typeof payload === "object" &&
     payload !== null &&
-    "property" in payload &&
-    typeof (payload as { property?: unknown }).property === "string"
+    "kind" in payload &&
+    typeof (payload as { kind?: unknown }).kind === "string"
   );
 }

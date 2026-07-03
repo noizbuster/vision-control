@@ -11,8 +11,9 @@ import {
  * @resize — AC-005 element resize.
  *
  * Verifies: resize handle visibility, smooth drag preview, flex-basis candidate
- * generation for flex items (not width/height), inverse restore, and grid
- * context is unsupported. Unit tests verify candidate generation + inverse.
+ * generation for flex items (not width/height), align-self stretch for the flex
+ * cross-axis, grid-span candidates for grid items, inverse restore. Unit tests
+ * verify candidate generation + inverse.
  */
 
 const resizeOp: ResizeElementOperation = {
@@ -26,6 +27,9 @@ const resizeOp: ResizeElementOperation = {
   toValue: "300px",
 };
 
+const cssProperties = (candidates: readonly { readonly kind: string; readonly property?: string }[]): readonly string[] =>
+  candidates.filter((c) => c.kind === "css-property").map((c) => c.property ?? "");
+
 test.describe("@resize unit", () => {
   test("flex item generates flex-basis candidates, not width/height", () => {
     const style: LayoutComputedStyle = {
@@ -37,14 +41,30 @@ test.describe("@resize unit", () => {
     const candidates = generateResizeCandidates(
       { runtimeId: "el-r01" },
       classifyLayoutRole(style),
-      style,
     );
     expect(candidates.supported).toBe(true);
     if (candidates.supported) {
-      const props = candidates.candidates.map((c) => c.property);
+      const props = cssProperties(candidates.candidates);
       expect(props).toContain("flex-basis");
       expect(props).not.toContain("width");
       expect(props).not.toContain("height");
+    }
+  });
+
+  test("flex item emits an align-self stretch candidate (cross-axis)", () => {
+    const style: LayoutComputedStyle = {
+      display: "block",
+      flexDirection: "row",
+      position: "static",
+      parentDisplay: "flex",
+    };
+    const candidates = generateResizeCandidates(
+      { runtimeId: "el-r01b" },
+      classifyLayoutRole(style),
+    );
+    expect(candidates.supported).toBe(true);
+    if (candidates.supported) {
+      expect(cssProperties(candidates.candidates)).toContain("align-self");
     }
   });
 
@@ -58,17 +78,16 @@ test.describe("@resize unit", () => {
     const candidates = generateResizeCandidates(
       { runtimeId: "el-r02" },
       classifyLayoutRole(style),
-      style,
     );
     expect(candidates.supported).toBe(true);
     if (candidates.supported) {
-      const props = candidates.candidates.map((c) => c.property);
+      const props = cssProperties(candidates.candidates);
       expect(props).toContain("width");
       expect(props).toContain("height");
     }
   });
 
-  test("grid context is unsupported", () => {
+  test("grid container generates width/height box candidates (no longer unsupported)", () => {
     const style: LayoutComputedStyle = {
       display: "grid",
       flexDirection: "row",
@@ -77,11 +96,10 @@ test.describe("@resize unit", () => {
     const candidates = generateResizeCandidates(
       { runtimeId: "el-r03" },
       classifyLayoutRole(style),
-      style,
     );
-    expect(candidates.supported).toBe(false);
-    if (!candidates.supported) {
-      expect(candidates.diagnostic).toBe("grid-unsupported");
+    expect(candidates.supported).toBe(true);
+    if (candidates.supported) {
+      expect(cssProperties(candidates.candidates)).toContain("width");
     }
   });
 
@@ -126,10 +144,10 @@ test.describe("@resize browser", () => {
     // Assert: element computed flex-basis is "200px".
   });
 
-  test.fixme("grid context resize is unsupported with a diagnostic", async ({ page }) => {
+  test.fixme("grid item resize proposes a grid-span candidate", async ({ page }) => {
     // Given: an element inside a CSS Grid container is selected.
-    // When: the user attempts to resize.
-    // Then: no resize handles appear; a diagnostic "unsupported-grid" is shown.
-    // Assert: no resize-element operation is created.
+    // When: the user grabs a resize handle.
+    // Then: a grid-column / grid-row span candidate is generated (PRD 9.5).
+    // Assert: the selected candidate carries kind "grid-span" with axis + spans.
   });
 });

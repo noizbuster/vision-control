@@ -1,5 +1,6 @@
 import type {
   ResizeCandidate,
+  ResizeCandidateKind,
   ResizeCandidateSet,
   ResizePropertyKind,
 } from "@vision-control/layout-engine";
@@ -20,12 +21,48 @@ type CandidateState =
   | {
       readonly kind: "candidates";
       readonly candidates: readonly ResizeCandidate[];
-      readonly selected: ResizePropertyKind | null;
+      readonly selectedKey: string | null;
     }
   | { readonly kind: "unsupported"; readonly message: string };
 
 function candidateLabel(candidate: ResizeCandidate): string {
-  return `${candidate.property}: ${candidate.rationale}`;
+  switch (candidate.kind) {
+    case "css-property":
+      return `${candidate.property}: ${candidate.rationale}`;
+    case "grid-span":
+      return `grid-${candidate.axis} span ${candidate.fromSpan}\u2192${candidate.toSpan}: ${candidate.rationale}`;
+    case "intrinsic":
+      return `intrinsic: ${candidate.rationale}`;
+    case "tailwind-class":
+      return `tailwind class: ${candidate.rationale}`;
+    case "design-token":
+      return `design token: ${candidate.rationale}`;
+  }
+}
+
+function candidateKey(candidate: ResizeCandidate): string {
+  switch (candidate.kind) {
+    case "css-property":
+      return `css-property:${candidate.property}`;
+    case "grid-span":
+      return `grid-span:${candidate.axis}:${candidate.fromSpan}:${candidate.toSpan}`;
+    case "intrinsic":
+      return "intrinsic";
+    case "tailwind-class":
+      return "tailwind-class";
+    case "design-token":
+      return "design-token";
+  }
+}
+
+function selectionFrom(candidate: ResizeCandidate): {
+  readonly kind: ResizeCandidateKind;
+  readonly property?: ResizePropertyKind;
+} {
+  if (candidate.kind === "css-property") {
+    return { kind: "css-property", property: candidate.property };
+  }
+  return { kind: candidate.kind };
 }
 
 export function ResizeCandidates({ bus }: ResizeCandidatesProps): React.ReactElement | null {
@@ -45,21 +82,28 @@ export function ResizeCandidates({ bus }: ResizeCandidatesProps): React.ReactEle
         setState({ kind: "unsupported", message: candidateSet.message });
         return;
       }
+      const first = candidateSet.candidates[0];
       setState({
         kind: "candidates",
         candidates: candidateSet.candidates,
-        selected: candidateSet.candidates[0]?.property ?? null,
+        selectedKey: first === undefined ? null : candidateKey(first),
       });
     });
   }, [bus]);
 
   const selectCandidate = useCallback(
-    (property: ResizePropertyKind): void => {
+    (candidate: ResizeCandidate): void => {
       setState((current) =>
-        current.kind === "candidates" ? { ...current, selected: property } : current,
+        current.kind === "candidates"
+          ? { ...current, selectedKey: candidateKey(candidate) }
+          : current,
       );
       if (bus !== undefined) {
-        bus.send("background", createResizeCandidateSelectMessage(property));
+        const selection = selectionFrom(candidate);
+        bus.send(
+          "background",
+          createResizeCandidateSelectMessage(selection.kind, selection.property),
+        );
       }
     },
     [bus],
@@ -85,14 +129,15 @@ export function ResizeCandidates({ bus }: ResizeCandidatesProps): React.ReactEle
       <header className="resize-candidates__header">Resize candidate</header>
       <ul className="resize-candidates__list">
         {state.candidates.map((candidate) => {
-          const isSelected = state.selected === candidate.property;
+          const key = candidateKey(candidate);
+          const isSelected = state.selectedKey === key;
           return (
-            <li key={candidate.property} className="resize-candidates__item">
+            <li key={key} className="resize-candidates__item">
               <button
                 type="button"
                 className={`resize-candidates__button${isSelected ? " resize-candidates__button--selected" : ""}`}
-                onClick={() => selectCandidate(candidate.property)}
-                data-testid={`resize-candidate-${candidate.property}`}
+                onClick={() => selectCandidate(candidate)}
+                data-testid={`resize-candidate-${key}`}
                 aria-pressed={isSelected}
               >
                 {candidateLabel(candidate)}

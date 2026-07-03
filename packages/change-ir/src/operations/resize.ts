@@ -4,8 +4,9 @@ import { ElementRefSchema } from "../element-ref.js";
 import { OperationBaseSchema } from "../operation-base.js";
 
 /**
- * Resizable CSS properties covered by the MVP resize gesture. Box-model
- * dimensions plus flex sizing fields.
+ * Resizable CSS properties covered by the resize gesture (PRD section 9.5).
+ * Box-model dimensions, flex sizing fields, `aspect-ratio` (couples width and
+ * height), and `align-self` (flex cross-axis `stretch`).
  */
 export const RESIZE_PROPERTIES = [
   "width",
@@ -17,6 +18,8 @@ export const RESIZE_PROPERTIES = [
   "min-height",
   "max-width",
   "max-height",
+  "aspect-ratio",
+  "align-self",
 ] as const;
 
 export const ResizePropertySchema = z.enum(RESIZE_PROPERTIES);

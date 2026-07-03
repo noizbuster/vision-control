@@ -12,6 +12,7 @@ import {
 import {
   classifyAndGenerateResizeCandidates,
   type LayoutComputedStyle,
+  type ResizeCandidate,
   type ResizeCandidateSet,
   type ResizePropertyKind,
 } from "@vision-control/layout-engine";
@@ -72,11 +73,34 @@ const PROPERTY_TO_AXIS: Record<ResizePropertyKind, ResizeAxis> = {
   "min-height": "y",
   "max-height": "y",
   "aspect-ratio": "x",
+  "align-self": "y",
 };
+
+/**
+ * First css-property candidate in a set, or null. The drag controller only
+ * drives pixel-resizable CSS properties; grid-span / intrinsic / tailwind /
+ * design-token candidates are surfaced to the panel but resolved by other
+ * controllers (not the pixel-drag path).
+ */
+const firstCssProperty = (candidates: readonly ResizeCandidate[]): ResizePropertyKind | null => {
+  for (const candidate of candidates) {
+    if (candidate.kind === "css-property") return candidate.property;
+  }
+  return null;
+};
+
+/**
+ * Properties whose value is a keyword or ratio, not a pixel length. The
+ * pixel-drag math does not apply; they are generated candidates but skipped by
+ * the drag handle.
+ */
+const isPixelDragResizable = (property: ResizePropertyKind): boolean =>
+  property !== "aspect-ratio" && property !== "align-self";
 
 const propertyUnit = (property: ResizePropertyKind): string => {
   if (property === "flex-grow" || property === "flex-shrink") return "";
   if (property === "aspect-ratio") return "";
+  if (property === "align-self") return "";
   return "px";
 };
 
@@ -199,10 +223,8 @@ export function createResizeController(options: ResizeControllerOptions): {
 
       if (attachedContext === null || candidateSet === null || !candidateSet.supported) return;
 
-      const property = selectedProperty ?? candidateSet.candidates[0]?.property ?? null;
-      // aspect-ratio is a layout-engine candidate but not yet a change-ir
-      // ResizeProperty, so it cannot be turned into a resize-element operation.
-      if (property === null || property === "aspect-ratio") return;
+      const property = selectedProperty ?? firstCssProperty(candidateSet.candidates);
+      if (property === null || !isPixelDragResizable(property)) return;
 
       const handleElement = event.currentTarget as HTMLElement;
       handleElement.setPointerCapture(event.pointerId);
@@ -262,7 +284,7 @@ export function createResizeController(options: ResizeControllerOptions): {
     bus.send("background", createResizeCandidatesMessage(candidateSet));
 
     if (candidateSet.supported) {
-      selectedProperty = candidateSet.candidates[0]?.property ?? null;
+      selectedProperty = firstCssProperty(candidateSet.candidates);
       overlayElement.setResizeHandles(context.rect);
       attachHandleListeners();
     }
@@ -290,7 +312,9 @@ export function createResizeController(options: ResizeControllerOptions): {
   unselectCandidate = bus.on("resize-candidate-select", (message: BusMessage) => {
     const payload = message.payload as unknown;
     if (isResizeCandidateSelectPayload(payload)) {
-      selectedProperty = payload.property;
+      if (payload.kind === "css-property" && payload.property !== undefined) {
+        selectedProperty = payload.property;
+      }
     }
   });
 
@@ -312,6 +336,7 @@ function parseCssPixel(_computedStyle: LayoutComputedStyle, property: ResizeProp
     "min-height": 0,
     "max-height": 9999,
     "aspect-ratio": 1,
+    "align-self": 0,
   };
   return pxPerUnit[property] ?? 0;
 }

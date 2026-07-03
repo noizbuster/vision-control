@@ -1,57 +1,69 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+
+import {
+  createClassAddCommand,
+  createStyleEditCommand,
+  createTextEditCommand,
+  validateCssProperty,
+  validateCssValue,
+} from "@vision-control/inspector-core";
 
 /**
  * @property-editors — AC-002 style editing.
  *
- * Verifies: edit padding/background/class/text creates a pending operation,
- * invalid CSS is rejected, and the preview updates immediately.
+ * Exercises the real command builders (inspector-core) and CSS validation
+ * pipeline that the panel editors route through. Each test verifies the
+ * operation payload shape and the CSS validation acceptance/rejection.
  */
 
+const TARGET = { runtimeId: "el-edit-01", sourceId: "src-edit-01", selector: "#target" };
+
 test.describe("@property-editors", () => {
-  test.fixme("editing padding creates a style-edit operation and previews immediately", async ({
-    page,
-  }) => {
-    // Given: an element is selected and the style editor is open.
-    // When: the user changes padding from "10px" to "24px".
-    // Then: a pending style-edit operation is created (property: "padding",
-    //       value: "24px", previousValue: "10px").
-    // And: the element visually updates to the new padding before commit.
-    // Assert: pending operation payload has correct property/value pair.
+  test("editing padding creates a style-edit operation with correct values", () => {
+    const op = createStyleEditCommand(TARGET, "padding", "24px", "10px");
+    expect(op.kind).toBe("style-edit");
+    expect(op.property).toBe("padding");
+    expect(op.value).toBe("24px");
+    expect(op.previousValue).toBe("10px");
+    expect(op.target.runtimeId).toBe("el-edit-01");
   });
 
-  test.fixme("editing background-color creates a style-edit operation", async ({ page }) => {
-    // Given: an element is selected.
-    // When: the user sets background-color to "#ff0000".
-    // Then: a pending style-edit operation with property "background-color" is created.
-    // Assert: the element's computed background-color reflects the new value.
+  test("editing background-color creates a style-edit operation", () => {
+    const op = createStyleEditCommand(TARGET, "background-color", "#ff0000", "transparent");
+    expect(op.kind).toBe("style-edit");
+    expect(op.property).toBe("background-color");
+    expect(op.value).toBe("#ff0000");
   });
 
-  test.fixme("adding a class creates a class-add operation", async ({ page }) => {
-    // Given: an element is selected and the class editor is open.
-    // When: the user adds class "highlight".
-    // Then: a pending class-add operation (className: "highlight") is created.
-    // Assert: element.classList contains "highlight" in the preview layer.
+  test("adding a class creates a class-add operation", () => {
+    const op = createClassAddCommand(TARGET, "highlight");
+    expect(op.kind).toBe("class-add");
+    expect(op.className).toBe("highlight");
+    expect(op.target.runtimeId).toBe("el-edit-01");
   });
 
-  test.fixme("editing text creates a text-edit operation", async ({ page }) => {
-    // Given: an element with text content is selected.
-    // When: the user edits the text from "Hello" to "World".
-    // Then: a pending text-edit operation (newText: "World", previousText: "Hello") is created.
-    // Assert: the element's textContent in the preview reflects "World".
+  test("editing text creates a text-edit operation", () => {
+    const op = createTextEditCommand(TARGET, "World", "Hello");
+    expect(op.kind).toBe("text-edit");
+    expect(op.newText).toBe("World");
+    expect(op.previousText).toBe("Hello");
   });
 
-  test.fixme("invalid CSS value is rejected and no operation is created", async ({ page }) => {
-    // Given: the style editor is open for a selected element.
-    // When: the user enters "abc" as a padding value.
-    // Then: the CSS validation rejects the input.
-    // Assert: NO pending operation is created; an inline error is shown.
-    // Assert: the element's style is unchanged.
+  test("invalid CSS value is rejected and no operation is valid", () => {
+    const result = validateCssValue("padding", "abc");
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error.length).toBeGreaterThan(0);
+    }
+    const valid = validateCssValue("padding", "24px");
+    expect(valid.valid).toBe(true);
   });
 
-  test.fixme("invalid display value is rejected", async ({ page }) => {
-    // Given: the style editor display field is focused.
-    // When: the user enters "blocky" (not a valid display keyword).
-    // Then: validation rejects the value.
-    // Assert: no operation is created; the error message explains valid values.
+  test("invalid display value is rejected", () => {
+    expect(validateCssValue("display", "blocky").valid).toBe(false);
+    expect(validateCssValue("display", "block").valid).toBe(true);
+    expect(validateCssValue("display", "flex").valid).toBe(true);
+    expect(validateCssProperty("display")).toBe(true);
+    expect(validateCssProperty("not-a-real-property")).toBe(false);
   });
 });

@@ -133,6 +133,7 @@ test.describe("@firefox-compat manifest validation", () => {
 });
 
 test.describe("@firefox-compat browser-driven (requires Firefox binary)", () => {
+  // OUT: ADR-016 (Firefox browser-driven parity requires a Firefox binary; out of MVP scope)
   test.fixme("the extension loads in Firefox without manifest errors", async () => {
     // Given: Firefox is installed and the Firefox-target build is present.
     // When: the extension is loaded via web-ext or about:debugging.
@@ -140,6 +141,7 @@ test.describe("@firefox-compat browser-driven (requires Firefox binary)", () => 
     // Assert: the extension appears in about:debugging as enabled.
   });
 
+  // OUT: ADR-016 (Firefox browser-driven parity requires a Firefox binary; out of MVP scope)
   test.fixme("the DevTools panel renders in Firefox on a loopback page", async () => {
     // Given: the extension is loaded in Firefox.
     // When: DevTools is opened on a loopback page (http://127.0.0.1:...).
@@ -147,6 +149,7 @@ test.describe("@firefox-compat browser-driven (requires Firefox binary)", () => 
     // Assert: the panel shows the connection state and inspector chrome.
   });
 
+  // OUT: ADR-016 (Firefox browser-driven parity requires a Firefox binary; out of MVP scope)
   test.fixme("element selection works in Firefox at the tested parity scope", async () => {
     // Given: the panel is open on a loopback fixture page.
     // When: an element is picked.

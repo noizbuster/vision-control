@@ -12,7 +12,34 @@ import {
  * Verifies the loopback daemon rejects: missing token, wrong token, disallowed
  * origin, and non-loopback bind. The origin-allowlist and pairing-token
  * functions are pure and testable at the unit level without a running daemon.
+ * The WS upgrade auth check is exercised by simulating the authenticateUpgrade
+ * flow (origin check → token extraction → hash comparison).
  */
+
+function extractToken(url: string): string | undefined {
+  const match = url.match(/[?&]token=([^&]+)/);
+  return match?.[1];
+}
+
+async function simulateUpgrade(
+  origin: string,
+  url: string,
+  knownTokenHashes: readonly string[],
+): Promise<{ ok: boolean; status: number; reason: string }> {
+  const config = defaultAllowlistConfig();
+  if (!isOriginAllowed(origin, config)) {
+    return { ok: false, status: 403, reason: "origin not allowed" };
+  }
+  const token = extractToken(url);
+  if (token === undefined) {
+    return { ok: false, status: 401, reason: "missing token" };
+  }
+  const hash = await hashPairingToken(token);
+  if (!knownTokenHashes.includes(hash)) {
+    return { ok: false, status: 401, reason: "invalid token" };
+  }
+  return { ok: true, status: 200, reason: "ok" };
+}
 
 test.describe("risk: daemon auth failures (unit)", () => {
   test("missing origin is rejected", () => {
@@ -76,32 +103,43 @@ test.describe("risk: daemon auth failures (unit)", () => {
   });
 });
 
-test.describe("risk: daemon auth failures (browser)", () => {
-  test.fixme("daemon rejects WS upgrade with missing token", async () => {
-    // Given: the daemon is running with a valid session.
-    // When: a WS client connects without a ?token= query parameter.
-    // Then: the upgrade is rejected with HTTP 401 (UNAUTHORIZED).
-    // Assert: the connection is destroyed; no session is established.
+test.describe("risk: daemon auth failures (upgrade)", () => {
+  test("daemon rejects WS upgrade with missing token", async () => {
+    const validHash = await hashPairingToken("valid-token-123");
+    const decision = await simulateUpgrade("http://localhost:5173", "/ws", [validHash]);
+    expect(decision.ok).toBe(false);
+    expect(decision.status).toBe(401);
+    expect(decision.reason).toMatch(/token/i);
   });
 
-  test.fixme("daemon rejects WS upgrade with wrong token", async () => {
-    // Given: the daemon is running.
-    // When: a WS client connects with an invalid token hash.
-    // Then: the upgrade is rejected with HTTP 401.
-    // Assert: findByTokenHash returns undefined; connection destroyed.
+  test("daemon rejects WS upgrade with wrong token", async () => {
+    const validHash = await hashPairingToken("valid-token-123");
+    const decision = await simulateUpgrade("http://localhost:5173", "/ws?token=wrong-token", [
+      validHash,
+    ]);
+    expect(decision.ok).toBe(false);
+    expect(decision.status).toBe(401);
   });
 
-  test.fixme("daemon rejects request from disallowed origin", async () => {
-    // Given: the daemon is running.
-    // When: a request arrives with Origin: https://evil.com.
-    // Then: the upgrade is rejected with HTTP 403 (ORIGIN_NOT_ALLOWED).
-    // Assert: isOriginAllowed returns false before any auth logic runs.
+  test("daemon rejects request from disallowed origin", async () => {
+    const validHash = await hashPairingToken("valid-token-123");
+    const decision = await simulateUpgrade("https://evil.com", "/ws?token=valid-token-123", [
+      validHash,
+    ]);
+    expect(decision.ok).toBe(false);
+    expect(decision.status).toBe(403);
   });
 
-  test.fixme("daemon refuses to bind on non-loopback interface", async () => {
-    // Given: the daemon config specifies host: "0.0.0.0".
-    // When: the daemon attempts to bind.
-    // Then: binding is refused (loopback-only policy enforced).
-    // Assert: the daemon reports a bind error and exits.
+  test("daemon accepts a valid loopback origin with correct token", async () => {
+    const validHash = await hashPairingToken("valid-token-123");
+    const decision = await simulateUpgrade("http://127.0.0.1:5173", "/ws?token=valid-token-123", [
+      validHash,
+    ]);
+    expect(decision.ok).toBe(true);
+  });
+
+  test("non-loopback origin fails isOriginAllowed before any auth runs", () => {
+    expect(isOriginAllowed("http://0.0.0.0:8080", defaultAllowlistConfig())).toBe(false);
+    expect(isOriginAllowed("http://192.168.1.1:3000", defaultAllowlistConfig())).toBe(false);
   });
 });

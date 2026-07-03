@@ -1,7 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
-import type { Browser, BrowserContext, Page } from "playwright";
+import type { Browser, BrowserContext, Worker } from "playwright";
 
 /**
  * Thrown when the unpacked extension directory passed to
@@ -57,12 +58,10 @@ export interface ExtensionContext {
   readonly extensionPath: string;
   readonly browser: Browser;
   readonly context: BrowserContext;
-  /**
-   * The extension's background page, or `null` until one registers. Real
-   * background-page / service-worker discovery is wired in task 10+ once a
-   * manifest + service worker exist; stubbed to `null` for now.
-   */
-  readonly backgroundPage: Page | null;
+  /** The extension's MV3 service worker, or null if it did not register. */
+  readonly serviceWorker: Worker | null;
+  /** Close the context and delete the ephemeral user-data directory. */
+  readonly cleanup: () => Promise<void>;
 }
 
 /**
@@ -78,11 +77,31 @@ export async function loadExtension(options: ExtensionLoadOptions): Promise<Exte
   const { chromium } = await import("playwright");
   const args = buildExtensionLaunchArgs({ ...options, extensionPath: abs });
   const headless = options.headless ?? false;
-  const browser = await chromium.launch({ headless, args });
-  const context = await browser.newContext();
-  // Stub: real background-page / service-worker retrieval lands in task 10+.
-  const backgroundPage: Page | null = null;
-  return { extensionPath: abs, browser, context, backgroundPage };
+
+  const userDataDir = mkdtempSync(resolve(tmpdir(), "vc-ext-"));
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    headless,
+    args,
+  });
+
+  let serviceWorker: Worker | null = context.serviceWorkers()[0] ?? null;
+  if (serviceWorker === null) {
+    serviceWorker = await context
+      .waitForEvent("serviceworker", { timeout: 10_000 })
+      .catch(() => null);
+  }
+
+  const browser = context.browser();
+  if (browser === null) {
+    throw new Error("Persistent context has no associated browser.");
+  }
+
+  const cleanup = async (): Promise<void> => {
+    await context.close();
+    rmSync(userDataDir, { recursive: true, force: true });
+  };
+
+  return { extensionPath: abs, browser, context, serviceWorker, cleanup };
 }
 
 /**
@@ -97,6 +116,6 @@ export async function withExtensionContext<T>(
   try {
     return await testFn(ctx);
   } finally {
-    await ctx.browser.close();
+    await ctx.cleanup();
   }
 }

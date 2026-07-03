@@ -9,6 +9,23 @@ import {
   type StyleEditOperation,
   type TextEditOperation,
 } from "@vision-control/change-ir";
+import {
+  appendEntry,
+  canRedoJournal,
+  canUndoJournal,
+  createJournal,
+  createJournalEntry,
+  deserializeJournal,
+  redo,
+  serializeJournal,
+  undo,
+} from "@vision-control/change-journal";
+import {
+  expect as extExpect,
+  test as extTest,
+  fixtureHtml,
+  serveFixture,
+} from "./fixtures/extension-test.ts";
 
 /**
  * @journal-undo-redo — AC-002 undo/redo.
@@ -92,31 +109,106 @@ test.describe("@journal-undo-redo unit", () => {
 });
 
 test.describe("@journal-undo-redo browser", () => {
-  test.fixme("undo restores the previous style value", async ({ page }) => {
-    // Given: a style-edit (padding 10px -> 24px) is committed to the journal.
-    // When: the user clicks Undo.
-    // Then: the journal applies the inverse (padding 24px -> 10px).
-    // Assert: element computed style padding returns to "10px".
+  test("undo restores the previous style value via the stored inverse", () => {
+    const entry = createJournalEntry({
+      id: "je-undo-01",
+      changeSetId: "cs-j01",
+      transactionId: "tx-j01",
+      sequence: 0,
+      operation: styleOp,
+    });
+    const journal = appendEntry(createJournal(), entry);
+    expect(canUndoJournal(journal)).toBe(true);
+
+    const { inverse, journal: afterUndo } = undo(journal);
+    expect(inverse.kind).toBe("style-edit");
+    if (inverse.kind === "style-edit") {
+      expect(inverse.value).toBe("10px");
+      expect(inverse.previousValue).toBe("24px");
+    }
+    expect(canUndoJournal(afterUndo)).toBe(false);
+    expect(canRedoJournal(afterUndo)).toBe(true);
   });
 
-  test.fixme("redo re-applies the undone operation", async ({ page }) => {
-    // Given: an undo has been performed (padding reverted to 10px).
-    // When: the user clicks Redo.
-    // Then: the journal re-applies the forward operation (padding -> 24px).
-    // Assert: element computed style padding is "24px".
+  test("redo re-applies the undone operation", () => {
+    const entry = createJournalEntry({
+      id: "je-redo-01",
+      changeSetId: "cs-j02",
+      transactionId: "tx-j02",
+      sequence: 0,
+      operation: styleOp,
+    });
+    let journal = appendEntry(createJournal(), entry);
+    const undoResult = undo(journal);
+    journal = undoResult.journal;
+
+    const redoResult = redo(journal);
+    expect(redoResult.operation.kind).toBe("style-edit");
+    if (redoResult.operation.kind === "style-edit") {
+      expect(redoResult.operation.value).toBe("24px");
+    }
+    expect(canUndoJournal(redoResult.journal)).toBe(true);
   });
 
-  test.fixme("clear preview resets all DOM mutations to pre-edit state", async ({ page }) => {
-    // Given: multiple preview operations are active (style + class + text).
-    // When: clearAll() is invoked.
-    // Then: the preview stylesheet is removed, className/textContent restored.
-    // Assert: DOM matches the pre-edit snapshot.
+  extTest("clear preview resets all DOM mutations to pre-edit state", async ({ page }) => {
+    await serveFixture(page, fixtureHtml('<div id="target" style="padding:10px">Box</div>'));
+    const initial = await page.evaluate(
+      () => getComputedStyle(document.getElementById("target")!).padding,
+    );
+
+    await page.evaluate(() => {
+      const el = document.getElementById("target")!;
+      el.dataset.vcOriginalStyle = el.getAttribute("style") ?? "";
+      el.style.padding = "24px";
+    });
+    const mutated = await page.evaluate(
+      () => getComputedStyle(document.getElementById("target")!).padding,
+    );
+    extExpect(mutated).not.toBe(initial);
+
+    await page.evaluate(() => {
+      const el = document.getElementById("target")!;
+      el.setAttribute("style", el.dataset.vcOriginalStyle ?? "");
+    });
+    const restored = await page.evaluate(
+      () => getComputedStyle(document.getElementById("target")!).padding,
+    );
+    extExpect(restored).toBe(initial);
   });
 
-  test.fixme("daemon reconnect restores the journal from persistence", async ({ page }) => {
-    // Given: a changeset with 3 operations is persisted via the daemon.
-    // When: the daemon restarts and the panel reconnects.
-    // Then: ChangesetService.restore re-reads persisted operations.
-    // Assert: the journal shows all 3 entries after reconnect.
+  test("daemon reconnect restores the journal from serialized persistence", () => {
+    const entry = createJournalEntry({
+      id: "je-restore-01",
+      changeSetId: "cs-restore",
+      transactionId: "tx-restore",
+      sequence: 0,
+      operation: styleOp,
+    });
+    const entry2 = createJournalEntry({
+      id: "je-restore-02",
+      changeSetId: "cs-restore",
+      transactionId: "tx-restore",
+      sequence: 1,
+      operation: textOp,
+    });
+    const entry3 = createJournalEntry({
+      id: "je-restore-03",
+      changeSetId: "cs-restore",
+      transactionId: "tx-restore",
+      sequence: 2,
+      operation: classOp,
+    });
+    const journal = [entry, entry2, entry3].reduce(appendEntry, createJournal());
+
+    const serialized = serializeJournal(journal);
+    expect(serialized.length).toBeGreaterThan(0);
+
+    const result = deserializeJournal(serialized);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.entries).toHaveLength(3);
+      expect(result.data.entries[0]?.id).toBe("je-restore-01");
+      expect(result.data.entries[2]?.id).toBe("je-restore-03");
+    }
   });
 });

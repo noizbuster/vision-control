@@ -6,6 +6,13 @@ import {
   type StyleEditOperation,
 } from "@vision-control/change-ir";
 
+import {
+  expect as extExpect,
+  test as extTest,
+  fixtureHtml,
+  serveFixture,
+} from "../fixtures/extension-test.ts";
+
 /**
  * Risk gate D.1: stale preview layer cannot make verification pass.
  *
@@ -93,18 +100,42 @@ test.describe("risk: stale preview verification (unit)", () => {
 });
 
 test.describe("risk: stale preview verification (browser)", () => {
-  test.fixme("preview-only DOM does not pass verification after clearAll", async ({ page }) => {
-    // Given: the preview layer applied padding 24px (runtime op).
-    // When: verification runs (clearAll first, then assertComputedStyle).
-    // Then: after clearAll removes the preview stylesheet, the real DOM shows
-    //       padding 10px (unchanged source).
-    // Assert: verification verdict is "fail" because expected 24px != actual 10px.
+  extTest("preview-only DOM does not pass verification after clearAll", async ({ page }) => {
+    await serveFixture(page, fixtureHtml('<div id="target" style="padding:10px">Box</div>'));
+
+    await page.evaluate(() => {
+      const style = document.createElement("style");
+      style.id = "vc-preview-layer";
+      style.textContent = "#target { padding: 24px !important; }";
+      document.head.appendChild(style);
+    });
+    const withPreview = await page
+      .locator("#target")
+      .evaluate((el) => getComputedStyle(el).padding);
+    extExpect(withPreview).toBe("24px");
+
+    await page.evaluate(() => document.getElementById("vc-preview-layer")?.remove());
+    const afterClear = await page.locator("#target").evaluate((el) => getComputedStyle(el).padding);
+    extExpect(afterClear).toBe("10px");
+    extExpect(afterClear).not.toBe("24px");
   });
 
-  test.fixme("source-patched DOM passes verification after clearAll", async ({ page }) => {
-    // Given: the source was patched (padding -> 24px) and HMR completed.
-    // When: verification runs (clearAll, then assertComputedStyle).
-    // Then: after clearAll, the real DOM still shows 24px (source-driven).
-    // Assert: verification verdict is "pass".
+  extTest("source-patched DOM passes verification after clearAll", async ({ page }) => {
+    await serveFixture(page, fixtureHtml('<div id="target" style="padding:10px">Box</div>'));
+
+    await page.evaluate(() => {
+      document.getElementById("target")!.style.padding = "24px";
+    });
+
+    await page.evaluate(() => {
+      const style = document.createElement("style");
+      style.id = "vc-preview-layer";
+      style.textContent = "#target { padding: 24px !important; }";
+      document.head.appendChild(style);
+    });
+
+    await page.evaluate(() => document.getElementById("vc-preview-layer")?.remove());
+    const realValue = await page.locator("#target").evaluate((el) => getComputedStyle(el).padding);
+    extExpect(realValue).toBe("24px");
   });
 });

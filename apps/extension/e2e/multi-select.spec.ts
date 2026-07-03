@@ -13,6 +13,7 @@ import { test } from "@playwright/test";
  */
 
 test.describe("@multi-select", () => {
+  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
   test.fixme("Shift+Click three cards forms a group of three", async ({ page }) => {
     // Given: inspect mode active and a row of three sibling `.card` elements.
     // When: the user clicks card 1, then Shift+Clicks card 2 and card 3.
@@ -22,6 +23,7 @@ test.describe("@multi-select", () => {
     //         `.vc-multi-group-outline` is present.
   });
 
+  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
   test.fixme("Shift+Click a selected card removes it from the group (toggle)", async ({ page }) => {
     // Given: a group of three cards is active.
     // When: the user Shift+Clicks card 2 again.
@@ -30,6 +32,7 @@ test.describe("@multi-select", () => {
     // Assert: overlay `.vc-multi-member-outline` count === 2.
   });
 
+  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
   test.fixme("marquee drag selects all elements intersecting the rectangle", async ({ page }) => {
     // Given: inspect mode active over a grid of six cards.
     // When: the user drags a marquee rectangle enclosing four of them.
@@ -38,6 +41,7 @@ test.describe("@multi-select", () => {
     //         bounding rect equals the enclosing box of the four rects.
   });
 
+  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
   test.fixme("Shift+Click across two frames is rejected with a diagnostic", async ({ page }) => {
     // Given: a same-origin iframe is present alongside a top-frame card, and a
     //        one-member group is started on the top-frame card.
@@ -48,6 +52,7 @@ test.describe("@multi-select", () => {
     //         lists code `cross-frame`.
   });
 
+  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
   test.fixme("Shift+Click on a closed shadow root element is rejected", async ({ page }) => {
     // Given: a web component with a closed shadow root renders a button.
     // When: the user Shift+Clicks the button inside the closed root.
@@ -57,6 +62,7 @@ test.describe("@multi-select", () => {
     //         construction — the element never reaches the reducer).
   });
 
+  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
   test.fixme("group inspector section shows common parent and bounding rect", async ({ page }) => {
     // Given: a multi-select group of three sibling cards is active.
     // Then: the panel renders the Multi-Select Group section.

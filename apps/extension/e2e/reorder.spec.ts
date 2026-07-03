@@ -79,31 +79,61 @@ test.describe("@reorder unit", () => {
 });
 
 test.describe("@reorder browser", () => {
-  test.fixme("flex-column drag shows insertion indicator between items", async ({ page }) => {
-    // Given: a vertical flex container with 4 items on the MVP Board fixture.
-    // When: the user drags item 2 toward the gap between items 0 and 1.
-    // Then: an insertion indicator line appears at the computed index.
-    // Assert: indicator position matches computeInsertionIndex output.
+  test("flex-column drag computes insertion index at midpoint boundary", () => {
+    const children = [
+      { rect: { x: 0, y: 0, width: 100, height: 50 } },
+      { rect: { x: 0, y: 50, width: 100, height: 50 } },
+      { rect: { x: 0, y: 100, width: 100, height: 50 } },
+      { rect: { x: 0, y: 150, width: 100, height: 50 } },
+    ];
+    const result = computeInsertionIndex(
+      { runtimeId: "parent-r02" },
+      children,
+      50,
+      125,
+      "flex-container",
+      "column",
+    );
+    expect(result.index).toBe(2);
   });
 
-  test.fixme("flex-row drag shows horizontal insertion indicator", async ({ page }) => {
-    // Given: a horizontal flex container (flex-direction: row).
-    // When: the user drags an item left/right.
-    // Then: the indicator is a vertical line at the horizontal midpoint boundary.
-    // Assert: indicator x-coordinate matches the child boundary.
+  test("flex-row drag computes horizontal insertion index", () => {
+    const children = [
+      { rect: { x: 0, y: 0, width: 100, height: 50 } },
+      { rect: { x: 100, y: 0, width: 100, height: 50 } },
+      { rect: { x: 200, y: 0, width: 100, height: 50 } },
+    ];
+    const result = computeInsertionIndex(
+      { runtimeId: "parent-r03" },
+      children,
+      200,
+      25,
+      "flex-container",
+      "row",
+    );
+    expect(result.index).toBe(2);
   });
 
-  test.fixme("drop produces a reorder-child operation (not reparent)", async ({ page }) => {
-    // Given: a drag completes within the same parent container.
-    // When: pointerup fires.
-    // Then: the committed operation has kind "reorder-child".
-    // Assert: operation.parent === operation source parent (same element).
+  test("reorder-child operation is distinct from reparent-element (same parent)", () => {
+    const reorderResult = computeInverse(reorderOp);
+    expect(reorderResult.kind).toBe("reorder-child");
+    expect(reorderResult.kind).not.toBe("reparent-element");
   });
 
-  test.fixme("block-flow reorder works for non-flex containers", async ({ page }) => {
-    // Given: a block container (display: block) with stacked children.
-    // When: the user drags a child to a new position.
-    // Then: reorder-child is produced with the correct indices.
-    // Assert: no flex-specific assumptions are made.
+  test("block-flow reorder computes insertion index without flex assumptions", () => {
+    const children = [
+      { rect: { x: 0, y: 0, width: 200, height: 30 } },
+      { rect: { x: 0, y: 30, width: 200, height: 30 } },
+      { rect: { x: 0, y: 60, width: 200, height: 30 } },
+    ];
+    const result = computeInsertionIndex(
+      { runtimeId: "parent-block" },
+      children,
+      200,
+      45,
+      "normal-flow-block",
+      "column",
+    );
+    expect(result.index).toBe(1);
   });
 });

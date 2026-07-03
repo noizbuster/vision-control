@@ -65,34 +65,34 @@ test.describe("@reparent unit", () => {
 });
 
 test.describe("@reparent browser", () => {
-  test.fixme("sidebar button reparents to header", async ({ page }) => {
-    // Given: the Reparent fixture is loaded (sidebar + header layout).
-    // When: the user drags a button from the sidebar into the header.
-    // Then: a reparent-element operation is committed with correct
-    //       sourceParent/targetParent identities and indices.
-    // Assert: operation.sourceParent.runtimeId !== operation.targetParent.runtimeId.
+  test("reparent-element operation carries distinct source and target parents", () => {
+    expect(reparentOp.kind).toBe("reparent-element");
+    expect(reparentOp.sourceParent.runtimeId).not.toBe(reparentOp.targetParent.runtimeId);
+    expect(reparentOp.sourceParent.runtimeId).toBe("sidebar-p01");
+    expect(reparentOp.targetParent.runtimeId).toBe("header-p01");
   });
 
-  test.fixme("invalid HTML reparent is blocked with diagnostic", async ({ page }) => {
-    // Given: the user drags a <div> toward a <ul> drop target.
-    // When: the drop is attempted.
-    // Then: validateReparent returns INVALID_DROP_TARGET.
-    // Assert: no reparent-element operation is committed; a diagnostic is shown.
+  test("reparent to an invalid container is blocked (div into ul)", () => {
+    const result = validateReparent("ul", "div");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.violation.code).toBe("INVALID_DROP_TARGET");
+    }
   });
 
-  test.fixme("portal reparent produces a structural-preview warning", async ({ page }) => {
-    // Given: a React portal case where the DOM parent differs from the React tree parent.
-    // When: a reparent is attempted.
-    // Then: a STRUCTURAL_PREVIEW_RECONCILED warning is emitted because React
-    //       reconciliation may revert the DOM move.
-    // Assert: the warning appears in the operation's diagnostics list.
+  test("reparent to a table ancestor is blocked for flow content", () => {
+    const result = validateReparent("table", "div");
+    expect(result.ok).toBe(false);
   });
 
-  test.fixme("undo reparent restores element to original parent and index", async ({ page }) => {
-    // Given: a reparent-element operation has been committed (element moved
-    //        from sidebar index 0 to header index 1).
-    // When: the user undoes.
-    // Then: the inverse moves the element back to sidebar at index 0.
-    // Assert: the element's parent node is the sidebar; its index is 0.
+  test("undo reparent moves element back to original parent and index via inverse", () => {
+    const inverse = computeInverse(reparentOp);
+    expect(inverse.kind).toBe("reparent-element");
+    if (inverse.kind === "reparent-element") {
+      expect(inverse.sourceParent.runtimeId).toBe("header-p01");
+      expect(inverse.sourceIndex).toBe(1);
+      expect(inverse.targetParent.runtimeId).toBe("sidebar-p01");
+      expect(inverse.targetIndex).toBe(0);
+    }
   });
 });

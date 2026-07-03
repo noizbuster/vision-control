@@ -14,6 +14,7 @@ import { test } from "@playwright/test";
  */
 
 test.describe("@auto-layout", () => {
+  // OUT: V1 (PRD §7.2 — Auto Layout deferred to V1; not in MVP scope)
   test.fixme("panel renders for a flex-row container", async ({ page }) => {
     // Given: a flex-row container is selected.
     // When: the inspector renders.
@@ -21,6 +22,7 @@ test.describe("@auto-layout", () => {
     //       wrap, and child-sizing controls.
   });
 
+  // OUT: V1 (PRD §7.2 — Auto Layout deferred to V1; not in MVP scope)
   test.fixme("changing direction emits set-container-layout", async ({ page }) => {
     // Given: a flex-row container is selected.
     // When: the user selects "column" in the direction dropdown.
@@ -28,6 +30,7 @@ test.describe("@auto-layout", () => {
     //       and value "column" is recorded in the journal.
   });
 
+  // OUT: V1 (PRD §7.2 — Auto Layout deferred to V1; not in MVP scope)
   test.fixme("child sizing hug on a flex-row item resolves to flex + width", async ({ page }) => {
     // Given: a flex-row container is selected with at least one child.
     // When: the user sets child 0 to "hug".
@@ -35,6 +38,7 @@ test.describe("@auto-layout", () => {
     //       "flex: 0 0 auto" and "width: max-content" (not a single property).
   });
 
+  // OUT: V1 (PRD §7.2 — Auto Layout deferred to V1; not in MVP scope)
   test.fixme("inline element shows unsupported diagnostic", async ({ page }) => {
     // Given: an inline element is selected.
     // When: the inspector renders.
@@ -42,6 +46,7 @@ test.describe("@auto-layout", () => {
     //       controls are rendered.
   });
 
+  // OUT: V1 (PRD §7.2 — Auto Layout deferred to V1; not in MVP scope)
   test.fixme("Tailwind token suggestion appears for gap value", async ({ page }) => {
     // Given: a flex container is selected and a Tailwind adapter is registered.
     // When: the user types "1rem" in the gap input.

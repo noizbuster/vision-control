@@ -147,6 +147,7 @@ test.describe("@alignment-distribution unit", () => {
 });
 
 test.describe("@alignment-distribution browser", () => {
+  // OUT: V1 (PRD §7.2 — alignment/distribution commands deferred to V1; not in MVP scope)
   test.fixme("align three buttons in a flex row and record a parent justify-content intent", async ({
     page,
   }) => {
@@ -157,6 +158,7 @@ test.describe("@alignment-distribution browser", () => {
     // Assert: the candidate kind === "parent-layout-property", property === "justify-content".
   });
 
+  // OUT: V1 (PRD §7.2 — alignment/distribution commands deferred to V1; not in MVP scope)
   test.fixme("equalize-gap records a parent flex gap intent, not raw transforms", async ({
     page,
   }) => {
@@ -166,6 +168,7 @@ test.describe("@alignment-distribution browser", () => {
     // Assert: candidate property === "gap"; no coordinate/transform operations emitted.
   });
 
+  // OUT: V1 (PRD §7.2 — alignment/distribution commands deferred to V1; not in MVP scope)
   test.fixme("CSS order visual reorder surfaces a non-blocking accessibility warning", async ({
     page,
   }) => {

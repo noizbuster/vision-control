@@ -1,42 +1,73 @@
 /**
- * Redaction chokepoint for the compiled context.
+ * Redaction chokepoint for the compiled context (PRD §16.3 + §27.2 + Appendix D.6).
  *
  * Every compiled context MUST pass through {@link redactContext} before it is
- * rendered to JSON or Markdown and handed to a coding agent. The function
- * deep-redacts the whole document via `@vision-control/security#redactObject`
- * (cookies, auth headers, passwords, hidden form values, secrets — all masked),
- * then builds a {@link PrivacyReport} by diffing the original against the
- * redacted copy, and stamps the report onto the returned context.
+ * rendered to JSON or Markdown and handed to a coding agent. Two complementary
+ * layers compose here:
  *
- * This is the single place where "no secret leaks into agent context" is
- * enforced (PRD Appendix D.6). Renderers trust their input is already redacted.
+ * 1. DOM/SELECTOR redaction (`redactTarget`) masks values by element SHAPE — a
+ *    value is masked because the element IS a password input / autocomplete
+ *    credential field / hidden field, or carries `[data-private]`. This runs at
+ *    compile time too (so secrets never enter the compiled context); this pass
+ *    is a defense-in-depth fallback that catches a context that reached the
+ *    chokepoint without compile-time masking (e.g. raw JSON parsed from store).
+ *    It is idempotent: a value already carrying the redaction marker is skipped
+ *    and never re-counted.
+ * 2. STRING-PATTERN redaction (`redactObject`) masks secrets by CONTENT —
+ *    cookies, auth headers, password assignments, JWTs, API keys, high-entropy
+ *    tokens — anywhere in the document.
+ *
+ * Default-deny posture (PRD §16.3): `localStorage`, `sessionStorage`, cookie
+ * values, and auth headers are ABSENT from {@link CompiledContextSchema} by
+ * construction — the agent context simply has no field that could carry them.
+ * The two layers above handle the element-level and string-level surfaces the
+ * schema cannot encode. Renderers trust their input is already redacted.
  */
 
 import {
   createPrivacyReport,
   redactObject,
-  type PrivacyReport as SecurityPrivacyReport,
+  type PrivacyReportRedaction as SecurityPrivacyReportRedaction,
 } from "@vision-control/security";
 
-import type { CompiledContext, PrivacyReport } from "./context-schema.js";
+import type { CompiledContext, PrivacyReport, PrivacyReportRedaction } from "./context-schema.js";
+import { type RedactionConfig, redactTarget, resolveSelectorRules } from "./redaction-selectors.js";
 
 /**
  * Return a deep-redacted copy of `context` with an updated privacy report. The
- * input is never mutated. The returned `privacyReport` reflects every leaf that
- * changed during redaction; it never carries the original secret values.
+ * input is never mutated. The returned `privacyReport` merges three sources:
+ * the compile-time selector redactions already on `context.privacyReport`, any
+ * NEW selector redactions this pass applies (defense-in-depth, usually empty),
+ * and the string-pattern redactions found by diffing. The report never carries
+ * the original secret values — only paths, rule ids, and reasons.
  */
-export const redactContext = (context: CompiledContext): CompiledContext => {
-  const redacted = redactObject(context) as CompiledContext;
-  const report = createPrivacyReport(context, redacted);
-  return { ...redacted, privacyReport: toContextReport(report) };
+export const redactContext = (
+  context: CompiledContext,
+  redactionConfig?: RedactionConfig,
+): CompiledContext => {
+  const rules = resolveSelectorRules(redactionConfig);
+  const { target: selectorMaskedTarget, redactions: selectorRedactions } = redactTarget(
+    context.target,
+    rules,
+  );
+  const afterSelectors: CompiledContext = { ...context, target: selectorMaskedTarget };
+  const redacted = redactObject(afterSelectors) as CompiledContext;
+  const stringReport = createPrivacyReport(afterSelectors, redacted);
+  const compileTimeRedactions = context.privacyReport.redactions;
+  const merged: PrivacyReport = {
+    redactions: [
+      ...compileTimeRedactions,
+      ...selectorRedactions,
+      ...stringReport.redactions.map(toContextRedaction),
+    ],
+    totalRedacted:
+      compileTimeRedactions.length + selectorRedactions.length + stringReport.totalRedacted,
+  };
+  return { ...redacted, privacyReport: merged };
 };
 
-/** Adapt the security report shape to the context-schema privacy report. */
-const toContextReport = (report: SecurityPrivacyReport): PrivacyReport => ({
-  redactions: report.redactions.map((entry) => ({
-    field: entry.field,
-    patternId: entry.patternId,
-    description: entry.description,
-  })),
-  totalRedacted: report.totalRedacted,
+const toContextRedaction = (entry: SecurityPrivacyReportRedaction): PrivacyReportRedaction => ({
+  field: entry.field,
+  patternId: entry.patternId,
+  description: entry.description,
 });

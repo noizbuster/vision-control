@@ -21,6 +21,18 @@ export const PACKAGE_NAME = "@vision-control/context-compiler";
 export { type CompileContextInputs, compileContext } from "./compiler.js";
 export * from "./context-schema.js";
 export { redactContext } from "./redaction.js";
+export {
+  DEFAULT_REDACTION_SELECTORS,
+  type ElementMatchDescriptor,
+  ElementMatchDescriptorSchema,
+  type RedactionAction,
+  type RedactionConfig,
+  RedactionConfigSchema,
+  type RedactionSelectorRule,
+  RedactionSelectorRuleSchema,
+  redactTarget,
+  resolveSelectorRules,
+} from "./redaction-selectors.js";
 export { renderJson } from "./renderers/json-renderer.js";
 export { renderMarkdown } from "./renderers/markdown-renderer.js";
 export { TokenBudget } from "./token-budget.js";

@@ -7,10 +7,13 @@
  * `Operation` to an `OperationSummary`, and collects source candidates and
  * warnings. The assembled context is then truncated to fit the token budget.
  *
- * Privacy: the compiler NEVER performs redaction itself. Redaction is a separate
- * pass (`redactContext`) the caller runs before rendering. This keeps the
- * compiler deterministic and testable, and makes the "everything is redacted
- * before rendering" rule a single chokepoint.
+ * Privacy: the compiler applies DOM/selector redaction (PRD §27.2) DURING
+ * projection so a password or `[data-private]` value never enters the compiled
+ * context. The recorded selector redactions seed `privacyReport`; the separate
+ * `redactContext` chokepoint then runs the string-pattern catch-all (secrets that
+ * survived by shape) and merges its findings into the same report. The compiler
+ * stays deterministic and the single-chokepoint rule holds: every field is
+ * redacted before rendering, split across two complementary layers.
  */
 
 import type { BreakpointOperation, ChangeSet } from "@vision-control/change-ir";
@@ -25,6 +28,7 @@ import {
   DEFAULT_TOKEN_BUDGET,
   type LayoutContextSummary,
   type MultiSelectSummary,
+  type PrivacyReportRedaction,
   type ScreenshotRedactionSummary,
   type ScreenshotRefSummary,
   type SourceCandidateSummary,
@@ -36,6 +40,12 @@ import {
   type Warning,
 } from "./context-schema.js";
 import { summarizeOperation } from "./operation-summary.js";
+import {
+  type RedactionConfig,
+  type RedactionSelectorRule,
+  redactTarget,
+  resolveSelectorRules,
+} from "./redaction-selectors.js";
 import { TokenBudget } from "./token-budget.js";
 import { projectVerificationPlan } from "./verification-plan-projector.js";
 
@@ -79,16 +89,25 @@ export interface CompileContextInputs {
   readonly tokenRegistry?: TokenRegistrySummary;
   /** V1 (VC-V1V2-21): discovered component props for prop-editing context. */
   readonly componentProps?: ComponentPropsSummary;
+  /**
+   * DOM/selector redaction config (PRD §27.2), typically sourced from
+   * `vision-control.config.ts`. User rules extend the PRD defaults; they never
+   * replace them. When omitted, only the defaults run.
+   */
+  readonly redactionConfig?: RedactionConfig;
 }
 
 /**
- * Compile a redactable, token-budgeted agent context. The returned context has
- * an empty privacy report; run {@link redactContext} to populate it and scrub
- * secrets before rendering.
+ * Compile a redactable, token-budgeted agent context. The returned context
+ * carries the selector-based redactions (PRD §27.2) already applied to
+ * `target`, with their report entries seeded into `privacyReport`. Run
+ * {@link redactContext} to add the string-pattern catch-all and finalize the
+ * privacy report before rendering.
  */
 export const compileContext = (inputs: CompileContextInputs): CompiledContext => {
   const budget = new TokenBudget(inputs.tokenBudget ?? DEFAULT_TOKEN_BUDGET);
-  const target = projectTarget(inputs.selection);
+  const selectorRules = resolveSelectorRules(inputs.redactionConfig);
+  const { target, redactions: selectorRedactions } = projectTarget(inputs.selection, selectorRules);
   const operations = inputs.changeset.operations.map(summarizeOperation);
   const source = projectSource(inputs.sourceCandidates);
   const layout = projectLayout(inputs.selection);
@@ -101,7 +120,10 @@ export const compileContext = (inputs: CompileContextInputs): CompiledContext =>
     layout,
     verificationPlan: projectVerificationPlan(inputs.changeset.operations),
     warnings,
-    privacyReport: { redactions: [], totalRedacted: 0 },
+    privacyReport: {
+      redactions: [...selectorRedactions],
+      totalRedacted: selectorRedactions.length,
+    },
     metadata: {
       compiledAt: inputs.compiledAt ?? Date.now(),
       formatVersion: CONTEXT_FORMAT_VERSION,
@@ -136,47 +158,62 @@ export const compileContext = (inputs: CompileContextInputs): CompiledContext =>
   return budget.truncate(estimated);
 };
 
-/** Project the inspector summary into a JSON-safe target summary. */
-const projectTarget = (selection: SelectionSummary): TargetSummary => ({
-  identity: {
-    ...(selection.identity.runtimeId !== undefined
-      ? { runtimeId: selection.identity.runtimeId }
-      : {}),
-    ...(selection.identity.sourceId !== undefined ? { sourceId: selection.identity.sourceId } : {}),
-    ...(selection.identity.fingerprint !== undefined
-      ? { fingerprint: selection.identity.fingerprint }
-      : {}),
-    ...(selection.identity.confidence !== undefined
-      ? { confidence: selection.identity.confidence }
-      : {}),
-    selectors: collectSelectors(selection),
-  },
-  semantic: {
-    tagName: selection.semantic.tagName,
-    ...(selection.semantic.role !== undefined ? { role: selection.semantic.role } : {}),
-    ...(selection.semantic.name !== undefined ? { name: selection.semantic.name } : {}),
-    ...(selection.semantic.description !== undefined
-      ? { description: selection.semantic.description }
-      : {}),
-    textContentPreview: selection.semantic.textContentPreview,
-  },
-  breadcrumb: selection.breadcrumb.map((item) => ({
-    tagName: item.tagName,
-    ...(item.id !== undefined ? { id: item.id } : {}),
-    ...(item.className !== undefined ? { className: item.className } : {}),
-    ...(item.role !== undefined ? { role: item.role } : {}),
-    ...(item.selector !== undefined ? { selector: item.selector } : {}),
-  })),
-  computedStyle: { ...selection.computedStyle },
-  boxModel: {
-    contentWidth: selection.boxModel.content.width,
-    contentHeight: selection.boxModel.content.height,
-    positionX: selection.boxModel.position.x,
-    positionY: selection.boxModel.position.y,
-  },
-  classList: selection.classList.map((entry) => ({ name: entry.name, source: entry.source })),
-  attributes: selection.attributes.map((entry) => ({ name: entry.name, value: entry.value })),
-});
+/**
+ * Project the inspector summary into a JSON-safe target summary, then apply
+ * DOM/selector redaction (PRD §27.2). The verbatim projection runs first so the
+ * full attribute set is available for selector matching; {@link redactTarget}
+ * then masks password/credential/hidden values and excludes `[data-private]`
+ * content. Returns both the masked target and the redaction report entries so
+ * {@link compileContext} can seed `privacyReport`.
+ */
+const projectTarget = (
+  selection: SelectionSummary,
+  rules: readonly RedactionSelectorRule[],
+): { readonly target: TargetSummary; readonly redactions: readonly PrivacyReportRedaction[] } => {
+  const projected: TargetSummary = {
+    identity: {
+      ...(selection.identity.runtimeId !== undefined
+        ? { runtimeId: selection.identity.runtimeId }
+        : {}),
+      ...(selection.identity.sourceId !== undefined
+        ? { sourceId: selection.identity.sourceId }
+        : {}),
+      ...(selection.identity.fingerprint !== undefined
+        ? { fingerprint: selection.identity.fingerprint }
+        : {}),
+      ...(selection.identity.confidence !== undefined
+        ? { confidence: selection.identity.confidence }
+        : {}),
+      selectors: collectSelectors(selection),
+    },
+    semantic: {
+      tagName: selection.semantic.tagName,
+      ...(selection.semantic.role !== undefined ? { role: selection.semantic.role } : {}),
+      ...(selection.semantic.name !== undefined ? { name: selection.semantic.name } : {}),
+      ...(selection.semantic.description !== undefined
+        ? { description: selection.semantic.description }
+        : {}),
+      textContentPreview: selection.semantic.textContentPreview,
+    },
+    breadcrumb: selection.breadcrumb.map((item) => ({
+      tagName: item.tagName,
+      ...(item.id !== undefined ? { id: item.id } : {}),
+      ...(item.className !== undefined ? { className: item.className } : {}),
+      ...(item.role !== undefined ? { role: item.role } : {}),
+      ...(item.selector !== undefined ? { selector: item.selector } : {}),
+    })),
+    computedStyle: { ...selection.computedStyle },
+    boxModel: {
+      contentWidth: selection.boxModel.content.width,
+      contentHeight: selection.boxModel.content.height,
+      positionX: selection.boxModel.position.x,
+      positionY: selection.boxModel.position.y,
+    },
+    classList: selection.classList.map((entry) => ({ name: entry.name, source: entry.source })),
+    attributes: selection.attributes.map((entry) => ({ name: entry.name, value: entry.value })),
+  };
+  return redactTarget(projected, rules);
+};
 
 const collectSelectors = (selection: SelectionSummary): string[] => {
   const selectors: string[] = [];

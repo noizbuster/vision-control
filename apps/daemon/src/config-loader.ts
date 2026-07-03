@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { RedactionConfigSchema } from "@vision-control/context-compiler";
 import { z } from "zod";
 
 /** The config file name the daemon looks for at the workspace root. */
@@ -26,6 +27,13 @@ export const VisionControlConfigSchema = z.object({
       level: z.enum(["debug", "info", "warn", "error"]).optional(),
     })
     .default({}),
+  /**
+   * DOM/selector redaction (PRD §27.2). The schema is owned by
+   * `@vision-control/context-compiler` so the config file and the compiler
+   * share one source of truth; user `redactionSelectors` extend the PRD
+   * defaults at compile time.
+   */
+  redaction: RedactionConfigSchema.default({}),
 });
 
 export type VisionControlConfig = z.infer<typeof VisionControlConfigSchema>;

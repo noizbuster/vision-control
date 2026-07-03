@@ -17,7 +17,7 @@
  */
 
 import { OperationSchema } from "@vision-control/change-ir";
-import { compileContext } from "@vision-control/context-compiler";
+import { compileContext, type RedactionConfig } from "@vision-control/context-compiler";
 import type { ChangesetService, SourceRegistryService } from "@vision-control/daemon-core";
 import type { Logger } from "@vision-control/logger";
 import type {
@@ -45,6 +45,12 @@ export interface McpAdapterDeps {
   readonly registry?: SourceRegistry;
   readonly workspaceRoot?: string;
   readonly logger?: Logger;
+  /**
+   * DOM/selector redaction config (PRD §27.2), sourced from the
+   * `redaction.redactionSelectors` section of `vision-control.config.ts`.
+   * Forwarded to `compileContext` so user rules extend the PRD defaults.
+   */
+  readonly redactionConfig?: RedactionConfig;
 }
 
 /** `typeof x === "object" && x !== null` narrowed to a string-indexed record. */
@@ -264,6 +270,7 @@ export function createDaemonMcpAdapters(deps: McpAdapterDeps): DaemonMcpDepsServ
         changeset: { operations: [], id: "daemon", version: "2.0.0", revision: 0 } as never,
         sourceCandidates: candidates,
         warnings: [],
+        ...(deps.redactionConfig !== undefined ? { redactionConfig: deps.redactionConfig } : {}),
       });
       return { ...compiled, verificationPlan: plan };
     },

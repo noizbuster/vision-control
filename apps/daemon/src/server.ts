@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
+import type { RedactionConfig } from "@vision-control/context-compiler";
 import type {
   ChangesetService,
   ConnectionService,
@@ -82,6 +83,12 @@ export interface DaemonServerOptions {
   readonly connectionDispatch?: ConnectionServiceDispatch;
   readonly originConfig: OriginAllowlistConfig;
   readonly logger: Logger;
+  /**
+   * DOM/selector redaction config (PRD §27.2) sourced from
+   * `vision-control.config.ts`. Forwarded to the context-compiler adapter so
+   * user `redactionSelectors` extend the PRD defaults at compile time.
+   */
+  readonly redactionConfig?: RedactionConfig;
   /** MCP HTTP transport port. When set, serves the read-only MCP server over loopback HTTP (ADR-013). */
   readonly mcpPort?: number;
   /** MCP bearer token. When mcpPort is set and this is omitted, a random token is generated. */
@@ -227,6 +234,9 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
             workspaceRoot: options.workspaceRoot,
             logger: options.logger,
           }
+        : {}),
+      ...(options.redactionConfig !== undefined
+        ? { redactionConfig: options.redactionConfig }
         : {}),
     });
     const mcpDeps = createDaemonMcpDeps({

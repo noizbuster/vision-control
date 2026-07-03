@@ -18,10 +18,11 @@ import {
 const makeSelection = (overrides?: {
   readonly attributes?: { readonly name: string; readonly value: string }[];
   readonly textContentPreview?: string;
+  readonly tagName?: string;
 }): SelectionSummary => ({
   identity: {
     runtimeId: "runtime-0001",
-    tagName: "button",
+    tagName: overrides?.tagName ?? "button",
     sourceId: "src-btn-0001",
     selector: "button.primary",
     frameId: "main",
@@ -32,7 +33,12 @@ const makeSelection = (overrides?: {
     { tagName: "html" },
     { tagName: "body" },
     { tagName: "main", selector: "main" },
-    { tagName: "button", id: "cta", className: "btn primary", selector: "button.primary" },
+    {
+      tagName: overrides?.tagName ?? "button",
+      id: "cta",
+      className: "btn primary",
+      selector: "button.primary",
+    },
   ],
   computedStyle: {
     display: "inline-block",
@@ -69,7 +75,7 @@ const makeSelection = (overrides?: {
     value: a.value,
   })),
   semantic: {
-    tagName: "button",
+    tagName: overrides?.tagName ?? "button",
     role: "button",
     name: "Submit",
     textContentPreview: overrides?.textContentPreview ?? "Submit",
@@ -649,6 +655,139 @@ describe("context-compiler", () => {
       const context = compileContext(makeInputs());
       const redacted = redactContext(context);
       expect(redacted.privacyReport.totalRedacted).toBe(0);
+    });
+  });
+
+  describe("DOM/selector redaction (PRD §27.2)", () => {
+    it("masks a password input value end-to-end and excludes it from JSON + Markdown", () => {
+      const inputs = makeInputs({
+        selection: makeSelection({
+          tagName: "input",
+          attributes: [
+            { name: "type", value: "password" },
+            { name: "value", value: "VC_PW_SHOULD_NOT_EXPORT" },
+          ],
+          textContentPreview: "VC_PW_SHOULD_NOT_EXPORT",
+        }),
+      });
+      const redacted = redactContext(compileContext(inputs));
+      const json = renderJson(redacted);
+      const markdown = renderMarkdown(redacted);
+      expect(json).not.toContain("VC_PW_SHOULD_NOT_EXPORT");
+      expect(markdown).not.toContain("VC_PW_SHOULD_NOT_EXPORT");
+      expect(json).toContain("[REDACTED:password-input]");
+      expect(redacted.privacyReport.redactions.some((r) => r.patternId === "password-input")).toBe(
+        true,
+      );
+    });
+
+    it("masks an autocomplete credential field even when the value is low-entropy", () => {
+      const inputs = makeInputs({
+        selection: makeSelection({
+          tagName: "input",
+          attributes: [
+            { name: "type", value: "text" },
+            { name: "autocomplete", value: "current-password" },
+            { name: "value", value: "1234" },
+          ],
+        }),
+      });
+      const json = renderJson(redactContext(compileContext(inputs)));
+      expect(json).not.toContain('"1234"');
+      expect(
+        compileContext(inputs).privacyReport.redactions.some(
+          (r) => r.patternId === "autocomplete-current-password",
+        ),
+      ).toBe(true);
+    });
+
+    it("excludes a [data-private] element's content end-to-end", () => {
+      const inputs = makeInputs({
+        selection: makeSelection({
+          tagName: "div",
+          attributes: [
+            { name: "data-private", value: "" },
+            { name: "id", value: "ssn" },
+          ],
+          textContentPreview: "VC_PRIVATE_SSN_LEAK",
+        }),
+      });
+      const redacted = redactContext(compileContext(inputs));
+      const json = renderJson(redacted);
+      expect(json).not.toContain("VC_PRIVATE_SSN_LEAK");
+      expect(redacted.target.attributes.some((a) => a.name === "data-private")).toBe(false);
+      expect(redacted.target.semantic.textContentPreview).toBe("[REDACTED:data-private]");
+      expect(redacted.privacyReport.redactions.some((r) => r.patternId === "data-private")).toBe(
+        true,
+      );
+    });
+
+    it("applies user-supplied redactionSelectors from a RedactionConfig", () => {
+      const inputs = makeInputs({
+        selection: makeSelection({
+          tagName: "input",
+          attributes: [
+            { name: "type", value: "text" },
+            { name: "name", value: "otp" },
+            { name: "value", value: "VC_OTP_CODE" },
+          ],
+        }),
+        redactionConfig: {
+          redactionSelectors: [
+            {
+              id: "custom-otp",
+              description: "internal OTP field",
+              match: { tagName: "input", attributes: { name: "otp" } },
+              action: "mask-value" as const,
+            },
+          ],
+        },
+      });
+      const json = renderJson(redactContext(compileContext(inputs)));
+      expect(json).not.toContain("VC_OTP_CODE");
+      expect(json).toContain("[REDACTED:custom-otp]");
+    });
+
+    it("redactContext applies selector masking on a raw context (defense-in-depth)", () => {
+      // A context that bypassed compile-time masking (e.g. parsed from store)
+      // still gets its password value masked at the redactContext chokepoint.
+      const raw = compileContext(
+        makeInputs({
+          selection: makeSelection({
+            tagName: "input",
+            attributes: [
+              { name: "type", value: "password" },
+              { name: "value", value: "VC_DEFENSE_IN_DEPTH" },
+            ],
+          }),
+        }),
+      );
+      // Simulate "no compile-time masking" by restoring the raw value.
+      const tampered: typeof raw = {
+        ...raw,
+        target: {
+          ...raw.target,
+          attributes: [
+            ...raw.target.attributes.map((a) =>
+              a.name === "value" ? { name: a.name, value: "VC_DEFENSE_IN_DEPTH" } : a,
+            ),
+          ],
+        },
+        privacyReport: { redactions: [], totalRedacted: 0 },
+      };
+      const redacted = redactContext(tampered);
+      expect(renderJson(redacted)).not.toContain("VC_DEFENSE_IN_DEPTH");
+      expect(redacted.privacyReport.redactions.some((r) => r.patternId === "password-input")).toBe(
+        true,
+      );
+    });
+
+    it("enforces the default-deny posture: no storage/cookie/auth fields exist on the schema", () => {
+      const schemaKeys = Object.keys(CompiledContextSchema.shape);
+      const forbidden = schemaKeys.filter((key) =>
+        /localStorage|sessionStorage|cookie|authorization/i.test(key),
+      );
+      expect(forbidden).toEqual([]);
     });
   });
 

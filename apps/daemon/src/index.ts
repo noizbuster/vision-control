@@ -263,6 +263,10 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       connectionDispatch,
       originConfig,
       logger,
+      ...(config?.redaction.redactionSelectors !== undefined &&
+      config.redaction.redactionSelectors.length > 0
+        ? { redactionConfig: { redactionSelectors: config.redaction.redactionSelectors } }
+        : {}),
       ...(resolvedMcpPort !== undefined ? { mcpPort: resolvedMcpPort } : {}),
       onReady: (info) => {
         activeSessionId = info.sessionId;

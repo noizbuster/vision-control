@@ -39,3 +39,4 @@ export {
   SECRET_ENTROPY_THRESHOLD,
   shannonEntropy,
 } from "./secret-detection.js";
+export * from "./share-bundles/index.js";

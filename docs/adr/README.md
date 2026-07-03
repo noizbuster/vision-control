@@ -22,7 +22,7 @@ section names any supersedes relationship.
 - [ADR-009: Privacy redaction policy](./ADR-009-privacy-redaction.md)
 - [ADR-010: Read-only MCP and no source mutation](./ADR-010-readonly-mcp.md)
 
-## V1/V2 policy gates (ADR-011 to ADR-017)
+## V1/V2 policy gates (ADR-011 to ADR-018)
 
 These ADRs reconcile the policy docs before V1/V2 feature work begins. They
 extend, never weaken, the MVP guardrails above.
@@ -34,3 +34,4 @@ extend, never weaken, the MVP guardrails above.
 - [ADR-015: Share bundles and collaboration trust model](./ADR-015-share-bundles-collaboration-trust.md) - local export/import by default; remote collaboration deferred.
 - [ADR-016: Firefox support level](./ADR-016-firefox-support-level.md) - parity scope, manifest differences, no mandatory debugger, no broad host permissions.
 - [ADR-017: Accessibility repair scope](./ADR-017-accessibility-repair-scope.md) - advisory suggestions only, backed by verification assertions, never auto-mutation.
+- [ADR-018: Remote real-time collaboration deferred](./ADR-018-remote-collaboration-deferred.md) - no remote collaboration until a trust-model ADR approves identity, revocation, encryption, and transport.

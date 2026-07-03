@@ -22,7 +22,8 @@
     "@vision-control/context-compiler": "workspace:*",
     "@vision-control/daemon-client": "workspace:*",
     "@vision-control/mcp-server": "workspace:*",
-    "@vision-control/security": "workspace:*"
+    "@vision-control/security": "workspace:*",
+    "@vision-control/source-resolver": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

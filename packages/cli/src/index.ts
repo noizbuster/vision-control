@@ -10,6 +10,19 @@
 
 export const PACKAGE_NAME = "@vision-control/cli";
 
+export {
+  type ApplyOptions,
+  type ApplyResult,
+  applySuggestion,
+  type VerificationResult,
+} from "./codemod/apply-suggestion.js";
+export { loadSuggestion, runCodemodApply, runCodemodPreview } from "./codemod/commands.js";
+export {
+  type DiffPreview,
+  type DiffPreviewLine,
+  formatDiffPreview,
+  renderDiffPreview,
+} from "./codemod/diff-preview.js";
 export { type CliContext, createContext } from "./context.js";
 
 export const HELP_TEXT = `Vision Control CLI — visual editing context for coding agents.
@@ -27,6 +40,10 @@ Commands:
   changes current        Show the current changeset.
   verify current         Request verification of the current changeset.
   preview clear          Clear all runtime preview mutations.
+  share export           Export a redacted, signed session bundle to a local file.
+    --out <path>         Output file path (required).
+    --include-screenshots  Include screenshot metadata only (default: excluded).
+  share import <path>    Import + verify a local session bundle.
   doctor                 Run health checks.
   help, --help, -h       Show this help.
 
@@ -58,6 +75,11 @@ export function parseFormat(args: readonly string[]): "json" | "markdown" {
   return "json";
 }
 
+/** Detect the --confirm flag in args (used by `codemod apply`). */
+export function hasConfirm(args: readonly string[]): boolean {
+  return args.includes("--confirm");
+}
+
 /**
  * Main CLI entry point. Parses argv, dispatches to the right handler.
  * Returns a process exit code.
@@ -87,6 +109,10 @@ export async function runCli(argv: readonly string[]): Promise<number> {
       return runVerify(rest, ctx);
     case "preview":
       return runPreview(rest, ctx);
+    case "share":
+      return runShare(rest, ctx);
+    case "codemod":
+      return runCodemod(rest, ctx);
     case "doctor":
       return runDoctor(ctx);
     default:
@@ -150,12 +176,38 @@ async function runPreview(
   return runPreviewClear(ctx);
 }
 
+async function runCodemod(
+  rest: readonly string[],
+  ctx: ReturnType<typeof createContext>,
+): Promise<number> {
+  const subcommand = rest[0];
+  const suggestionId = rest[1];
+  if (suggestionId === undefined) {
+    process.stderr.write(
+      "usage: vision-control codemod <preview|apply> <suggestion-id> [--confirm]\n",
+    );
+    return 1;
+  }
+  if (subcommand === "preview") {
+    return runCodemodPreview(suggestionId);
+  }
+  if (subcommand === "apply") {
+    return runCodemodApply(suggestionId, hasConfirm(rest), ctx);
+  }
+  process.stderr.write(
+    `unknown codemod subcommand: ${subcommand ?? "(none)"}\nusage: vision-control codemod <preview|apply> <suggestion-id> [--confirm]\n`,
+  );
+  return 1;
+}
+
+import { runCodemodApply, runCodemodPreview } from "./codemod/commands.js";
 import { runChangesCurrent } from "./commands/changes.js";
 import { runContextCurrent } from "./commands/context.js";
 import { runDaemon } from "./commands/daemon.js";
 import { runDoctor } from "./commands/doctor.js";
 import { runPreviewClear } from "./commands/preview.js";
 import { runSessionsList } from "./commands/sessions.js";
+import { runShare } from "./commands/share.js";
 import { runStatus } from "./commands/status.js";
 import { runVerifyCurrent } from "./commands/verify.js";
 // Import dependencies at the bottom to keep the public API section clean.

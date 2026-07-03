@@ -26,6 +26,7 @@ export {
   type MergeConflict,
   type MergeResult,
   mergeChangeSets,
+  mergeOperations,
   type SupersedeResult,
   supersedeChangeSet,
 } from "./merge.js";

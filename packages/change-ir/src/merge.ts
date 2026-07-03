@@ -15,13 +15,14 @@ export type MergeResult =
 /**
  * Signature of the logical "slot" an operation edits. Two operations with the
  * same signature touch the same element property / structural slot and
- * conflict unless one is the documented inverse of the other. Returns
- * `undefined` for operations that cannot meaningfully conflict (none in the
- * MVP union, but the escape hatch keeps the function total).
+ * conflict unless one is a documented inverse of the other (structural or
+ * `inverseOf`-linked). Returns `undefined` for operations that cannot
+ * meaningfully conflict (metadata markers, group-spanning ops).
  */
 const conflictSignature = (op: Operation): string | undefined => {
   switch (op.kind) {
     case "style-edit":
+    case "remove-style":
       return `style:${op.target.runtimeId}:${op.property}`;
     case "text-edit":
       return `text:${op.target.runtimeId}`;
@@ -30,6 +31,10 @@ const conflictSignature = (op: Operation): string | undefined => {
       return `class:${op.target.runtimeId}:${op.className}`;
     case "class-replace":
       return `class:${op.target.runtimeId}:${op.oldClassName}`;
+    case "set-attribute":
+      return `attribute:${op.target.runtimeId}:${op.name}`;
+    case "position-element":
+      return `position:${op.target.runtimeId}:${op.property}`;
     case "resize-element":
       return `resize:${op.element.runtimeId}:${op.property}`;
     case "reorder-child":
@@ -54,6 +59,16 @@ const conflictSignature = (op: Operation): string | undefined => {
       return `group-reorder:${op.parent.runtimeId}`;
     case "group-reparent":
       return `group-reparent:${op.elements[0]?.runtimeId ?? ""}`;
+    case "insert-element":
+      return `structural-element:${op.element.runtimeId}`;
+    case "remove-element":
+      return `structural-element:${op.element.runtimeId}`;
+    case "duplicate-element":
+      return `structural-element:${op.duplicate.runtimeId}`;
+    case "wrap-elements":
+      return `structural-wrapper:${op.wrapper.runtimeId}`;
+    case "unwrap-element":
+      return `structural-wrapper:${op.wrapper.runtimeId}`;
     default:
       // multi-select-group, align-elements, distribute-elements,
       // screenshot-crop-ref, and suggested-diff are metadata/no-op markers or
@@ -67,26 +82,94 @@ const isInversePair = (a: Operation, b: Operation): boolean =>
   (a.inverseOf !== undefined && a.inverseOf === b.id);
 
 /**
+ * Two operations are structural inverses when they target the same element and
+ * one undoes the other by construction: Insert↔Remove (same element),
+ * Duplicate→Remove (of the copy), Wrap↔Unwrap (same wrapper). Unlike the
+ * `inverseOf` link — which ties a {@link computeInverse} result to its source —
+ * structural inverses are matched by target identity, so two independently
+ * authored changesets can still cancel without a prior linking step.
+ */
+const structuralInversePair = (a: Operation, b: Operation): boolean => {
+  if (a.kind === "insert-element" && b.kind === "remove-element") {
+    return a.element.runtimeId === b.element.runtimeId;
+  }
+  if (a.kind === "remove-element" && b.kind === "insert-element") {
+    return a.element.runtimeId === b.element.runtimeId;
+  }
+  if (a.kind === "duplicate-element" && b.kind === "remove-element") {
+    return a.duplicate.runtimeId === b.element.runtimeId;
+  }
+  if (a.kind === "remove-element" && b.kind === "duplicate-element") {
+    return a.element.runtimeId === b.duplicate.runtimeId;
+  }
+  if (a.kind === "wrap-elements" && b.kind === "unwrap-element") {
+    return a.wrapper.runtimeId === b.wrapper.runtimeId;
+  }
+  if (a.kind === "unwrap-element" && b.kind === "wrap-elements") {
+    return a.wrapper.runtimeId === b.wrapper.runtimeId;
+  }
+  return false;
+};
+
+/**
+ * Cancel structural inverse pairs in a flat operation stream. When an
+ * Insert+Remove, Duplicate+Remove, or Wrap+Unwrap target the same element,
+ * both ops are dropped — their net effect is nil. Unmatched operations are
+ * preserved in their original order; an op leaves the stream only because a
+ * documented inverse cancelled it, never silently.
+ */
+export const mergeOperations = (operations: readonly Operation[]): Operation[] => {
+  const cancelled = new Set<number>();
+  for (let i = 0; i < operations.length; i++) {
+    if (cancelled.has(i)) continue;
+    const a = operations[i];
+    if (a === undefined) continue;
+    for (let j = i + 1; j < operations.length; j++) {
+      if (cancelled.has(j)) continue;
+      const b = operations[j];
+      if (b === undefined) continue;
+      if (structuralInversePair(a, b)) {
+        cancelled.add(i);
+        cancelled.add(j);
+        break;
+      }
+    }
+  }
+  return operations.filter((_, index) => !cancelled.has(index));
+};
+
+/**
  * Merge two changesets into a new uncommitted one. Fails (returns conflicts)
  * when both sets edit the same element + property/slot without one being the
- * inverse of the other. Inverse pairs are allowed through (they cancel out).
+ * inverse of the other. Structural inverse pairs (Insert+Remove, Duplicate+
+ * Remove, Wrap+Unwrap on the same target) and `inverseOf`-linked pairs are
+ * allowed through; structural pairs are then cancelled out of the result by
+ * {@link mergeOperations} so the merged set carries only the net effect.
  */
 export const mergeChangeSets = (a: ChangeSet, b: ChangeSet): MergeResult => {
-  const sigsA = new Map<string, Operation>();
+  const sigsA = new Map<string, Operation[]>();
   for (const op of a.operations) {
     const sig = conflictSignature(op);
-    if (sig !== undefined) sigsA.set(sig, op);
+    if (sig === undefined) continue;
+    const bucket = sigsA.get(sig);
+    if (bucket === undefined) sigsA.set(sig, [op]);
+    else bucket.push(op);
   }
   const conflicts: MergeConflict[] = [];
   for (const opB of b.operations) {
     const sig = conflictSignature(opB);
     if (sig === undefined) continue;
-    const opA = sigsA.get(sig);
-    if (opA === undefined) continue;
-    if (!isInversePair(opA, opB)) {
+    const opAs = sigsA.get(sig);
+    if (opAs === undefined) continue;
+    const allowsThrough = opAs.some(
+      (opA) => structuralInversePair(opA, opB) || isInversePair(opA, opB),
+    );
+    if (!allowsThrough) {
+      const counterpart = opAs[0];
+      if (counterpart === undefined) continue;
       conflicts.push({
         reason: `Conflicting edit on "${sig}" present in both changesets without an inverse`,
-        operationIds: [opA.id, opB.id],
+        operationIds: [counterpart.id, opB.id],
       });
     }
   }
@@ -104,7 +187,7 @@ export const mergeChangeSets = (a: ChangeSet, b: ChangeSet): MergeResult => {
       createdAt: now,
       updatedAt: now,
       selectedTargets: [...a.selectedTargets, ...b.selectedTargets],
-      operations: [...a.operations, ...b.operations],
+      operations: mergeOperations([...a.operations, ...b.operations]),
       sourceResolutions: [],
       verificationPlan: DEFAULT_VERIFICATION_PLAN,
       privacyReport: DEFAULT_PRIVACY_REPORT,

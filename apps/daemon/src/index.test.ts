@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PROTOCOL_VERSION, parseMessage } from "@vision-control/protocol";
 import { describe, expect, it } from "vitest";
 import { loadConfig, type VisionControlConfig } from "./config-loader.js";
 import { DEFAULT_HOST, HELP_TEXT, parseArgs } from "./index.js";
@@ -69,5 +70,65 @@ describe("loadConfig", () => {
       | { success: false; reason: string };
     expect((result as { success: boolean }).success).toBe(false);
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("daemon V1 context pass-through (VC-V1V2-16)", () => {
+  it("protocol version is 1.1.0 (V1-capable)", () => {
+    expect(PROTOCOL_VERSION).toBe("1.1.0");
+  });
+
+  it("a session-event with a V1 context payload parses successfully", () => {
+    const v1Payload = {
+      type: "session-event",
+      payload: {
+        kind: "source-context",
+        context: {
+          goal: "Multi-select Auto Layout edit",
+          multiSelect: {
+            groupId: "grp-daemon-v1-0001",
+            targets: [{ runtimeId: "rt-a", selectors: [".a"] }],
+          },
+          breakpoint: { activeViewport: "tablet", scopedChangeCount: 2 },
+          sourceConfidenceDetail: { method: "marker", reasons: [], warnings: [] },
+          suggestedDiffs: [{ diff: "-gap-2\n+gap-4", confidence: "high", preconditions: [] }],
+          layoutContext: { gridColumns: 12 },
+          adapterWarnings: [{ code: "dyn", message: "dynamic", severity: "warning" }],
+          screenshotRef: {
+            artifactId: "shot-1",
+            redactionSummary: { totalMasked: 1, postCaptureRecheck: "pass" },
+          },
+        },
+      },
+    };
+    const result = parseMessage(v1Payload);
+    expect(result.success).toBe(true);
+  });
+
+  it("a session-event payload with V1 operation summaries is not stripped", () => {
+    const message = {
+      type: "session-event",
+      payload: {
+        operations: [
+          { kind: "multi-select-group", groupId: "g1", targetCount: 3 },
+          { kind: "breakpoint-style-edit", breakpoint: "md" },
+          { kind: "grid-reorder", placement: "dom-order" },
+          { kind: "screenshot-crop-ref", artifactId: "shot-1" },
+          { kind: "suggested-diff", suggestedDiff: "-a\n+b" },
+        ],
+      },
+    };
+    const result = parseMessage(message);
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "session-event") {
+      const payload = result.data.payload as { operations: { kind: string }[] };
+      expect(payload.operations).toHaveLength(5);
+      const kinds = payload.operations.map((op) => op.kind);
+      expect(kinds).toContain("multi-select-group");
+      expect(kinds).toContain("breakpoint-style-edit");
+      expect(kinds).toContain("grid-reorder");
+      expect(kinds).toContain("screenshot-crop-ref");
+      expect(kinds).toContain("suggested-diff");
+    }
   });
 });

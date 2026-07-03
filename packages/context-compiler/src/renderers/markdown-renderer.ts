@@ -23,8 +23,17 @@ export const renderMarkdown = (context: CompiledContext): string => {
   renderOperations(context, lines);
   renderSource(context, lines);
   renderLayout(context, lines);
+  renderMultiSelect(context, lines);
+  renderBreakpoint(context, lines);
+  renderSourceConfidenceDetail(context, lines);
+  renderLayoutContext(context, lines);
+  renderSuggestedDiffs(context, lines);
+  renderScreenshotRef(context, lines);
+  renderTokenRegistry(context, lines);
+  renderComponentProps(context, lines);
   renderVerificationPlan(context, lines);
   renderWarnings(context, lines);
+  renderAdapterWarnings(context, lines);
   renderPrivacyReport(context, lines);
   renderMetadata(context, lines);
 
@@ -143,6 +152,138 @@ const renderLayout = (context: CompiledContext, lines: string[]): void => {
     lines.push(`- **Flex direction:** ${layout.parentFlexDirection}`);
   }
   lines.push(`- **Siblings:** ${layout.siblingCount} (this is #${layout.siblingIndex})`);
+};
+
+const renderMultiSelect = (context: CompiledContext, lines: string[]): void => {
+  if (context.multiSelect === undefined) return;
+  heading(lines, "Multi-Select Group");
+  lines.push(`- **Group ID:** \`${context.multiSelect.groupId}\``);
+  lines.push(`- **Targets:** ${context.multiSelect.targets.length}`);
+  for (const target of context.multiSelect.targets) {
+    const parts: string[] = [];
+    if (target.sourceId !== undefined) parts.push(`source \`${target.sourceId}\``);
+    if (target.runtimeId !== undefined) parts.push(`runtime \`${target.runtimeId}\``);
+    if (target.fingerprint !== undefined) parts.push(`fingerprint \`${target.fingerprint}\``);
+    lines.push(`  - ${parts.length > 0 ? parts.join(", ") : "(no identity)"}`);
+  }
+};
+
+const renderBreakpoint = (context: CompiledContext, lines: string[]): void => {
+  if (context.breakpoint === undefined) return;
+  heading(lines, "Breakpoint Context");
+  const bp = context.breakpoint;
+  lines.push(`- **Active viewport:** ${bp.activeViewport}`);
+  if (bp.mediaQuerySource !== undefined)
+    lines.push(`- **Media query:** \`${bp.mediaQuerySource}\``);
+  if (bp.responsivePrefix !== undefined)
+    lines.push(`- **Responsive prefix:** ${bp.responsivePrefix}`);
+  if (bp.scopedChangeCount !== undefined) {
+    lines.push(`- **Scoped changes:** ${bp.scopedChangeCount}`);
+  }
+};
+
+const renderSourceConfidenceDetail = (context: CompiledContext, lines: string[]): void => {
+  if (context.sourceConfidenceDetail === undefined) return;
+  heading(lines, "Source Confidence Detail");
+  const detail = context.sourceConfidenceDetail;
+  lines.push(`- **Method:** ${detail.method}`);
+  if (detail.reasons.length > 0) {
+    lines.push(`- **Reasons:** ${detail.reasons.join("; ")}`);
+  }
+  if (detail.warnings.length > 0) {
+    lines.push(`- **Warnings:** ${detail.warnings.join("; ")}`);
+  }
+};
+
+const renderLayoutContext = (context: CompiledContext, lines: string[]): void => {
+  if (context.layoutContext === undefined) return;
+  heading(lines, "Layout Context (Grid / Auto Layout)");
+  const lc = context.layoutContext;
+  if (lc.gridColumns !== undefined) lines.push(`- **Grid columns:** ${lc.gridColumns}`);
+  if (lc.gridRows !== undefined) lines.push(`- **Grid rows:** ${lc.gridRows}`);
+  if (lc.autoLayout !== undefined) lines.push(`- **Auto Layout:** ${lc.autoLayout}`);
+};
+
+const renderSuggestedDiffs = (context: CompiledContext, lines: string[]): void => {
+  if (context.suggestedDiffs === undefined || context.suggestedDiffs.length === 0) return;
+  heading(lines, "Suggested Diffs (Inert \u2014 ADR-012)");
+  lines.push("_Candidate data only. Never applied by the runtime or MCP._", "");
+  for (const [i, suggestion] of context.suggestedDiffs.entries()) {
+    lines.push(`### Suggestion ${i + 1} \u2014 ${suggestion.confidence}`, "");
+    lines.push(`- **Confidence:** ${suggestion.confidence}`);
+    if (suggestion.kind !== undefined) lines.push(`- **Kind:** \`${suggestion.kind}\``);
+    if (suggestion.sourceRanges !== undefined && suggestion.sourceRanges.length > 0) {
+      const ranges = suggestion.sourceRanges
+        .map((r) => `L${r.startLine}:${r.startColumn}-${r.endLine}:${r.endColumn}`)
+        .join(", ");
+      lines.push(`- **Source ranges:** ${ranges}`);
+    }
+    if (suggestion.preconditions.length > 0) {
+      lines.push(`- **Preconditions:** ${suggestion.preconditions.join("; ")}`);
+    }
+    lines.push("", "```diff", suggestion.diff, "```", "");
+  }
+};
+
+const renderScreenshotRef = (context: CompiledContext, lines: string[]): void => {
+  if (context.screenshotRef === undefined) return;
+  heading(lines, "Screenshot Reference (Opt-In \u2014 ADR-011)");
+  const ref = context.screenshotRef;
+  lines.push(`- **Artifact ID:** \`${ref.artifactId}\``);
+  if (ref.redactionReport !== undefined) {
+    lines.push(`- **Redaction report:** \`${ref.redactionReport}\``);
+  }
+  if (ref.redactionSummary !== undefined) {
+    lines.push(
+      `- **Redaction summary:** ${ref.redactionSummary.totalMasked} masked, recheck: ${ref.redactionSummary.postCaptureRecheck}`,
+    );
+  }
+  lines.push("", "_Metadata reference only. No image data is exported._");
+};
+
+const renderTokenRegistry = (context: CompiledContext, lines: string[]): void => {
+  if (context.tokenRegistry === undefined) return;
+  heading(lines, "Token Registry");
+  const tr = context.tokenRegistry;
+  lines.push(`- **Total tokens:** ${tr.totalTokens}`);
+  if (tr.conflictCount > 0) {
+    lines.push(`- **Conflicts:** ${tr.conflictCount}`);
+  }
+  if (tr.sources.length > 0) {
+    lines.push(`- **Sources:** ${tr.sources.join(", ")}`);
+  }
+  const categories = Object.entries(tr.categories);
+  if (categories.length > 0) {
+    lines.push("", "**Categories:**", "");
+    for (const [category, count] of categories) lines.push(`- ${category}: ${count}`);
+  }
+};
+
+const renderComponentProps = (context: CompiledContext, lines: string[]): void => {
+  if (context.componentProps === undefined) return;
+  heading(lines, "Component Props");
+  const cp = context.componentProps;
+  lines.push(`- **Component:** ${cp.componentName}`);
+  lines.push(`- **Framework:** ${cp.framework}`);
+  lines.push(`- **Ownership risk:** ${cp.ownershipRisk}`);
+  if (cp.warnings.length > 0) {
+    lines.push(`- **Warnings:** ${cp.warnings.join("; ")}`);
+  }
+  if (cp.props.length > 0) {
+    lines.push("", "**Props:**", "");
+    lines.push("| Name | Kind | Editable | Value |", "| --- | --- | --- | --- |");
+    for (const prop of cp.props) {
+      const value = prop.value ?? "—";
+      const editable = prop.editable ? "yes" : "no";
+      lines.push(`| ${prop.name} | ${prop.kind} | ${editable} | ${escapeCell(value)} |`);
+    }
+  }
+};
+
+const renderAdapterWarnings = (context: CompiledContext, lines: string[]): void => {
+  if (context.adapterWarnings === undefined || context.adapterWarnings.length === 0) return;
+  heading(lines, "Adapter Warnings");
+  for (const warning of context.adapterWarnings) lines.push(formatWarning(warning));
 };
 
 const renderVerificationPlan = (context: CompiledContext, lines: string[]): void => {

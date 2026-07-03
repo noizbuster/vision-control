@@ -13,18 +13,27 @@
  * before rendering" rule a single chokepoint.
  */
 
-import type { ChangeSet } from "@vision-control/change-ir";
+import type { BreakpointOperation, ChangeSet } from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import type { SourceCandidate } from "@vision-control/source-resolver";
 
 import {
+  type BreakpointContext,
   CONTEXT_FORMAT_VERSION,
   type CompiledContext,
+  type ComponentPropsSummary,
   DEFAULT_TOKEN_BUDGET,
+  type LayoutContextSummary,
+  type MultiSelectSummary,
+  type ScreenshotRedactionSummary,
+  type ScreenshotRefSummary,
   type SourceCandidateSummary,
+  type SourceConfidenceDetail,
   type SourceSummary,
   STUB_VERIFICATION_PLAN,
+  type SuggestedDiffSummary,
   type TargetSummary,
+  type TokenRegistrySummary,
   type Warning,
 } from "./context-schema.js";
 import { summarizeOperation } from "./operation-summary.js";
@@ -46,6 +55,30 @@ export interface CompileContextInputs {
   readonly tokenBudget?: number;
   /** Epoch-ms compilation timestamp (default `Date.now()`). */
   readonly compiledAt?: number;
+  /** V1: the multi-selection group in scope (absent for single-element edits). */
+  readonly multiSelect?: MultiSelectSummary;
+  /** V1: the active responsive breakpoint context. */
+  readonly breakpoint?: BreakpointContext;
+  /** V1: detail behind the source-confidence level. */
+  readonly sourceConfidenceDetail?: SourceConfidenceDetail;
+  /** V1 (opt-in only): screenshot artifact metadata ref. Never image bytes. */
+  readonly screenshotRef?: ScreenshotRefSummary;
+  /**
+   * V1 (ADR-011): explicit opt-in gate for screenshot metadata. Must be `true`
+   * for `screenshotRef` to be emitted. Without it, `screenshotRef` is dropped
+   * even if a caller supplied one — the misleading-success-output defense.
+   */
+  readonly screenshotOptIn?: boolean;
+  /** V1 (inert): deterministic patch suggestions surfaced as candidate data. */
+  readonly suggestedDiffs?: readonly SuggestedDiffSummary[];
+  /** V1: grid / auto-layout context. */
+  readonly layoutContext?: LayoutContextSummary;
+  /** V1: warnings emitted by styling/framework source adapters. */
+  readonly adapterWarnings?: readonly Warning[];
+  /** V1 (VC-V1V2-18): design-token registry summary for agent context. */
+  readonly tokenRegistry?: TokenRegistrySummary;
+  /** V1 (VC-V1V2-21): discovered component props for prop-editing context. */
+  readonly componentProps?: ComponentPropsSummary;
 }
 
 /**
@@ -78,6 +111,23 @@ export const compileContext = (inputs: CompileContextInputs): CompiledContext =>
       truncatedSections: [],
       operationCount: operations.length,
     },
+    ...(inputs.multiSelect !== undefined ? { multiSelect: inputs.multiSelect } : {}),
+    ...(resolveBreakpoint(inputs.breakpoint, inputs.changeset) ?? {}),
+    ...(inputs.sourceConfidenceDetail !== undefined
+      ? { sourceConfidenceDetail: inputs.sourceConfidenceDetail }
+      : {}),
+    ...(inputs.screenshotOptIn === true && inputs.screenshotRef !== undefined
+      ? { screenshotRef: projectScreenshotRef(inputs.screenshotRef) }
+      : {}),
+    ...(inputs.suggestedDiffs !== undefined
+      ? { suggestedDiffs: inputs.suggestedDiffs.map(projectSuggestedDiff) }
+      : {}),
+    ...(inputs.layoutContext !== undefined ? { layoutContext: inputs.layoutContext } : {}),
+    ...(inputs.adapterWarnings !== undefined
+      ? { adapterWarnings: [...inputs.adapterWarnings] }
+      : {}),
+    ...(inputs.tokenRegistry !== undefined ? { tokenRegistry: inputs.tokenRegistry } : {}),
+    ...(inputs.componentProps !== undefined ? { componentProps: inputs.componentProps } : {}),
   };
   const estimated: CompiledContext = {
     ...base,
@@ -198,3 +248,90 @@ const projectLayout = (selection: SelectionSummary): CompiledContext["layout"] =
   siblingCount: selection.siblingSummary.count,
   siblingIndex: selection.siblingSummary.index,
 });
+
+/**
+ * Project one inert deterministic patch suggestion into the compiled context
+ * (VC-V1V2-14 / ADR-012). The suggestion is DATA only — the compiler emits it
+ * unchanged (minus undefined optional fields) and never applies it. The richer
+ * `kind`/`sourceRanges` fields flow through when the source-resolver generator
+ * produced them; a Task-3 baseline summary (diff/confidence/preconditions only)
+ * still projects cleanly.
+ */
+const projectSuggestedDiff = (suggestion: SuggestedDiffSummary): SuggestedDiffSummary => ({
+  diff: suggestion.diff,
+  confidence: suggestion.confidence,
+  preconditions: [...suggestion.preconditions],
+  ...(suggestion.kind !== undefined ? { kind: suggestion.kind } : {}),
+  ...(suggestion.sourceRanges !== undefined ? { sourceRanges: [...suggestion.sourceRanges] } : {}),
+});
+
+/**
+ * Project an opt-in screenshot metadata ref (ADR-011). Carries only the artifact
+ * id + redaction report/summary — never image bytes. Only reached when the
+ * caller explicitly opted in (`screenshotOptIn === true`).
+ */
+const projectScreenshotRef = (ref: ScreenshotRefSummary): ScreenshotRefSummary => ({
+  artifactId: ref.artifactId,
+  ...(ref.redactionReport !== undefined ? { redactionReport: ref.redactionReport } : {}),
+  ...(ref.redactionSummary !== undefined
+    ? { redactionSummary: projectRedactionSummary(ref.redactionSummary) }
+    : {}),
+});
+
+const projectRedactionSummary = (
+  summary: ScreenshotRedactionSummary,
+): ScreenshotRedactionSummary => ({
+  totalMasked: summary.totalMasked,
+  postCaptureRecheck: summary.postCaptureRecheck,
+});
+
+/**
+ * Resolve the breakpoint context to emit (VC-V1V2-10). When the caller supplies
+ * an explicit breakpoint context, it wins (enriched with a scoped change count
+ * derived from the changeset). Otherwise, when the changeset contains
+ * breakpoint-scoped operations, the context is derived from the first such op:
+ * its `activeViewport`/`responsivePrefix` fall back to the breakpoint
+ * identifier, and `mediaSource` maps to `mediaQuerySource`. When neither holds,
+ * no breakpoint context is emitted.
+ */
+const resolveBreakpoint = (
+  explicit: BreakpointContext | undefined,
+  changeset: ChangeSet,
+): { breakpoint: BreakpointContext } | undefined => {
+  const scopedCount = countBreakpointOps(changeset);
+  if (explicit !== undefined) {
+    const enriched: BreakpointContext =
+      explicit.scopedChangeCount !== undefined
+        ? explicit
+        : { ...explicit, scopedChangeCount: scopedCount };
+    return { breakpoint: enriched };
+  }
+  const first = firstBreakpointOp(changeset);
+  if (first === undefined) return undefined;
+  const derived: BreakpointContext = {
+    activeViewport: first.activeViewport ?? first.breakpoint,
+    ...(first.mediaSource !== undefined ? { mediaQuerySource: first.mediaSource } : {}),
+    responsivePrefix: first.responsivePrefix ?? first.breakpoint,
+    scopedChangeCount: scopedCount,
+  };
+  return { breakpoint: derived };
+};
+
+const BREAKPOINT_KINDS = new Set([
+  "breakpoint-style-edit",
+  "breakpoint-class-edit",
+  "breakpoint-text-edit",
+]);
+
+const isBreakpointOp = (op: ChangeSet["operations"][number]): op is BreakpointOperation =>
+  BREAKPOINT_KINDS.has(op.kind);
+
+const countBreakpointOps = (changeset: ChangeSet): number =>
+  changeset.operations.reduce((n, op) => n + (BREAKPOINT_KINDS.has(op.kind) ? 1 : 0), 0);
+
+const firstBreakpointOp = (changeset: ChangeSet): BreakpointOperation | undefined => {
+  for (const op of changeset.operations) {
+    if (isBreakpointOp(op)) return op;
+  }
+  return undefined;
+};

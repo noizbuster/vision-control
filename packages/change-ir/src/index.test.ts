@@ -1,3 +1,4 @@
+import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -16,6 +17,7 @@ import {
   supersedeChangeSet,
 } from "./index.js";
 import type { ReorderChildOperation, StyleEditOperation } from "./operations/index.js";
+import { arbByKind, arbChangeSet, arbOperation } from "./property-arbitraries.test.js";
 
 const BASE_TIME = 1_700_000_000_000;
 
@@ -544,5 +546,254 @@ describe("migrateChangeset_1_to_2", () => {
       operations: [{ kind: "style-edit", id: "x" }],
     };
     expect(() => migrateChangeset_1_to_2(malformedV1)).toThrow();
+  });
+});
+
+// PRD §31.2 — property-based tests (fast-check). AUGMENT the fixed-example
+// unit tests above; none are removed. Each property runs 100+ generated cases.
+// Generators live in `property-arbitraries.test.ts`.
+
+describe("PRD §31.2 property: computeInverse invariants (every kind)", () => {
+  // ∀op: inverse is schema-valid, links back via inverseOf, preserves runtime + origin.
+  it("∀op: computeInverse(op) is schema-valid, inverseOf===op.id, runtime+origin preserved", () => {
+    fc.assert(
+      fc.property(arbOperation, (op) => {
+        const inv = computeInverse(op);
+        expect(OperationSchema.safeParse(inv).success).toBe(true);
+        expect(inv.id).not.toBe(op.id);
+        expect(inv.inverseOf).toBe(op.id);
+        expect(inv.runtime).toBe(op.runtime);
+        expect(inv.origin).toBe(op.origin);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  // Per-kind coverage: each of the 30 kinds independently produces a valid
+  // inverse across 100 generated instances (no kind starved by the uniform mixer).
+  it.each(
+    Object.keys(arbByKind) as readonly (keyof typeof arbByKind)[],
+  )("∀op (%s): inverse is schema-valid and links back", (kind) => {
+    fc.assert(
+      fc.property(arbByKind[kind], (op) => {
+        const inv = computeInverse(op);
+        expect(OperationSchema.safeParse(inv).success).toBe(true);
+        expect(inv.inverseOf).toBe(op.id);
+      }),
+      { numRuns: 100 },
+    );
+  });
+});
+
+describe("PRD §31.2 property: operation + inverse = original state", () => {
+  // A minimal DOM-like state for the single-element value kinds. The structural
+  // kinds (group/grid/insert/remove/wrap/unwrap/breakpoint/screenshot/suggested)
+  // are covered by the schema-valid inverse property above; here we prove the
+  // literal "apply then undo restores state" for the kinds with a clean model.
+  interface StateModel {
+    readonly styles: Readonly<Record<string, string>>;
+    readonly classes: readonly string[];
+    readonly text: string;
+    readonly attrs: Readonly<Record<string, string>>;
+    readonly position: string;
+  }
+
+  /** Build the initial state from an op's captured previous values so the
+   *  forward edit starts from the value the journal snapshotted. */
+  const initialState = (op: Operation): StateModel => {
+    const empty: StateModel = { styles: {}, classes: [], text: "", attrs: {}, position: "" };
+    switch (op.kind) {
+      case "style-edit":
+      case "remove-style":
+        return { ...empty, styles: { [op.property]: op.previousValue ?? "" } };
+      case "set-attribute":
+        return { ...empty, attrs: { [op.name]: op.previousValue ?? "" } };
+      case "text-edit":
+        return { ...empty, text: op.previousText ?? "" };
+      case "resize-element":
+        return { ...empty, styles: { [op.property]: op.fromValue } };
+      case "position-element":
+        return { ...empty, position: op.fromValue };
+      case "class-add":
+        return empty;
+      case "class-remove":
+        return { ...empty, classes: [op.className] };
+      case "class-replace":
+        return { ...empty, classes: [op.oldClassName] };
+      default:
+        return empty;
+    }
+  };
+
+  /** Apply an operation (or its computed inverse) to the state model. Closed
+   *  under computeInverse for the value kinds: class-add↔remove and
+   *  remove-style→style-edit stay inside this switch. */
+  const apply = (s: StateModel, op: Operation): StateModel => {
+    switch (op.kind) {
+      case "style-edit":
+        return { ...s, styles: { ...s.styles, [op.property]: op.value } };
+      case "remove-style": {
+        const rest = { ...s.styles };
+        delete rest[op.property];
+        return { ...s, styles: rest };
+      }
+      case "class-add":
+        return { ...s, classes: [...new Set([...s.classes, op.className])].sort() };
+      case "class-remove":
+        return { ...s, classes: s.classes.filter((c) => c !== op.className) };
+      case "class-replace":
+        return {
+          ...s,
+          classes: [
+            ...new Set([...s.classes.filter((c) => c !== op.oldClassName), op.newClassName]),
+          ].sort(),
+        };
+      case "set-attribute":
+        return { ...s, attrs: { ...s.attrs, [op.name]: op.value } };
+      case "text-edit":
+        return { ...s, text: op.newText };
+      case "resize-element":
+        return { ...s, styles: { ...s.styles, [op.property]: op.toValue } };
+      case "position-element":
+        return { ...s, position: op.toValue };
+      default:
+        return s;
+    }
+  };
+
+  const statefulKinds = [
+    "style-edit",
+    "remove-style",
+    "class-add",
+    "class-remove",
+    "class-replace",
+    "set-attribute",
+    "text-edit",
+    "resize-element",
+    "position-element",
+  ] as const;
+
+  it.each(
+    statefulKinds,
+  )("∀op (%s): apply(op) then apply(inverse(op)) restores the original state", (kind) => {
+    fc.assert(
+      fc.property(arbByKind[kind], (op) => {
+        const initial = initialState(op);
+        const afterForward = apply(initial, op);
+        const afterUndo = apply(afterForward, computeInverse(op));
+        expect(afterUndo).toEqual(initial);
+      }),
+      { numRuns: 100 },
+    );
+  });
+});
+
+describe("PRD §31.2 property: reorder permutation consistency", () => {
+  const applyReorder = (children: readonly string[], op: ReorderChildOperation): string[] => {
+    const next = [...children];
+    const [moved] = next.splice(op.fromIndex, 1);
+    if (moved === undefined) return next;
+    next.splice(op.toIndex, 0, moved);
+    return next;
+  };
+
+  // A sequence of index-pairs whose values are valid for an array of `len`
+  // elements (reorders preserve length, so every pair stays in range).
+  const arbReorderSequence = fc.integer({ min: 2, max: 8 }).chain((len) =>
+    fc.record({
+      original: fc.constant(Array.from({ length: len }, (_, i) => `e${i}`)),
+      ops: fc.array(
+        fc.record({
+          from: fc.integer({ min: 0, max: len - 1 }),
+          to: fc.integer({ min: 0, max: len - 1 }),
+        }),
+        { minLength: 1, maxLength: 5 },
+      ),
+    }),
+  );
+
+  const toReorderOp = (
+    pair: { from: number; to: number },
+    parentRuntimeId: string,
+  ): ReorderChildOperation => ({
+    id: `op-reorder-${pair.from}-${pair.to}-${Math.random().toString(36).slice(2, 10)}`,
+    timestamp: BASE_TIME,
+    runtime: false,
+    origin: "canvas-drag",
+    confidence: 1,
+    kind: "reorder-child",
+    parent: { runtimeId: parentRuntimeId },
+    child: { runtimeId: `child-${pair.from}` },
+    fromIndex: pair.from,
+    toIndex: pair.to,
+  });
+
+  it("∀ sequence of reorders: apply all, then apply inverses in reverse order = original", () => {
+    fc.assert(
+      fc.property(arbReorderSequence, ({ original, ops }) => {
+        const reorderOps = ops.map((p) => toReorderOp(p, "row-1"));
+        let state = [...original];
+        for (const op of reorderOps) state = applyReorder(state, op);
+        for (let i = reorderOps.length - 1; i >= 0; i -= 1) {
+          const op = reorderOps[i];
+          if (op === undefined) continue;
+          const inv = computeInverse(op);
+          if (inv.kind !== "reorder-child") throw new Error("expected reorder-child inverse");
+          state = applyReorder(state, inv);
+        }
+        expect(state).toEqual(original);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  // Adversarial: a deliberately WRONG inverse (does not swap from/to) MUST be
+  // caught by the property within 100 runs. Proves the test is not vacuous.
+  it("a wrong inverse (no index swap) is caught within 100 runs", () => {
+    const wrongInverse = (op: ReorderChildOperation): ReorderChildOperation => ({
+      ...op,
+      fromIndex: op.fromIndex,
+      toIndex: op.toIndex, // NOT swapped — the bug
+    });
+    expect(() =>
+      fc.assert(
+        fc.property(arbReorderSequence, ({ original, ops }) => {
+          const reorderOps = ops.map((p) => toReorderOp(p, "row-1"));
+          let state = [...original];
+          for (const op of reorderOps) state = applyReorder(state, op);
+          for (let i = reorderOps.length - 1; i >= 0; i -= 1) {
+            const op = reorderOps[i];
+            if (op === undefined) continue;
+            state = applyReorder(state, wrongInverse(op));
+          }
+          expect(state).toEqual(original);
+        }),
+        { numRuns: 100 },
+      ),
+    ).toThrow();
+  });
+});
+
+describe("PRD §31.2 property: schema serialization round-trip", () => {
+  // ∀ generated changeset: serialize → deserialize yields success with data
+  // deep-equal to the original. Covers all 30 operation kinds via arbOperation.
+  it("∀ changeset: deserializeChangeSet(serializeChangeSet(cs)) is deep-equal", () => {
+    fc.assert(
+      fc.property(arbChangeSet, (cs) => {
+        const result = deserializeChangeSet(serializeChangeSet(cs));
+        expect(result.success).toBe(true);
+        if (result.success) expect(result.data).toEqual(cs);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it("serialization is deterministic (same input -> same output)", () => {
+    fc.assert(
+      fc.property(arbChangeSet, (cs) => {
+        expect(serializeChangeSet(cs)).toBe(serializeChangeSet(cs));
+      }),
+      { numRuns: 100 },
+    );
   });
 });

@@ -1,3 +1,4 @@
+import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   identityMatrix,
@@ -437,5 +438,99 @@ describe("geometry snapshot", () => {
     const json = JSON.stringify(sampleSnapshot);
     const round = JSON.parse(json);
     expect(GeometrySnapshotSchema.safeParse(round).success).toBe(true);
+  });
+});
+
+// PRD §31.2 property: coordinate transform round-trip (fast-check, 100+ runs).
+// AUGMENTS the fixed-example round-trips above; none are removed.
+
+describe("PRD §31.2 property: coordinate transform round-trip", () => {
+  // |det| bounded away from 0 so `invert` (used by clientToLocal) is numerically
+  // stable; values kept modest to avoid float blow-up across forward+inverse.
+  const arbInvertibleMatrix = fc
+    .record({
+      a: fc.float({ min: -5, max: 5, noNaN: true, noDefaultInfinity: true }),
+      b: fc.float({ min: -2, max: 2, noNaN: true, noDefaultInfinity: true }),
+      c: fc.float({ min: -2, max: 2, noNaN: true, noDefaultInfinity: true }),
+      d: fc.float({ min: -5, max: 5, noNaN: true, noDefaultInfinity: true }),
+      e: fc.float({ min: -100, max: 100, noNaN: true, noDefaultInfinity: true }),
+      f: fc.float({ min: -100, max: 100, noNaN: true, noDefaultInfinity: true }),
+    })
+    .filter(({ a, b, c, d }) => Math.abs(a * d - b * c) > 0.5)
+    .map(({ a, b, c, d, e, f }) => [a, b, c, d, e, f] as Matrix2D);
+
+  const arbPoint = fc.record({
+    x: fc.float({ min: -500, max: 500, noNaN: true, noDefaultInfinity: true }),
+    y: fc.float({ min: -500, max: 500, noNaN: true, noDefaultInfinity: true }),
+  });
+
+  it("∀ point + invertible transform + origin: localToClient(clientToLocal(p)) ≈ p", () => {
+    fc.assert(
+      fc.property(arbPoint, arbInvertibleMatrix, arbPoint, (local, transform, origin) => {
+        const clientPoint = localToClient(local, transform, origin);
+        const back = clientToLocal(clientPoint, transform, origin);
+        expect(back).toBeDefined();
+        expect(equals(back ?? { x: NaN, y: NaN }, local, 1e-6)).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it("∀ point + invertible transform + origin: clientToLocal(localToClient(p)) ≈ p", () => {
+    fc.assert(
+      fc.property(arbPoint, arbInvertibleMatrix, arbPoint, (clientPoint, transform, origin) => {
+        const local = clientToLocal(clientPoint, transform, origin);
+        expect(local).toBeDefined();
+        const back = localToClient(local ?? { x: NaN, y: NaN }, transform, origin);
+        expect(equals(back, clientPoint, 1e-6)).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  // Translation-only systems (frame-local / offsetParent / viewport / page)
+  // and device-pixel all round-trip within float tolerance. Pure add/subtract
+  // is exact for well-scaled inputs but loses denormals when |p| ≪ |origin|, so
+  // the universal property is tolerance-based (the fixed examples above assert
+  // exact equality for hand-picked non-denormal values).
+  it("∀ point + origin + dpr: every non-matrix system round-trips within tolerance", () => {
+    fc.assert(
+      fc.property(
+        arbPoint,
+        arbPoint,
+        fc.float({ min: 0.5, max: 4, noNaN: true }),
+        (point, origin, dpr) => {
+          expect(
+            equals(clientToFrameLocal(frameLocalToClient(point, origin), origin), point, 1e-6),
+          ).toBe(true);
+          expect(
+            equals(clientToOffsetParent(offsetParentToClient(point, origin), origin), point, 1e-6),
+          ).toBe(true);
+          expect(
+            equals(viewportToClient(clientToViewport(point, origin), origin), point, 1e-6),
+          ).toBe(true);
+          expect(equals(pageToClient(clientToViewport(point, origin), origin), point, 1e-6)).toBe(
+            true,
+          );
+          expect(equals(devicePixelToCss(cssToDevicePixel(point, dpr), dpr), point, 1e-6)).toBe(
+            true,
+          );
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  // Adversarial: a SINGULAR transform has no inverse, so clientToLocal MUST
+  // return undefined. Proves the matrix property above is not vacuous (a
+  // singular transform cannot round-trip).
+  it("a singular transform yields undefined from clientToLocal (no round-trip)", () => {
+    const singular: Matrix2D = [0, 0, 0, 0, 10, 20];
+    fc.assert(
+      fc.property(arbPoint, arbPoint, (clientPoint, origin) => {
+        expect(clientToLocal(clientPoint, singular, origin)).toBeUndefined();
+      }),
+      { numRuns: 100 },
+    );
   });
 });

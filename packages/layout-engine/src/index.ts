@@ -41,5 +41,6 @@ export {
   type SemanticInput,
   type SemanticIntent,
 } from "./semantic-operations.js";
+export * from "./snap/index.js";
 
 export const PACKAGE_NAME = "@vision-control/layout-engine";

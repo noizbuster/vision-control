@@ -49,6 +49,13 @@ export const OVERLAY_CSS = /* css */ `
 
     /* Motion tokens */
     --vc-transition-fast: 120ms ease-out;
+
+    /* Snap guide tokens (PRD §9.8) — per-kind guide colors. */
+    --vc-snap-edge: oklch(75% 0.18 95);
+    --vc-snap-center: oklch(70% 0.2 260);
+    --vc-snap-baseline: oklch(70% 0.22 25);
+    --vc-snap-grid: oklch(70% 0.01 260);
+    --vc-snap-spacing-token: oklch(70% 0.22 300);
   }
 
   .${OVERLAY_ROOT_CLASS} *,
@@ -189,4 +196,25 @@ export const OVERLAY_CSS = /* css */ `
     height: 12px;
     flex-shrink: 0;
   }
+
+  .vc-snap-guide-layer {
+    position: absolute;
+    pointer-events: none;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .vc-snap-guide {
+    position: absolute;
+    pointer-events: none;
+    box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.3);
+  }
+
+  .vc-snap-guide--edge { background: var(--vc-snap-edge); }
+  .vc-snap-guide--center { background: var(--vc-snap-center); }
+  .vc-snap-guide--baseline { background: var(--vc-snap-baseline); }
+  .vc-snap-guide--grid { background: var(--vc-snap-grid); }
+  .vc-snap-guide--spacing-token { background: var(--vc-snap-spacing-token); }
 `;

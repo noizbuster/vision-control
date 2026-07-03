@@ -47,3 +47,8 @@ export {
   type ResizeHandlePosition,
   type ResizeHandles,
 } from "./resize-handles.js";
+export {
+  createSnapGuides,
+  type SnapGuideBounds,
+  type SnapGuides,
+} from "./snap-guides.js";

@@ -1,10 +1,18 @@
 export {
+  type Actor,
+  ActorSchema,
   appendEntry,
+  type CreateJournalEntryOptions,
   canRedoJournal,
   canUndoJournal,
   clear,
   commitStatus,
   createJournal,
+  createJournalEntry,
+  type ElementSnapshot,
+  ElementSnapshotSchema,
+  type EvidenceRef,
+  EvidenceRefSchema,
   type Journal,
   type JournalEntry,
   JournalEntrySchema,
@@ -12,15 +20,21 @@ export {
   JournalEntryStatusSchema,
   JournalSchema,
   markEntryCommitted,
-  markEntryRolledBack,
+  markEntryReverted,
+  markEntrySuperseded,
   peekRedo,
   peekUndo,
   type RedoOutcome,
+  type RuntimeAssertion,
+  RuntimeAssertionSchema,
   redo,
+  StaleInverseError,
   type UndoOutcome,
   UndoRedoStacksSchema,
   undo,
 } from "./journal.js";
+
+export { migrateJournalEntry_v1_to_v2 } from "./migration.js";
 
 export {
   deserializeJournal,

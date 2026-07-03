@@ -13,15 +13,17 @@ interface JournalEntryViewProps {
 }
 
 const STATUS_CLASS: Record<JournalEntryStatus, string> = {
-  pending: "journal-status journal-status--pending",
+  preview: "journal-status journal-status--preview",
   committed: "journal-status journal-status--committed",
-  "rolled-back": "journal-status journal-status--rolled-back",
+  superseded: "journal-status journal-status--superseded",
+  reverted: "journal-status journal-status--reverted",
 };
 
 const STATUS_LABEL: Record<JournalEntryStatus, string> = {
-  pending: "pending",
+  preview: "preview",
   committed: "committed",
-  "rolled-back": "rolled-back",
+  superseded: "superseded",
+  reverted: "reverted",
 };
 
 export function formatTimestamp(appliedAt: number, now: number = Date.now()): string {

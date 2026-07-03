@@ -170,7 +170,7 @@
   border: 1px solid var(--vc-border);
 }
 
-.journal-status--pending {
+.journal-status--preview {
   color: var(--vc-warning);
   border-color: var(--vc-warning);
 }
@@ -180,6 +180,11 @@
   border-color: var(--vc-success);
 }
 
-.journal-status--rolled-back {
+.journal-status--superseded {
+  color: var(--vc-accent);
+  border-color: var(--vc-accent);
+}
+
+.journal-status--reverted {
   color: var(--vc-text-3);
 }

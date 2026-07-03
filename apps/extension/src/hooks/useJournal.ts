@@ -5,6 +5,7 @@ import {
   canUndoJournal,
   clear as clearJournal,
   createJournal,
+  createJournalEntry,
   type Journal,
   type JournalEntry,
   markEntryCommitted,
@@ -41,7 +42,7 @@ const newId = (): string => globalThis.crypto.randomUUID();
 /**
  * Run a single operation as a committed preview transaction. Returns true only
  * when the transaction reached commit — the signal the journal uses to mark an
- * entry "committed". Any failure leaves the entry "pending" (state unknown),
+ * entry "committed". Any failure leaves the entry "preview" (commit unknown),
  * honouring the commit-status contract.
  */
 function applyCommitted(engine: PreviewManager, operation: Operation): boolean {
@@ -60,27 +61,31 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
   const { previewEngine = null, connectionState = "disconnected" } = options;
   const [journal, setJournal] = useState<Journal>(createJournal);
   const [changeSetId] = useState<string>(newId);
+  const [sequence, setSequence] = useState(0);
 
   const record = useCallback(
     (operation: Operation): JournalEntry => {
       const id = newId();
+      const transactionId = newId();
+      const seq = sequence;
+      setSequence((n) => n + 1);
       const committed =
         previewEngine !== null && previewEngine !== undefined
           ? applyCommitted(previewEngine, operation)
           : false;
-      const entry: JournalEntry = {
+      const built = createJournalEntry({
         id,
         changeSetId,
+        transactionId,
+        sequence: seq,
+        actor: "human",
         operation,
-        appliedAt: Date.now(),
-        status: committed ? "committed" : "pending",
-        beforeSnapshot: null,
-        afterSnapshot: null,
-      };
-      setJournal((current) => appendEntry(current, entry));
-      return entry;
+        status: committed ? "committed" : "preview",
+      });
+      setJournal((current) => appendEntry(current, built));
+      return built;
     },
-    [previewEngine, changeSetId],
+    [previewEngine, changeSetId, sequence],
   );
 
   const commitEntry = useCallback((entryId: string): void => {
@@ -136,7 +141,7 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
   );
 
   const pendingCount = useMemo(
-    () => journal.entries.filter((e) => e.status === "pending").length,
+    () => journal.entries.filter((e) => e.status === "preview").length,
     [journal.entries],
   );
 

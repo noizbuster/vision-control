@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { Operation } from "@vision-control/change-ir";
+import { createJournalEntry, type JournalEntry } from "@vision-control/change-journal";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BeforeAfterSummary, summarizeOperation } from "./BeforeAfterSummary.js";
 import { ChangeJournal } from "./ChangeJournal.js";
@@ -178,17 +179,17 @@ describe("JournalEntryView", () => {
     expect(badge.textContent).toBe("committed");
   });
 
-  it("renders the rolled-back status for an undone entry", () => {
+  it("renders the reverted status for an undone entry", () => {
     render(
       <JournalEntryView
         id="je-entry-0002"
         operation={styleEdit("16px", "8px")}
-        status="rolled-back"
+        status="reverted"
         appliedAt={BASE_TIME}
         now={BASE_TIME + 5_000}
       />,
     );
-    expect(screen.getByTestId("journal-status-badge").textContent).toBe("rolled-back");
+    expect(screen.getByTestId("journal-status-badge").textContent).toBe("reverted");
   });
 });
 
@@ -263,24 +264,28 @@ describe("ChangeJournal", () => {
   });
 
   it("lists entries newest-first", () => {
-    const first = {
+    const first: JournalEntry = createJournalEntry({
       id: "je-entry-aaa1",
       changeSetId: "cs-test-0001",
-      operation: styleEdit("16px", "8px"),
+      transactionId: "tx-aaa1",
+      sequence: 0,
+      createdAt: BASE_TIME,
       appliedAt: BASE_TIME,
-      status: "committed" as const,
-      beforeSnapshot: null,
-      afterSnapshot: null,
-    };
-    const second = {
+      actor: "human",
+      operation: styleEdit("16px", "8px"),
+      status: "committed",
+    });
+    const second: JournalEntry = createJournalEntry({
       id: "je-entry-bbb1",
       changeSetId: "cs-test-0001",
-      operation: classAdd("bg-red-500"),
+      transactionId: "tx-bbb1",
+      sequence: 1,
+      createdAt: BASE_TIME + 1_000,
       appliedAt: BASE_TIME + 1_000,
-      status: "pending" as const,
-      beforeSnapshot: null,
-      afterSnapshot: null,
-    };
+      actor: "human",
+      operation: classAdd("bg-red-500"),
+      status: "preview",
+    });
     render(
       <ChangeJournal
         entries={[second, first]}

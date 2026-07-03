@@ -101,17 +101,17 @@ describe("useJournal", () => {
     expect(state().applied[0]?.id).toBe("op-record-001");
   });
 
-  it("records an entry as pending when there is no preview engine", () => {
+  it("records an entry as preview when there is no preview engine", () => {
     const { result } = renderHook(() => useJournal({ previewEngine: null }));
 
     act(() => {
       result.current.record(styleEdit("op-record-002", "blue"));
     });
 
-    expect(result.current.entries[0]?.status).toBe("pending");
+    expect(result.current.entries[0]?.status).toBe("preview");
   });
 
-  it("marks an entry pending when the preview commit fails", () => {
+  it("marks an entry preview when the preview commit fails", () => {
     const { manager } = makeFakePreviewManager(true);
     const { result } = renderHook(() => useJournal({ previewEngine: manager }));
 
@@ -119,7 +119,7 @@ describe("useJournal", () => {
       result.current.record(styleEdit("op-record-003", "blue"));
     });
 
-    expect(result.current.entries[0]?.status).toBe("pending");
+    expect(result.current.entries[0]?.status).toBe("preview");
   });
 
   it("undo applies the inverse via the preview engine and rolls back the entry", () => {
@@ -135,7 +135,7 @@ describe("useJournal", () => {
 
     expect(result.current.canUndo).toBe(false);
     expect(result.current.canRedo).toBe(true);
-    expect(result.current.entries[0]?.status).toBe("rolled-back");
+    expect(result.current.entries[0]?.status).toBe("reverted");
     expect(state().applied).toHaveLength(2);
     expect(state().applied[1]?.inverseOf).toBe("op-record-004");
   });

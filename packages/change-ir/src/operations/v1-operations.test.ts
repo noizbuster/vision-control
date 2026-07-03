@@ -26,7 +26,13 @@ const v2Defaults = {
   privacyReport: { redactions: [], totalRedacted: 0 },
 };
 
-const base = (id: string, ts: number, runtime = false) => ({ id, timestamp: ts, runtime });
+const base = (id: string, ts: number, runtime = false) => ({
+  id,
+  timestamp: ts,
+  runtime,
+  origin: "property-panel" as const,
+  confidence: 1,
+});
 
 const multiSelectGroupOp: Operation = {
   ...base("op-msel-grp001", BASE_TIME),

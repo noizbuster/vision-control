@@ -17,6 +17,8 @@ const INDEX = z.number().int().nonnegative();
  */
 export const ReparentElementOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("reparent-element"),
+  /** Overridden to optional: reparent uses `element`/`sourceParent`/`targetParent`. */
+  target: ElementRefSchema.optional(),
   element: ElementRefSchema,
   sourceParent: ElementRefSchema,
   sourceIndex: INDEX,

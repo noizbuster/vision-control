@@ -21,6 +21,8 @@ export const GridPlacementSchema = z.enum(["dom-order", "grid-area"]);
  */
 export const GridReorderOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("grid-reorder"),
+  /** Overridden to optional: uses `grid`/`child` as authoritative refs. */
+  target: ElementRefSchema.optional(),
   grid: ElementRefSchema,
   child: ElementRefSchema,
   placement: GridPlacementSchema,
@@ -36,6 +38,8 @@ export const GridReorderOperationSchema = OperationBaseSchema.extend({
  */
 export const GridSpanOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("grid-span"),
+  /** Overridden to optional: uses `grid`/`child` as authoritative refs. */
+  target: ElementRefSchema.optional(),
   grid: ElementRefSchema,
   child: ElementRefSchema,
   axis: z.enum(["column", "row"]),

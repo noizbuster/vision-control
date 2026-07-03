@@ -19,6 +19,8 @@ export function elementRef(runtimeId: string): ElementRef {
   return { runtimeId };
 }
 
+const opDefaults = { origin: "property-panel" as const, confidence: 1 };
+
 export function makeStyleEdit(
   target: ElementRef,
   property: string,
@@ -33,6 +35,7 @@ export function makeStyleEdit(
     important: false,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -47,6 +50,7 @@ export function makeTextEdit(
     newText,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -61,6 +65,7 @@ export function makeClassAdd(
     className,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -75,6 +80,7 @@ export function makeClassRemove(
     className,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -91,6 +97,7 @@ export function makeClassReplace(
     newClassName,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -109,6 +116,7 @@ export function makeReorder(
     toIndex,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -129,6 +137,7 @@ export function makeResize(
     unit,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -149,6 +158,7 @@ export function makeReparent(
     targetIndex,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 

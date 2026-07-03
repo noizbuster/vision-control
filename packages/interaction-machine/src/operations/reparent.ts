@@ -292,6 +292,8 @@ export const endReparent = (session: ReparentSession): ReparentResult => {
     id: newOperationId(),
     timestamp: Date.now(),
     runtime: false,
+    origin: "canvas-drag",
+    confidence: 1,
     kind: "reparent-element",
     element: session.element.ref,
     sourceParent: session.sourceParent.ref,

@@ -17,6 +17,8 @@ function styleEdit(id: string, value: string, previousValue = "red"): Operation 
     id,
     timestamp: BASE_TIME,
     runtime: false,
+    origin: "property-panel" as const,
+    confidence: 1,
     kind: "style-edit",
     target: { runtimeId: "btn-1" },
     property: "color",

@@ -43,6 +43,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       toIndex: 2,
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#child" });
     expect(plan.assertions).toHaveLength(1);
@@ -63,6 +65,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       newGridArea: "1 / 2 / 2 / 3",
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#child" });
     expect(plan.assertions).toHaveLength(1);
@@ -83,6 +87,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       toIndex: 0,
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#child" });
     expect(plan.assertions).toHaveLength(0);
@@ -99,6 +105,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       toSpan: 3,
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#child" });
     expect(plan.assertions).toHaveLength(1);
@@ -118,6 +126,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       toSpan: 2,
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#child" });
     expect(plan.assertions[0]?.name).toBe("grid-span:row");
@@ -134,6 +144,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       value: "1rem",
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#container" });
     expect(plan.assertions[0]?.name).toBe("set-container-layout:value");
@@ -152,6 +164,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       value: "120px",
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#child" });
     expect(plan.assertions[0]?.name).toBe("set-child-sizing:value");
@@ -169,6 +183,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       sizing: "fill",
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#child" });
     expect(plan.assertions[0]?.name).toBe("set-child-sizing:context-dependent");
@@ -187,6 +203,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       important: false,
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#target" });
     expect(plan.assertions[0]?.name).toBe("breakpoint-style-edit:value");
@@ -204,6 +222,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       newClassName: "text-lg",
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#target" });
     expect(plan.assertions[0]?.name).toBe("breakpoint-class-edit");
@@ -220,6 +240,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       newText: "Responsive label",
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#target" });
     expect(plan.assertions[0]?.name).toBe("breakpoint-text-edit:newText");
@@ -237,6 +259,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       newOrder: [2, 0, 1],
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#parent" });
     expect(plan.assertions[0]?.name).toBe("group-reorder:first-child-position");
@@ -255,6 +279,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       targetIndices: [0, 1],
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#a" });
     expect(plan.assertions[0]?.name).toBe("group-reparent:parent");
@@ -272,6 +298,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       newValues: ["10px", "10px"],
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#a" });
     expect(plan.assertions[0]?.name).toContain("align-elements:reading-order-pending");
@@ -290,6 +318,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       newGaps: ["16px", "16px"],
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#a" });
     expect(plan.assertions[0]?.name).toContain("distribute-elements:reading-order-pending");
@@ -303,6 +333,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       groupId: "g1",
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#a" });
     expect(plan.assertions[0]?.name).toBe("multi-select-group:composition");
@@ -320,6 +352,8 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       captureRegion: { x: 0, y: 0, width: 100, height: 100 },
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const plan = createPlan(op, { selector: "#target" });
     expect(plan.assertions).toHaveLength(0);
@@ -336,6 +370,7 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
       applied: false,
       timestamp: 0,
       runtime: false,
+      origin: "property-panel" as const,
     };
     const plan = createPlan(op, { selector: "#target" });
     expect(plan.assertions).toHaveLength(0);

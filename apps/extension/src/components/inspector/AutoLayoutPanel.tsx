@@ -152,6 +152,8 @@ export function AutoLayoutPanel({
       value: dir,
       timestamp: Date.now(),
       runtime: false,
+      origin: "property-panel",
+      confidence: 1,
     });
   };
 
@@ -165,6 +167,8 @@ export function AutoLayoutPanel({
       value: gapValue.trim(),
       timestamp: Date.now(),
       runtime: false,
+      origin: "property-panel",
+      confidence: 1,
     });
   };
 
@@ -186,6 +190,8 @@ export function AutoLayoutPanel({
         value: candidate.value,
         timestamp: Date.now(),
         runtime: false,
+        origin: "property-panel",
+        confidence: 1,
       });
     }
   };
@@ -200,6 +206,8 @@ export function AutoLayoutPanel({
       value: val,
       timestamp: Date.now(),
       runtime: false,
+      origin: "property-panel",
+      confidence: 1,
     });
   };
 
@@ -213,6 +221,8 @@ export function AutoLayoutPanel({
       value: val,
       timestamp: Date.now(),
       runtime: false,
+      origin: "property-panel",
+      confidence: 1,
     });
   };
 
@@ -226,6 +236,8 @@ export function AutoLayoutPanel({
       value: val,
       timestamp: Date.now(),
       runtime: false,
+      origin: "property-panel",
+      confidence: 1,
     });
   };
 
@@ -256,6 +268,8 @@ export function AutoLayoutPanel({
       sizing: childIntent,
       timestamp: Date.now(),
       runtime: false,
+      origin: "property-panel",
+      confidence: 1,
       ...(declarations !== "" ? { value: declarations } : {}),
     };
     onCommand(op);

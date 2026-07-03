@@ -14,7 +14,13 @@ const BASE_TIME = 1_700_000_000_000;
 
 const el = (runtimeId: string) => ({ runtimeId });
 
-const base = (id: string, ts: number, runtime = false) => ({ id, timestamp: ts, runtime });
+const base = (id: string, ts: number, runtime = false) => ({
+  id,
+  timestamp: ts,
+  runtime,
+  origin: "property-panel" as const,
+  confidence: 1,
+});
 
 const scopedStyleOp: BreakpointStyleEditOperation = {
   ...base("op-bp-ctx0001", BASE_TIME),

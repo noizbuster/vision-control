@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { ElementRefSchema } from "../element-ref.js";
 import { OperationBaseSchema } from "../operation-base.js";
 
 /**
@@ -9,7 +8,8 @@ import { OperationBaseSchema } from "../operation-base.js";
  * Breakpoint context fields (VC-V1V2-10, all additive + optional so legacy
  * ops without them still validate):
  * - `breakpoint` — the active breakpoint identifier (e.g. a Tailwind responsive
- *   prefix `md` or a named media query).
+ *   prefix `md` or a named media query). Overrides the base optional to
+ *   required for breakpoint-scoped ops.
  * - `mediaSource` — the originating media query source text when known
  *   (e.g. `@media (min-width: 768px)`).
  * - `activeViewport` — the viewport label the user is currently editing under
@@ -19,6 +19,8 @@ import { OperationBaseSchema } from "../operation-base.js";
  * - `applyToBase` — EXPLICIT-INTENT flag. Absent or `false` means the edit is
  *   scoped to the breakpoint ONLY and must NOT touch base styles. Only `true`
  *   authorizes a base overwrite. See {@link isBaseOverwriteAllowed}.
+ *
+ * `target` is inherited from {@link OperationBaseSchema} (PRD §12.4).
  */
 
 const breakpointContext = {
@@ -31,7 +33,6 @@ const breakpointContext = {
 
 export const BreakpointStyleEditOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("breakpoint-style-edit"),
-  target: ElementRefSchema,
   ...breakpointContext,
   property: z.string().min(1),
   value: z.string(),
@@ -41,7 +42,6 @@ export const BreakpointStyleEditOperationSchema = OperationBaseSchema.extend({
 
 export const BreakpointClassEditOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("breakpoint-class-edit"),
-  target: ElementRefSchema,
   ...breakpointContext,
   oldClassName: z.string().min(1),
   newClassName: z.string().min(1),
@@ -49,7 +49,6 @@ export const BreakpointClassEditOperationSchema = OperationBaseSchema.extend({
 
 export const BreakpointTextEditOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("breakpoint-text-edit"),
-  target: ElementRefSchema,
   ...breakpointContext,
   newText: z.string(),
   previousText: z.string().optional(),

@@ -30,9 +30,15 @@ export {
   supersedeChangeSet,
 } from "./merge.js";
 export {
+  type BreakpointContext,
+  BreakpointContextSchema,
   OPERATION_ID_PATTERN,
   type OperationBase,
   OperationBaseSchema,
+  type OperationOrigin,
+  OperationOriginSchema,
+  type PseudoState,
+  PseudoStateSchema,
 } from "./operation-base.js";
 export * from "./operations/index.js";
 export {

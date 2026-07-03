@@ -20,6 +20,8 @@ export const ChildSizingSchema = z.enum(["hug", "fill", "fixed"]);
  */
 export const SetContainerLayoutOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("set-container-layout"),
+  /** Overridden to optional: uses `container` as the authoritative ref. */
+  target: ElementRefSchema.optional(),
   container: ElementRefSchema,
   property: z.string().min(1),
   value: z.string(),
@@ -34,6 +36,8 @@ export const SetContainerLayoutOperationSchema = OperationBaseSchema.extend({
  */
 export const SetChildSizingOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("set-child-sizing"),
+  /** Overridden to optional: uses `container`/`child` as authoritative refs. */
+  target: ElementRefSchema.optional(),
   container: ElementRefSchema,
   childIndex: INDEX,
   child: ElementRefSchema,

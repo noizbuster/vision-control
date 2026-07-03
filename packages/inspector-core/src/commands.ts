@@ -31,11 +31,15 @@ function commandBase(options: CommandBaseOptions): {
   id: string;
   timestamp: number;
   runtime: false;
+  origin: "property-panel";
+  confidence: number;
 } {
   return {
     id: options.id ?? newOperationId(),
     timestamp: options.timestamp ?? Date.now(),
     runtime: false,
+    origin: "property-panel",
+    confidence: 1,
   };
 }
 

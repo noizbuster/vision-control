@@ -93,6 +93,8 @@ const buildOperation = (target: ReorderTarget, toIndex: number): ReorderChildOpe
   kind: "reorder-child",
   runtime: false,
   timestamp: Date.now(),
+  origin: "canvas-drag",
+  confidence: 1,
   parent: target.parent,
   child: target.element,
   fromIndex: target.fromIndex,

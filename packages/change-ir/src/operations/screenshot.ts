@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { ElementRefSchema } from "../element-ref.js";
 import { OperationBaseSchema } from "../operation-base.js";
 
 /**
@@ -20,13 +19,14 @@ export const CaptureRegionRectSchema = z.object({
  * retention/masking policy (ADR-011). This operation records only the metadata
  * ref, capture region, redaction report ref, and optional retention expiry.
  *
+ * `target` is inherited from {@link OperationBaseSchema} (PRD §12.4).
+ *
  * Inverse (`computeInverse`): a no-op marker — the screenshot ref is metadata,
  * not a state change. The inverse re-references the same artifact with a fresh
  * id and `inverseOf` linking back.
  */
 export const ScreenshotCropRefOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("screenshot-crop-ref"),
-  target: ElementRefSchema,
   artifactId: z.string().min(1),
   captureRegion: CaptureRegionRectSchema,
   redactionReport: z.string().optional(),

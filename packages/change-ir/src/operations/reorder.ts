@@ -20,6 +20,8 @@ const INDEX = z.number().int().nonnegative();
  */
 export const ReorderChildOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("reorder-child"),
+  /** Overridden to optional: reorder uses `parent`/`child` as authoritative refs. */
+  target: ElementRefSchema.optional(),
   parent: ElementRefSchema,
   child: ElementRefSchema,
   fromIndex: INDEX,

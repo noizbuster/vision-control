@@ -195,12 +195,17 @@ export const computeInverse = (op: Operation): Operation => {
     inverseOf: op.id,
     timestamp: Date.now(),
     runtime: op.runtime,
+    origin: op.origin,
+    ...(op.breakpoint !== undefined ? { breakpoint: op.breakpoint } : {}),
+    ...(op.pseudoState !== undefined ? { pseudoState: op.pseudoState } : {}),
+    ...(op.notes !== undefined ? { notes: op.notes } : {}),
   };
   switch (op.kind) {
     case "style-edit":
       return {
         ...base,
         kind: "style-edit",
+        confidence: op.confidence,
         target: op.target,
         property: op.property,
         // previousValue is required for a lossless inverse; the journal always
@@ -213,18 +218,32 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "text-edit",
+        confidence: op.confidence,
         target: op.target,
         newText: op.previousText ?? "",
         previousText: op.newText,
       };
     case "class-add":
-      return { ...base, kind: "class-remove", target: op.target, className: op.className };
+      return {
+        ...base,
+        kind: "class-remove",
+        confidence: op.confidence,
+        target: op.target,
+        className: op.className,
+      };
     case "class-remove":
-      return { ...base, kind: "class-add", target: op.target, className: op.className };
+      return {
+        ...base,
+        kind: "class-add",
+        confidence: op.confidence,
+        target: op.target,
+        className: op.className,
+      };
     case "class-replace":
       return {
         ...base,
         kind: "class-replace",
+        confidence: op.confidence,
         target: op.target,
         oldClassName: op.newClassName,
         newClassName: op.oldClassName,
@@ -233,6 +252,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "reorder-child",
+        confidence: op.confidence,
         parent: op.parent,
         child: op.child,
         fromIndex: op.toIndex,
@@ -242,6 +262,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "reparent-element",
+        confidence: op.confidence,
         element: op.element,
         sourceParent: op.targetParent,
         sourceIndex: op.targetIndex,
@@ -252,6 +273,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "resize-element",
+        confidence: op.confidence,
         element: op.element,
         property: op.property,
         fromValue: op.toValue,
@@ -262,6 +284,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "multi-select-group",
+        confidence: op.confidence,
         targets: op.previousTargets ?? [],
         groupId: op.groupId,
         previousTargets: op.targets,
@@ -270,6 +293,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "group-reorder",
+        confidence: op.confidence,
         parent: op.parent,
         children: op.children,
         previousOrder: op.newOrder,
@@ -279,6 +303,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "group-reparent",
+        confidence: op.confidence,
         elements: op.elements,
         sourceParent: op.targetParent,
         sourceIndices: op.targetIndices,
@@ -289,6 +314,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "align-elements",
+        confidence: op.confidence,
         targets: op.targets,
         alignment: op.alignment,
         previousValues: op.newValues,
@@ -298,6 +324,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "distribute-elements",
+        confidence: op.confidence,
         targets: op.targets,
         axis: op.axis,
         mode: op.mode,
@@ -308,6 +335,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "set-container-layout",
+        confidence: op.confidence,
         container: op.container,
         property: op.property,
         value: op.previousValue ?? "",
@@ -317,6 +345,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "set-child-sizing",
+        confidence: op.confidence,
         container: op.container,
         childIndex: op.childIndex,
         child: op.child,
@@ -330,6 +359,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "grid-reorder",
+        confidence: op.confidence,
         grid: op.grid,
         child: op.child,
         placement: op.placement,
@@ -343,6 +373,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "grid-span",
+        confidence: op.confidence,
         grid: op.grid,
         child: op.child,
         axis: op.axis,
@@ -353,6 +384,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "breakpoint-style-edit",
+        confidence: op.confidence,
         target: op.target,
         breakpoint: op.breakpoint,
         ...(op.mediaSource !== undefined ? { mediaSource: op.mediaSource } : {}),
@@ -368,6 +400,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "breakpoint-class-edit",
+        confidence: op.confidence,
         target: op.target,
         breakpoint: op.breakpoint,
         ...(op.mediaSource !== undefined ? { mediaSource: op.mediaSource } : {}),
@@ -381,6 +414,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "breakpoint-text-edit",
+        confidence: op.confidence,
         target: op.target,
         breakpoint: op.breakpoint,
         ...(op.mediaSource !== undefined ? { mediaSource: op.mediaSource } : {}),
@@ -395,6 +429,7 @@ export const computeInverse = (op: Operation): Operation => {
       return {
         ...base,
         kind: "screenshot-crop-ref",
+        confidence: op.confidence,
         target: op.target,
         artifactId: op.artifactId,
         captureRegion: op.captureRegion,

@@ -23,6 +23,8 @@ const INDEX = z.number().int().nonnegative();
  */
 export const MultiSelectGroupOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("multi-select-group"),
+  /** Overridden to optional: group ops carry `targets` (plural). */
+  target: ElementRefSchema.optional(),
   targets: ElementGroupSchema,
   groupId: z.string().min(1),
   /** Prior group composition captured before the change; required for a lossless inverse. */
@@ -36,6 +38,8 @@ export const MultiSelectGroupOperationSchema = OperationBaseSchema.extend({
  */
 export const GroupReorderOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("group-reorder"),
+  /** Overridden to optional: group ops carry `children` (plural). */
+  target: ElementRefSchema.optional(),
   parent: ElementRefSchema,
   children: ElementGroupSchema.min(2),
   previousOrder: z.array(INDEX),
@@ -49,6 +53,8 @@ export const GroupReorderOperationSchema = OperationBaseSchema.extend({
  */
 export const GroupReparentOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("group-reparent"),
+  /** Overridden to optional: group ops carry `elements` (plural). */
+  target: ElementRefSchema.optional(),
   elements: ElementGroupSchema,
   sourceParent: ElementRefSchema,
   sourceIndices: z.array(INDEX),
@@ -63,6 +69,8 @@ export const GroupReparentOperationSchema = OperationBaseSchema.extend({
  */
 export const AlignElementsOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("align-elements"),
+  /** Overridden to optional: group ops carry `targets` (plural). */
+  target: ElementRefSchema.optional(),
   targets: ElementGroupSchema.min(2),
   alignment: z.enum(["left", "center", "right", "top", "middle", "bottom"]),
   previousValues: z.array(z.string()),
@@ -76,6 +84,8 @@ export const AlignElementsOperationSchema = OperationBaseSchema.extend({
  */
 export const DistributeElementsOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("distribute-elements"),
+  /** Overridden to optional: group ops carry `targets` (plural). */
+  target: ElementRefSchema.optional(),
   targets: ElementGroupSchema.min(2),
   axis: z.enum(["horizontal", "vertical"]),
   mode: z.enum(["space-between", "space-around", "equal-gap"]),

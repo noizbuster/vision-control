@@ -136,6 +136,8 @@ const buildOperation = (target: ResizeTarget, preview: ResizePreview): ResizeEle
   id: newOperationId(),
   timestamp: Date.now(),
   runtime: false,
+  origin: "canvas-drag",
+  confidence: 1,
   kind: "resize-element",
   element: target.element,
   property: target.property,

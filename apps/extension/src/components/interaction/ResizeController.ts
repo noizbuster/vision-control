@@ -107,6 +107,8 @@ export function createResizeController(options: ResizeControllerOptions): {
     id: crypto.randomUUID(),
     timestamp: Date.now(),
     runtime: true,
+    origin: "canvas-drag",
+    confidence: 1,
     kind: "resize-element",
     element: target.element,
     property: target.property,

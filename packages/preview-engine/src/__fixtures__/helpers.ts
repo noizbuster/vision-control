@@ -15,6 +15,8 @@ import type {
 
 import type { GhostRenderer, PreviewDomAdapter, PreviewRect } from "../index.js";
 
+const opDefaults = { origin: "property-panel" as const, confidence: 1 };
+
 let opCounter = 0;
 
 function makeOpId(prefix: string): string {
@@ -45,6 +47,7 @@ export function makeStyleEdit(
     important: false,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
     ...(previousValue !== undefined ? { previousValue } : {}),
   };
 }
@@ -57,6 +60,7 @@ export function makeClassAdd(runtimeId: string, className: string): ClassAddOper
     className,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -68,6 +72,7 @@ export function makeClassRemove(runtimeId: string, className: string): ClassRemo
     className,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -84,6 +89,7 @@ export function makeClassReplace(
     newClassName: newClass,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -95,6 +101,7 @@ export function makeTextEdit(runtimeId: string, newText: string): TextEditOperat
     newText,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -113,6 +120,7 @@ export function makeReorder(
     toIndex,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -133,6 +141,7 @@ export function makeReparent(
     targetIndex,
     timestamp: 0,
     runtime: false,
+    ...opDefaults,
   };
 }
 
@@ -150,6 +159,7 @@ export function makeRuntimeStyleEdit(
     important: true,
     timestamp: 0,
     runtime: true,
+    ...opDefaults,
   };
 }
 

@@ -66,6 +66,8 @@ const breakpointStyleOp: Operation = {
   previousValue: "8px",
   timestamp: BASE_TIME,
   runtime: false,
+  origin: "property-panel" as const,
+  confidence: 1,
 };
 
 const breakpointClassOp: Operation = {
@@ -78,6 +80,8 @@ const breakpointClassOp: Operation = {
   newClassName: "p-4",
   timestamp: BASE_TIME + 1,
   runtime: false,
+  origin: "property-panel" as const,
+  confidence: 1,
 };
 
 const styleOp: Operation = {
@@ -89,6 +93,8 @@ const styleOp: Operation = {
   important: false,
   timestamp: BASE_TIME + 2,
   runtime: false,
+  origin: "property-panel" as const,
+  confidence: 1,
 };
 
 const v2Defaults = {
@@ -181,6 +187,8 @@ describe("context-compiler breakpoint context derivation (VC-V1V2-10)", () => {
       newText: "Small",
       timestamp: BASE_TIME,
       runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
     };
     const ctx = compileContext(makeInputs({ changeset: makeChangeSet([minimalBpOp]) }));
     expect(ctx.breakpoint).toBeDefined();

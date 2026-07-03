@@ -89,6 +89,8 @@ const styleEditOperation: Operation = {
   important: true,
   timestamp: 1000,
   runtime: false,
+  origin: "property-panel" as const,
+  confidence: 1,
 };
 
 const classAddOperation: Operation = {
@@ -98,6 +100,8 @@ const classAddOperation: Operation = {
   className: "active",
   timestamp: 1001,
   runtime: false,
+  origin: "property-panel" as const,
+  confidence: 1,
 };
 
 const v2Defaults = {

@@ -27,6 +27,8 @@ export const ResizePropertySchema = z.enum(RESIZE_PROPERTIES);
  */
 export const ResizeElementOperationSchema = OperationBaseSchema.extend({
   kind: z.literal("resize-element"),
+  /** Overridden to optional: resize uses `element` as the authoritative ref. */
+  target: ElementRefSchema.optional(),
   element: ElementRefSchema,
   property: ResizePropertySchema,
   fromValue: z.string(),

@@ -34,6 +34,8 @@ const styleEditOp = (id: string): Operation => ({
   id,
   timestamp: BASE_TIME,
   runtime: false,
+  origin: "property-panel",
+  confidence: 1,
   kind: "style-edit",
   target: { runtimeId: "btn-1" },
   property: "color",

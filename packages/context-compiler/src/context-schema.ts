@@ -52,6 +52,7 @@ export const OPERATION_SUMMARY_KINDS = [
   "breakpoint-text-edit",
   "screenshot-crop-ref",
   "suggested-diff",
+  "set-component-prop",
 ] as const;
 
 export const OperationSummaryKindSchema = z.enum(OPERATION_SUMMARY_KINDS);

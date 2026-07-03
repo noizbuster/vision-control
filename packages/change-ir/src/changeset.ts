@@ -484,6 +484,19 @@ export const computeInverse = (op: Operation): Operation => {
         value: op.previousValue ?? "",
         previousValue: op.value,
       };
+    case "set-component-prop":
+      // Inverse: swap value/previousValue; componentName/propName/sourceRange fixed.
+      return {
+        ...base,
+        kind: "set-component-prop",
+        confidence: op.confidence,
+        target: op.target,
+        componentName: op.componentName,
+        propName: op.propName,
+        value: op.previousValue ?? "",
+        previousValue: op.value,
+        sourceRange: op.sourceRange,
+      };
     case "position-element":
       // Inverse: swap the from/to position values.
       return {

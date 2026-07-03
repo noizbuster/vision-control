@@ -15,6 +15,8 @@ import type {
   ClassRemoveOperation,
   ClassReplaceOperation,
   ElementRef,
+  SetAttributeOperation,
+  SetComponentPropOperation,
   StyleEditOperation,
   TextEditOperation,
 } from "@vision-control/change-ir";
@@ -97,5 +99,52 @@ export function createTextEditCommand(
     target: toElementRef(target),
     newText,
     ...(previousText !== undefined ? { previousText } : {}),
+  };
+}
+
+/**
+ * Create a {@link SetAttributeOperation} for setting a DOM attribute on the
+ * target element (PRD §12.3). Used by the props panel for DOM-attribute props.
+ */
+export function createSetAttributeCommand(
+  target: ElementRef,
+  name: string,
+  value: string,
+  previousValue: string | undefined,
+  options: CommandBaseOptions = {},
+): SetAttributeOperation {
+  return {
+    ...commandBase(options),
+    kind: "set-attribute",
+    target: toElementRef(target),
+    name,
+    value,
+    ...(previousValue !== undefined ? { previousValue } : {}),
+  };
+}
+
+/**
+ * Create a {@link SetComponentPropOperation} for editing a component-level prop
+ * (e.g. `variant`, `size`) at a resolved JSX source range (PRD §7.2). The
+ * cross-boundary check is the caller's responsibility.
+ */
+export function createSetComponentPropCommand(
+  target: ElementRef,
+  componentName: string,
+  propName: string,
+  value: string,
+  previousValue: string | undefined,
+  sourceRange: SetComponentPropOperation["sourceRange"],
+  options: CommandBaseOptions = {},
+): SetComponentPropOperation {
+  return {
+    ...commandBase(options),
+    kind: "set-component-prop",
+    target: toElementRef(target),
+    componentName,
+    propName,
+    value,
+    ...(previousValue !== undefined ? { previousValue } : {}),
+    sourceRange,
   };
 }

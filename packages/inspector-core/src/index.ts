@@ -14,6 +14,8 @@ export {
   createClassAddCommand,
   createClassRemoveCommand,
   createClassReplaceCommand,
+  createSetAttributeCommand,
+  createSetComponentPropCommand,
   createStyleEditCommand,
   createTextEditCommand,
 } from "./commands.js";

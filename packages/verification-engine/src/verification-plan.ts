@@ -263,6 +263,7 @@ function assertionsForOperation(operation: Operation): AssertionEntry[] {
     case "duplicate-element":
     case "wrap-elements":
     case "unwrap-element":
+    case "set-component-prop":
       throw new Error(
         `Verification plan not yet implemented for operation kind: ${operation.kind}`,
       );

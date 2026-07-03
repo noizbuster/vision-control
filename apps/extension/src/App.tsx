@@ -2,6 +2,11 @@ import type { AlignmentCommandKind } from "@vision-control/layout-engine";
 import type { ReactElement, ReactNode } from "react";
 import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
+import {
+  type EditableProp,
+  type PropEditCommand,
+  PropsPanel,
+} from "./components/editors/PropsPanel.js";
 import { AlignmentPanel } from "./components/inspector/AlignmentPanel.js";
 import { AutoLayoutPanel } from "./components/inspector/AutoLayoutPanel.js";
 import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
@@ -83,6 +88,16 @@ export function App(): ReactElement {
     handleEditorCommand(buildGridSpanOperation(gridPlacementState, axis, toSpan));
   };
 
+  const handlePropCommand = (command: PropEditCommand): void => {
+    handleEditorCommand(command);
+  };
+
+  // Component props for the selected element. Empty until the content-side
+  // prop-discovery emission lands (source-resolver component-props module);
+  // the panel renders nothing when empty.
+  const componentProps: readonly EditableProp[] = [];
+  const showPropsPanel = summary !== null && componentProps.length > 0;
+
   const isLayoutContainer =
     summary !== null &&
     (summary.computedStyle.display === "flex" || summary.computedStyle.display === "grid");
@@ -154,6 +169,12 @@ export function App(): ReactElement {
             {...(alignmentPanel !== undefined ? { alignmentPanel } : {})}
             {...(autoLayoutPanel !== undefined ? { autoLayoutPanel } : {})}
           />
+          {showPropsPanel && summary !== null && (
+            <section className="app__section app__section--props">
+              <h2>Component Props</h2>
+              <PropsPanel summary={summary} props={componentProps} onCommand={handlePropCommand} />
+            </section>
+          )}
           <ChangeJournal
             entries={journal.entries}
             canUndo={journal.canUndo}

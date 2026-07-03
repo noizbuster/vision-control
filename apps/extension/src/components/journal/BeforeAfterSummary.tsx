@@ -139,6 +139,13 @@ export function summarizeOperation(op: Operation): OperationSummary {
       return { subject: "screenshot", from: "", to: op.artifactId, variant: "set" };
     case "suggested-diff":
       return { subject: "suggested-diff", from: "", to: op.confidence, variant: "set" };
+    case "set-component-prop":
+      return {
+        subject: `${op.componentName}.${op.propName}`,
+        from: op.previousValue ?? "",
+        to: op.value,
+        variant: "set",
+      };
     case "remove-style":
     case "set-attribute":
     case "position-element":
@@ -186,6 +193,7 @@ const KIND_LABEL: Record<OperationKind, string> = {
   "breakpoint-text-edit": "BP text",
   "screenshot-crop-ref": "Screenshot",
   "suggested-diff": "Suggested diff",
+  "set-component-prop": "Component prop",
 };
 
 export function operationLabel(op: Operation): string {

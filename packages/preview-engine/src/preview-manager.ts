@@ -267,6 +267,8 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
       case "multi-select-group":
       case "screenshot-crop-ref":
       case "suggested-diff":
+      // set-component-prop is a source-only edit (PRD §7.2): no DOM mutation here.
+      case "set-component-prop":
         return noopDispatch();
       default: {
         const exhaustive: never = operation;

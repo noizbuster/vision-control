@@ -497,7 +497,12 @@ describe("PRD §12.2 schema v2.0.0", () => {
     });
 
     it("the stamped report validates against PrivacyReportSchema and survives a round-trip", () => {
-      const cs = createChangeSet({ workspaceId: "ws", sessionId: "sess-priv", id: "cs-priv01", now: BASE_TIME });
+      const cs = createChangeSet({
+        workspaceId: "ws",
+        sessionId: "sess-priv",
+        id: "cs-priv01",
+        now: BASE_TIME,
+      });
       const stamped = withPrivacyReport(cs, passwordReport);
       expect(PrivacyReportSchema.safeParse(stamped.privacyReport).success).toBe(true);
       expect(ChangeSetSchema.safeParse(stamped).success).toBe(true);
@@ -507,7 +512,12 @@ describe("PRD §12.2 schema v2.0.0", () => {
     });
 
     it("every redaction entry carries a source discriminator", () => {
-      const cs = createChangeSet({ workspaceId: "ws", sessionId: "sess-priv", id: "cs-priv02", now: BASE_TIME });
+      const cs = createChangeSet({
+        workspaceId: "ws",
+        sessionId: "sess-priv",
+        id: "cs-priv02",
+        now: BASE_TIME,
+      });
       const stamped = withPrivacyReport(cs, passwordReport);
       expect(stamped.privacyReport.redactions.every((r) => r.source === "selector")).toBe(true);
     });
@@ -610,7 +620,7 @@ describe("PRD §31.2 property: computeInverse invariants (every kind)", () => {
     );
   });
 
-  // Per-kind coverage: each of the 30 kinds independently produces a valid
+  // Per-kind coverage: each of the 31 kinds independently produces a valid
   // inverse across 100 generated instances (no kind starved by the uniform mixer).
   it.each(
     Object.keys(arbByKind) as readonly (keyof typeof arbByKind)[],
@@ -649,6 +659,8 @@ describe("PRD §31.2 property: operation + inverse = original state", () => {
         return { ...empty, styles: { [op.property]: op.previousValue ?? "" } };
       case "set-attribute":
         return { ...empty, attrs: { [op.name]: op.previousValue ?? "" } };
+      case "set-component-prop":
+        return { ...empty, attrs: { [op.propName]: op.previousValue ?? "" } };
       case "text-edit":
         return { ...empty, text: op.previousText ?? "" };
       case "resize-element":
@@ -691,6 +703,8 @@ describe("PRD §31.2 property: operation + inverse = original state", () => {
         };
       case "set-attribute":
         return { ...s, attrs: { ...s.attrs, [op.name]: op.value } };
+      case "set-component-prop":
+        return { ...s, attrs: { ...s.attrs, [op.propName]: op.value } };
       case "text-edit":
         return { ...s, text: op.newText };
       case "resize-element":
@@ -709,6 +723,7 @@ describe("PRD §31.2 property: operation + inverse = original state", () => {
     "class-remove",
     "class-replace",
     "set-attribute",
+    "set-component-prop",
     "text-edit",
     "resize-element",
     "position-element",
@@ -817,7 +832,7 @@ describe("PRD §31.2 property: reorder permutation consistency", () => {
 
 describe("PRD §31.2 property: schema serialization round-trip", () => {
   // ∀ generated changeset: serialize → deserialize yields success with data
-  // deep-equal to the original. Covers all 30 operation kinds via arbOperation.
+  // deep-equal to the original. Covers all 31 operation kinds via arbOperation.
   it("∀ changeset: deserializeChangeSet(serializeChangeSet(cs)) is deep-equal", () => {
     fc.assert(
       fc.property(arbChangeSet, (cs) => {

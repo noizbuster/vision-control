@@ -176,6 +176,16 @@ const describeOperation = (
     case "wrap-elements":
     case "unwrap-element":
       throw new Error(`describeOperation: summary not yet implemented for ${op.kind}`);
+    case "set-component-prop":
+      return {
+        description: `Set ${op.componentName} prop ${op.propName} to ${describeValue(op.value)}`,
+        detail: {
+          componentName: op.componentName,
+          propName: op.propName,
+          value: op.value,
+          startLine: String(op.sourceRange.startLine),
+        },
+      };
     default: {
       const exhaustive: never = op;
       throw new Error(`describeOperation: unhandled kind: ${JSON.stringify(exhaustive)}`);
@@ -234,6 +244,8 @@ const describeTarget = (op: Operation): string | undefined => {
     case "wrap-elements":
     case "unwrap-element":
       throw new Error(`describeTarget: summary not yet implemented for ${op.kind}`);
+    case "set-component-prop":
+      return op.target.sourceId ?? op.target.selector;
     default: {
       const exhaustive: never = op;
       throw new Error(`describeTarget: unhandled kind: ${JSON.stringify(exhaustive)}`);

@@ -227,6 +227,44 @@ describe("mergeChangeSets — structural inverse pairs cancel across sets", () =
   });
 });
 
+describe("mergeChangeSets — set-component-prop conflict signature (PRD §7.2)", () => {
+  const range = { startLine: 5, startColumn: 10, endLine: 5, endColumn: 14 };
+  const componentPropOp = (id: string, propName: string, value: string, previousValue: string): Operation => ({
+    ...base(id, BASE_TIME),
+    kind: "set-component-prop",
+    target: el("btn-primary"),
+    componentName: "Button",
+    propName,
+    value,
+    previousValue,
+    sourceRange: range,
+  });
+
+  it("flags two set-component-prop edits on the same target+prop as a conflict", () => {
+    const a = csWith("cs-a", [componentPropOp("op-cprop-a1", "size", "lg", "md")]);
+    const b = csWith("cs-b", [componentPropOp("op-cprop-b1", "size", "lg", "md")]);
+    const result = mergeChangeSets(a, b);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.conflicts).toHaveLength(1);
+  });
+
+  it("does NOT conflict when the propName differs (same component, different prop)", () => {
+    const a = csWith("cs-a", [componentPropOp("op-cprop-a2", "size", "lg", "md")]);
+    const b = csWith("cs-b", [componentPropOp("op-cprop-b2", "variant", "primary", "secondary")]);
+    const result = mergeChangeSets(a, b);
+    expect(result.ok).toBe(true);
+  });
+
+  it("allows an inverseOf-linked component-prop pair through", () => {
+    const a = csWith("cs-a", [componentPropOp("op-cprop-fwd", "size", "lg", "md")]);
+    const b = csWith("cs-b", [
+      { ...componentPropOp("op-cprop-inv", "size", "md", "lg"), inverseOf: "op-cprop-fwd" },
+    ]);
+    const result = mergeChangeSets(a, b);
+    expect(result.ok).toBe(true);
+  });
+});
+
 describe("serialization round-trip of merged structural changesets", () => {
   it("a merge result containing surviving structural ops round-trips deep-equal", () => {
     const a = csWith("cs-rt-a", [insertOp("survivor"), wrapOp("wrapper-rt")]);

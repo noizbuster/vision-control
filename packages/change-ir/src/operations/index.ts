@@ -31,6 +31,7 @@ import { ReparentElementOperationSchema } from "./reparent.js";
 import { ResizeElementOperationSchema } from "./resize.js";
 import { ScreenshotCropRefOperationSchema } from "./screenshot.js";
 import { SetAttributeOperationSchema } from "./set-attribute.js";
+import { SetComponentPropOperationSchema } from "./set-component-prop.js";
 import { StyleEditOperationSchema } from "./style.js";
 import { SuggestedDiffOperationSchema } from "./suggested-diff.js";
 import { TextEditOperationSchema } from "./text.js";
@@ -52,6 +53,7 @@ export * from "./reparent.js";
 export * from "./resize.js";
 export * from "./screenshot.js";
 export * from "./set-attribute.js";
+export * from "./set-component-prop.js";
 export * from "./style.js";
 export * from "./suggested-diff.js";
 export * from "./text.js";
@@ -98,6 +100,7 @@ export const OperationSchema = z.discriminatedUnion("kind", [
   BreakpointTextEditOperationSchema,
   ScreenshotCropRefOperationSchema,
   SuggestedDiffOperationSchema,
+  SetComponentPropOperationSchema,
 ]);
 
 export type Operation = z.infer<typeof OperationSchema>;
@@ -137,6 +140,7 @@ export const OPERATION_KINDS = [
   "breakpoint-text-edit",
   "screenshot-crop-ref",
   "suggested-diff",
+  "set-component-prop",
 ] as const;
 
 export type OperationKind = (typeof OPERATION_KINDS)[number];

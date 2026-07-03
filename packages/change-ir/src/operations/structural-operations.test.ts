@@ -52,6 +52,17 @@ const setAttributeOp: Operation = {
   previousValue: "Send",
 };
 
+const setComponentPropOp: Operation = {
+  ...base("op-setcompp0001", BASE_TIME + 1),
+  kind: "set-component-prop",
+  target: el("btn-primary"),
+  componentName: "Button",
+  propName: "size",
+  value: "lg",
+  previousValue: "md",
+  sourceRange: { startLine: 12, startColumn: 16, endLine: 12, endColumn: 20 },
+};
+
 const positionElementOp: Operation = {
   ...base("op-position001", BASE_TIME + 2),
   kind: "position-element",
@@ -111,6 +122,7 @@ const unwrapElementOp: Operation = {
 const newOps: ReadonlyArray<readonly [string, Operation]> = [
   ["remove-style", removeStyleOp],
   ["set-attribute", setAttributeOp],
+  ["set-component-prop", setComponentPropOp],
   ["position-element", positionElementOp],
   ["insert-element", insertElementOp],
   ["remove-element", removeElementOp],
@@ -173,6 +185,22 @@ describe("computeInverse — every new kind has a computable inverse (Appendix D
     expect(inv.previousValue).toBe("Submit");
   });
 
+  it("set-component-prop inverse swaps value/previousValue and keeps sourceRange", () => {
+    const inv = computeInverse(setComponentPropOp);
+    if (inv.kind !== "set-component-prop") throw new Error("expected set-component-prop");
+    expect(inv.componentName).toBe("Button");
+    expect(inv.propName).toBe("size");
+    expect(inv.value).toBe("md");
+    expect(inv.previousValue).toBe("lg");
+    expect(inv.sourceRange).toEqual(setComponentPropOp.sourceRange);
+  });
+
+  it("rejects a set-component-prop missing the sourceRange", () => {
+    const { sourceRange: _omit, ...bad } = setComponentPropOp;
+    void _omit;
+    expect(OperationSchema.safeParse(bad).success).toBe(false);
+  });
+
   it("position-element inverse swaps from/to position values", () => {
     const inv = computeInverse(positionElementOp);
     if (inv.kind !== "position-element") throw new Error("expected position-element");
@@ -230,6 +258,7 @@ describe("double-inverse restores the original shape (self-symmetric kinds)", ()
   // double-inverse cannot return the original kind by construction.
   const selfSymmetric: ReadonlyArray<readonly [string, Operation]> = [
     ["set-attribute", setAttributeOp],
+    ["set-component-prop", setComponentPropOp],
     ["position-element", positionElementOp],
     ["insert-element", insertElementOp],
     ["remove-element", removeElementOp],
@@ -271,6 +300,7 @@ describe("structural serialization round-trip", () => {
     operations: [
       removeStyleOp,
       setAttributeOp,
+      setComponentPropOp,
       positionElementOp,
       insertElementOp,
       removeElementOp,
@@ -310,8 +340,9 @@ describe("structural serialization round-trip", () => {
   it("rejects a changeset missing a required structural field", () => {
     const cs = fixedChangeSet();
     const serialized = serializeChangeSet(cs);
-    const mutated = JSON.parse(serialized) as { operations: unknown[] };
-    const insert = mutated.operations[3] as Record<string, unknown>;
+    const mutated = JSON.parse(serialized) as { operations: Array<Record<string, unknown>> };
+    const insert = mutated.operations.find((op) => op.kind === "insert-element");
+    if (insert === undefined) throw new Error("insert-element op not found in fixture");
     delete insert.parent;
     const result = deserializeChangeSet(JSON.stringify(mutated));
     expect(result.success).toBe(false);

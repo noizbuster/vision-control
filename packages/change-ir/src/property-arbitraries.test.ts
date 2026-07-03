@@ -104,6 +104,23 @@ const arbSetAttribute = fc
     previousValue: arbText,
   })
   .map(parse(OperationSchema));
+const arbSetComponentProp = fc
+  .record({
+    ...opBase,
+    kind: fc.constant("set-component-prop"),
+    target: arbElementRef,
+    componentName: arbIdent,
+    propName: arbIdent,
+    value: arbText,
+    previousValue: arbText,
+    sourceRange: fc.record({
+      startLine: arbNat,
+      startColumn: arbNat,
+      endLine: arbNat,
+      endColumn: arbNat,
+    }),
+  })
+  .map(parse(OperationSchema));
 const arbTextEdit = fc
   .record({
     ...opBase,
@@ -399,7 +416,7 @@ const arbSuggestedDiff = fc
   })
   .map(parse(OperationSchema));
 
-/** Per-kind generator lookup (covers all 30 kinds in OPERATION_KINDS order). */
+/** Per-kind generator lookup (covers all 31 kinds in OPERATION_KINDS order). */
 export const arbByKind: Record<OperationKind, fc.Arbitrary<Operation>> = {
   "style-edit": arbStyleEdit,
   "remove-style": arbRemoveStyle,
@@ -407,6 +424,7 @@ export const arbByKind: Record<OperationKind, fc.Arbitrary<Operation>> = {
   "class-remove": arbClassRemove,
   "class-replace": arbClassReplace,
   "set-attribute": arbSetAttribute,
+  "set-component-prop": arbSetComponentProp,
   "text-edit": arbTextEdit,
   "reorder-child": arbReorder,
   "reparent-element": arbReparent,
@@ -433,7 +451,7 @@ export const arbByKind: Record<OperationKind, fc.Arbitrary<Operation>> = {
   "suggested-diff": arbSuggestedDiff,
 };
 
-/** Arbitrary operation of ANY kind (uniform over all 30). */
+/** Arbitrary operation of ANY kind (uniform over all 31). */
 export const arbOperation = fc.oneof(...Object.values(arbByKind));
 
 // --- changeset generator ---------------------------------------------------

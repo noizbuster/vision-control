@@ -33,6 +33,8 @@ const conflictSignature = (op: Operation): string | undefined => {
       return `class:${op.target.runtimeId}:${op.oldClassName}`;
     case "set-attribute":
       return `attribute:${op.target.runtimeId}:${op.name}`;
+    case "set-component-prop":
+      return `component-prop:${op.target.runtimeId}:${op.componentName}:${op.propName}`;
     case "position-element":
       return `position:${op.target.runtimeId}:${op.property}`;
     case "resize-element":

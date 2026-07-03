@@ -1,0 +1,217 @@
+import type { Operation, ReparentElementOperation } from "@vision-control/change-ir";
+import {
+  beginReparent,
+  type CandidateContainer,
+  cancelReparent,
+  createPointerId,
+  type DropValidity,
+  endReparent,
+  evaluateDropTarget,
+  type FeasibilityReport,
+  type ReparentElementDescriptor,
+  type ReparentPhase,
+  type ReparentResult,
+  type ReparentSession,
+} from "@vision-control/interaction-machine";
+import type { PreviewManager } from "@vision-control/preview-engine";
+
+export type {
+  CandidateContainer,
+  FeasibilityReport,
+  ReparentElementDescriptor,
+} from "@vision-control/interaction-machine";
+
+export interface ReparentHighlightState {
+  readonly rect: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly validity: DropValidity;
+  readonly warning: string | null;
+}
+
+export interface ReparentControllerState {
+  readonly phase: ReparentPhase;
+  readonly isActive: boolean;
+  readonly feasibility: FeasibilityReport;
+  readonly highlight: ReparentHighlightState | null;
+  readonly lastResult: ReparentResult | null;
+}
+
+export interface ReparentControllerCallbacks {
+  readonly onStateChange: (state: ReparentControllerState) => void;
+  readonly onHighlight: (state: ReparentHighlightState | null) => void;
+}
+
+export interface ReparentControllerOptions {
+  readonly callbacks: ReparentControllerCallbacks;
+  readonly previewEngine?: PreviewManager | null;
+  readonly journal?: { readonly record: (operation: Operation) => void } | null;
+}
+
+export interface ReparentController {
+  readonly begin: (
+    pointerId: string,
+    element: ReparentElementDescriptor,
+    sourceParent: ReparentElementDescriptor,
+    sourceIndex: number,
+  ) => void;
+  readonly move: (
+    pointerX: number,
+    pointerY: number,
+    candidateContainers: readonly CandidateContainer[],
+  ) => void;
+  readonly end: () => ReparentResult;
+  readonly cancel: (reason: string) => void;
+  readonly getState: () => ReparentControllerState;
+}
+
+const initialFeasibility: FeasibilityReport = {
+  canReparent: false,
+  confidence: "low",
+  risks: [{ kind: "content-model", reason: "No drop target evaluated yet" }],
+};
+
+const initialState: ReparentControllerState = {
+  phase: "drag-pending",
+  isActive: false,
+  feasibility: initialFeasibility,
+  highlight: null,
+  lastResult: null,
+};
+
+const toHighlightState = (
+  container: CandidateContainer,
+  validity: DropValidity,
+  reason: string | null,
+): ReparentHighlightState => ({
+  rect: container.rect,
+  validity,
+  warning: reason,
+});
+
+const findContainer = (
+  containers: readonly CandidateContainer[],
+  runtimeId: string,
+): CandidateContainer | null =>
+  containers.find((c) => c.parent.ref.runtimeId === runtimeId) ?? null;
+
+export function createReparentController(options: ReparentControllerOptions): ReparentController {
+  const { callbacks, previewEngine = null, journal = null } = options;
+  let session: ReparentSession | null = null;
+  let state: ReparentControllerState = initialState;
+  let previewRollback: (() => void) | null = null;
+
+  const emit = (): void => {
+    callbacks.onStateChange(state);
+    callbacks.onHighlight(state.highlight);
+  };
+
+  const clearPreview = (): void => {
+    previewRollback?.();
+    previewRollback = null;
+  };
+
+  const applyPreview = (operation: ReparentElementOperation): void => {
+    clearPreview();
+    if (previewEngine !== null) {
+      previewRollback = previewEngine.applyOperation(operation);
+    }
+  };
+
+  const begin: ReparentController["begin"] = (pointerId, element, sourceParent, sourceIndex) => {
+    clearPreview();
+    session = beginReparent(createPointerId(pointerId), element, sourceParent, sourceIndex);
+    state = {
+      ...initialState,
+      phase: session.phase,
+      isActive: true,
+      feasibility: session.feasibility,
+    };
+    emit();
+  };
+
+  const move: ReparentController["move"] = (pointerX, pointerY, candidateContainers) => {
+    if (session === null) return;
+
+    const { session: nextSession, evaluation } = evaluateDropTarget(
+      session,
+      pointerX,
+      pointerY,
+      candidateContainers,
+    );
+    session = nextSession;
+
+    const highlight =
+      evaluation.target === null
+        ? null
+        : toHighlightState(
+            findContainer(candidateContainers, evaluation.target.parent.runtimeId) ?? {
+              parent: { ref: evaluation.target.parent, tagName: evaluation.target.tagName },
+              layoutRole: "block",
+              rect: { x: pointerX, y: pointerY, width: 0, height: 0 },
+              children: [],
+            },
+            evaluation.validity === "valid" ? "valid" : "invalid",
+            evaluation.reason,
+          );
+
+    state = {
+      ...state,
+      phase: nextSession.phase,
+      feasibility: nextSession.feasibility,
+      highlight,
+    };
+
+    if (evaluation.validity === "valid" && evaluation.target !== null) {
+      const operation = endReparent(nextSession);
+      if (operation.status === "committed") {
+        applyPreview(operation.operation);
+      }
+    } else {
+      clearPreview();
+    }
+
+    emit();
+  };
+
+  const end: ReparentController["end"] = () => {
+    if (session === null) {
+      return { status: "rejected", reason: "No reparent session active" };
+    }
+
+    const result = endReparent(session);
+    session = null;
+
+    if (result.status === "committed") {
+      journal?.record(result.operation);
+      clearPreview();
+    }
+
+    state = {
+      ...initialState,
+      lastResult: result,
+    };
+    emit();
+    return result;
+  };
+
+  const cancel: ReparentController["cancel"] = (reason) => {
+    if (session === null) return;
+
+    session = cancelReparent(session, reason);
+    clearPreview();
+    state = {
+      ...initialState,
+      phase: "rejected",
+      lastResult: { status: "rejected", reason },
+    };
+    emit();
+  };
+
+  const getState = (): ReparentControllerState => state;
+
+  return { begin, move, end, cancel, getState };
+}

@@ -21,6 +21,7 @@
   "dependencies": {
     "@vision-control/daemon-core": "workspace:*",
     "@vision-control/logger": "workspace:*",
+    "@vision-control/mcp-server": "workspace:*",
     "@vision-control/protocol": "workspace:*",
     "@vision-control/security": "workspace:*",
     "@vision-control/storage": "workspace:*",

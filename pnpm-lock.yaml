@@ -57,6 +57,9 @@ catalogs:
     better-sqlite3:
       specifier: 12.11.1
       version: 12.11.1
+    fast-check:
+      specifier: 4.8.0
+      version: 4.8.0
     jsdom:
       specifier: 29.1.1
       version: 29.1.1
@@ -125,6 +128,9 @@ importers:
       '@vision-control/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@vision-control/mcp-server':
+        specifier: workspace:*
+        version: link:../../packages/mcp-server
       '@vision-control/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -552,6 +558,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.0
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.8.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -743,6 +752,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.0
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.8.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -761,6 +773,9 @@ importers:
       '@vision-control/geometry':
         specifier: workspace:*
         version: link:../geometry
+      '@vision-control/layout-engine':
+        specifier: workspace:*
+        version: link:../layout-engine
       '@vision-control/overlay-ui':
         specifier: workspace:*
         version: link:../overlay-ui
@@ -895,6 +910,9 @@ importers:
       '@vision-control/geometry':
         specifier: workspace:*
         version: link:../geometry
+      '@vision-control/layout-engine':
+        specifier: workspace:*
+        version: link:../layout-engine
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -3237,6 +3255,10 @@ packages:
   exsolve@1.1.0:
     resolution: {integrity: sha512-D+42+T12DdIlJM3uepa55qGiL3sYdLBOxIl2ifQCzCHz4c7eiolaHsi3BIqEr7JxBzxv2pYZQX9kw16ziMcEmw==}
 
+  fast-check@4.8.0:
+    resolution: {integrity: sha512-GOJ158CUMnN6cSahsv4+ExARvIDuzzinFjkp0E9WtiBa5zcVeLozVkWaE4IzFcc+Y48Wp1EDlUZsXRyAztQcSg==}
+    engines: {node: '>=12.17.0'}
+
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
@@ -4284,6 +4306,9 @@ packages:
   pupa@3.3.0:
     resolution: {integrity: sha512-LjgDO2zPtoXP2wJpDjZrGdojii1uqO0cnwKoIoUzkfS98HDmbeiGmYiXo3lXeFlq2xvne1QFQhwYXSUCLKtEuA==}
     engines: {node: '>=12.20'}
+
+  pure-rand@8.4.1:
+    resolution: {integrity: sha512-c58R2+SPFcSIPXoU834QN/KPDDOSd8sXcSrqf6e83Me6Rrp1EYkxukkjXMVrKvKaADs1SOyNkWdfvLf6zY8qLQ==}
 
   qs@6.15.3:
     resolution: {integrity: sha512-O9gl3zCl5h5blw1KGUzQKhA5oUXSl8rwUIM5o0S3nCXMliSvy5Dzx7/DJcI+SwgICv+IneSZwhBh1oSyEHA71A==}
@@ -6922,6 +6947,10 @@ snapshots:
 
   exsolve@1.1.0: {}
 
+  fast-check@4.8.0:
+    dependencies:
+      pure-rand: 8.4.1
+
   fast-deep-equal@3.1.3: {}
 
   fast-glob@3.3.3:
@@ -8016,6 +8045,8 @@ snapshots:
   pupa@3.3.0:
     dependencies:
       escape-goat: 4.0.0
+
+  pure-rand@8.4.1: {}
 
   qs@6.15.3:
     dependencies:

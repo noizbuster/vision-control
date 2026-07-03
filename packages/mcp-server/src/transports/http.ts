@@ -7,8 +7,12 @@
  * through {@link checkAuth} before reaching the MCP transport; unauthenticated
  * requests are rejected with no context leakage.
  *
- * Stateless mode (no session management): each request is independent. This
- * is the simplest correct pattern for a local loopback MCP endpoint.
+ * STATELESS PATTERN: the MCP SDK's `StreamableHTTPServerTransport` does not
+ * support sequential requests on a single connected instance. Each HTTP
+ * request gets a fresh transport + a `connect()` / `close()` cycle on the
+ * shared `McpServer`. Tool handlers registered via `registerTool` persist
+ * across cycles (they live on the server, not the transport), so this is
+ * safe and cheap.
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -52,11 +56,8 @@ export async function startHttpTransport(
     );
   }
 
-  const transport = new StreamableHTTPServerTransport();
-  await mcpServer.connect(transport);
-
   const httpServer: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    void handleRequest(req, res, transport, opts.auth);
+    void handleRequest(req, res, mcpServer, opts.auth);
   });
 
   await new Promise<void>((resolve) => {
@@ -71,7 +72,6 @@ export async function startHttpTransport(
     port: actualPort,
     host,
     stop: async () => {
-      await transport.close();
       httpServer.close();
     },
   };
@@ -80,11 +80,15 @@ export async function startHttpTransport(
 /**
  * Handle a single HTTP request: auth-check, then delegate to the MCP transport.
  * Unauthenticated requests are rejected before the transport sees them.
+ *
+ * Each request creates a fresh `StreamableHTTPServerTransport` and reconnects
+ * the shared `McpServer`. This is the SDK's documented stateless pattern: a
+ * single connected transport cannot process sequential requests.
  */
 async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
-  transport: StreamableHTTPServerTransport,
+  mcpServer: McpServer,
   auth: AuthConfig,
 ): Promise<void> {
   const authResult = checkAuth(req, auth);
@@ -94,8 +98,14 @@ async function handleRequest(
     return;
   }
 
-  const body = await readJsonBody(req);
-  await transport.handleRequest(req, res, body);
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  await mcpServer.connect(transport);
+  try {
+    const body = await readJsonBody(req);
+    await transport.handleRequest(req, res, body);
+  } finally {
+    await mcpServer.close();
+  }
 }
 
 /** Read and parse the JSON body from a Node HTTP request. */

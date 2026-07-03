@@ -15,6 +15,11 @@ export const VisionControlConfigSchema = z.object({
       host: z.string().optional(),
     })
     .default({}),
+  mcp: z
+    .object({
+      port: z.number().int().positive().max(65535).optional(),
+    })
+    .default({}),
   origins: z.array(z.string()).default([]),
   logging: z
     .object({

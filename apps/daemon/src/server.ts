@@ -1,17 +1,29 @@
+import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type {
+  ChangesetService,
   ConnectionService,
   ProtocolHandler,
   SessionService,
+  SourceRegistryService,
   WorkspaceService,
 } from "@vision-control/daemon-core";
 import { authenticateUpgrade } from "@vision-control/daemon-core";
 import type { Logger } from "@vision-control/logger";
+import {
+  type ActiveSessionRead,
+  createDaemonMcpDeps,
+  createMcpServer,
+  type HttpTransportHandle,
+  startHttpTransport,
+} from "@vision-control/mcp-server";
+import { PROTOCOL_VERSION } from "@vision-control/protocol";
 import type { OriginAllowlistConfig } from "@vision-control/security";
 import type { SessionRow } from "@vision-control/storage";
 import { runMigrations } from "@vision-control/storage";
 import type Database from "better-sqlite3";
 import { type WebSocket, WebSocketServer } from "ws";
+import { createDaemonMcpAdapters } from "./mcp-adapters.js";
 
 /** Hosts that count as loopback; the daemon refuses to bind anything else. */
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
@@ -43,8 +55,14 @@ export interface DaemonServerOptions {
   readonly connectionService: ConnectionService;
   readonly workspaceService: WorkspaceService;
   readonly protocolHandler: ProtocolHandler;
+  readonly changesetService: ChangesetService;
+  readonly sourceRegistryService: SourceRegistryService;
   readonly originConfig: OriginAllowlistConfig;
   readonly logger: Logger;
+  /** MCP HTTP transport port. When set, serves the read-only MCP server over loopback HTTP (ADR-013). */
+  readonly mcpPort?: number;
+  /** MCP bearer token. When mcpPort is set and this is omitted, a random token is generated. */
+  readonly mcpToken?: string;
   /** Called once with the pairing info after the server is listening. */
   readonly onReady?: (info: PairingInfo) => void;
 }
@@ -55,6 +73,10 @@ export interface PairingInfo {
   readonly pairingUrl: string;
   readonly token: string;
   readonly sessionId: string;
+  /** MCP HTTP endpoint URL. Present only when `mcpPort` is set. */
+  readonly mcpUrl?: string;
+  /** MCP bearer token for the HTTP endpoint. Present only when `mcpPort` is set. */
+  readonly mcpToken?: string;
 }
 
 export interface DaemonServer {
@@ -70,6 +92,10 @@ export interface DaemonServer {
  * checks, and the `connection` handler to the protocol dispatcher. Returns a
  * handle whose `stop()` closes the WS server, active connections, and HTTP
  * server. Never binds a non-loopback host — {@link validateHost} throws first.
+ *
+ * When `mcpPort` is set, also starts the read-only MCP HTTP transport on a
+ * separate loopback port with its own bearer token (ADR-013). The MCP server
+ * reads live session state from the tracked WebSocket connections.
  */
 export async function createDaemonServer(options: DaemonServerOptions): Promise<DaemonServer> {
   validateHost(options.host);
@@ -84,6 +110,10 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
     token: issue.token.token,
     sessionId: issue.sessionId,
   };
+
+  // Tracked by the WS connection/close handlers; read by the MCP deps adapter
+  // closure so vision_get_active_session reflects live connection state.
+  let activeSession: { readonly sessionId: string; readonly workspaceId: string } | undefined;
 
   const httpServer: Server = createServer((req, res) => {
     if (req.url === "/health") {
@@ -118,6 +148,7 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
   wss.on("connection", (ws: WebSocket, _req: IncomingMessage, session: SessionRow) => {
     options.connectionService.register(ws, session.id);
     options.workspaceService.bind(session.id, session.workspace_id);
+    activeSession = { sessionId: session.id, workspaceId: session.workspace_id };
     options.logger.info("Connection established", { sessionId: session.id });
 
     const decoder = new TextDecoder();
@@ -134,6 +165,9 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
 
     ws.on("close", () => {
       options.connectionService.unregister(ws);
+      if (activeSession !== undefined && activeSession.sessionId === session.id) {
+        activeSession = undefined;
+      }
       options.logger.debug("Connection closed", { sessionId: session.id });
     });
 
@@ -151,14 +185,56 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
   });
 
   const actualPort = (httpServer.address() as { readonly port: number }).port;
+
+  // Start the MCP HTTP transport on a separate loopback port (ADR-013). The
+  // deps adapter is a closure over `activeSession`, so MCP reads reflect live
+  // WebSocket connection state without coupling mcp-server to daemon-core.
+  let mcpTransport: HttpTransportHandle | undefined;
+  let mcpUrl: string | undefined;
+  let mcpToken: string | undefined;
+  if (options.mcpPort !== undefined) {
+    mcpToken = options.mcpToken ?? randomBytes(32).toString("hex");
+    const serviceAdapters = createDaemonMcpAdapters({
+      changesetService: options.changesetService,
+      sourceRegistryService: options.sourceRegistryService,
+    });
+    const mcpDeps = createDaemonMcpDeps({
+      sessionService: {
+        async getActive(): Promise<ActiveSessionRead | undefined> {
+          if (activeSession === undefined) return undefined;
+          return {
+            sessionId: activeSession.sessionId,
+            workspaceId: activeSession.workspaceId,
+            connected: true,
+            protocolVersion: PROTOCOL_VERSION,
+          };
+        },
+      },
+      ...serviceAdapters,
+    });
+    const mcpServer = createMcpServer(mcpDeps);
+    mcpTransport = await startHttpTransport(mcpServer, {
+      port: options.mcpPort,
+      host: options.host,
+      auth: { token: mcpToken },
+    });
+    mcpUrl = `http://${options.host}:${mcpTransport.port}/mcp`;
+    options.logger.info("MCP HTTP transport started", { mcpUrl });
+  }
+
   const resolvedPairingInfo: PairingInfo = {
     ...pairingInfo,
     port: actualPort,
     pairingUrl: `vision-control://pair?token=${encodeURIComponent(issue.token.token)}&port=${actualPort}&host=${options.host}`,
+    ...(mcpUrl !== undefined ? { mcpUrl } : {}),
+    ...(mcpToken !== undefined ? { mcpToken } : {}),
   };
   options.onReady?.(resolvedPairingInfo);
 
   const stop = async (): Promise<void> => {
+    if (mcpTransport !== undefined) {
+      await mcpTransport.stop();
+    }
     options.connectionService.closeAll();
     await new Promise<void>((resolve) => {
       wss.close(() => resolve());

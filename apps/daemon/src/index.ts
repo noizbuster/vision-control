@@ -8,6 +8,7 @@ export interface ParsedArgs {
   readonly host?: string;
   readonly workspace?: string;
   readonly db?: string;
+  readonly mcpPort?: number;
 }
 
 export const DEFAULT_HOST = "127.0.0.1";
@@ -25,6 +26,9 @@ Options:
   --workspace <path>   Workspace root containing vision-control.config.ts.
                        Default: discovered by walking up from cwd.
   --db <path>          SQLite database path. Default: <workspace>/.vision-control/daemon.db.
+  --mcp-port <port>    MCP HTTP transport port. 0 = ephemeral. When set, serves the
+                       read-only MCP server over loopback HTTP with a separate bearer
+                       token (ADR-013). Default: MCP transport disabled.
   --help               Print this help and exit without binding.
 
 Security:
@@ -41,6 +45,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   let host: string | undefined;
   let workspace: string | undefined;
   let db: string | undefined;
+  let mcpPort: number | undefined;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? "";
     const next = argv[i + 1];
@@ -66,6 +71,11 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       i += 1;
     } else if (arg.startsWith("--db=")) {
       db = arg.slice("--db=".length);
+    } else if (arg === "--mcp-port") {
+      mcpPort = next === undefined ? undefined : Number.parseInt(next, 10);
+      i += 1;
+    } else if (arg.startsWith("--mcp-port=")) {
+      mcpPort = Number.parseInt(arg.slice("--mcp-port=".length), 10);
     }
   }
   return {
@@ -74,6 +84,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     ...(port !== undefined ? { port } : {}),
     ...(workspace !== undefined ? { workspace } : {}),
     ...(db !== undefined ? { db } : {}),
+    ...(mcpPort !== undefined ? { mcpPort } : {}),
   };
 }
 
@@ -95,10 +106,12 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   const { createDaemonServer, NonLoopbackHostError } = await import("./server.js");
   const { ConsoleLogger, RedactingLogger } = await import("@vision-control/logger");
   const {
+    ChangesetService,
     ConnectionService,
     discoverWorkspaceRoot,
     ProtocolHandler,
     SessionService,
+    SourceRegistryService,
     WorkspaceService,
   } = await import("@vision-control/daemon-core");
   const {
@@ -123,6 +136,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 
   const resolvedPort = parsed.port ?? config?.daemon.port ?? DEFAULT_PORT;
   const resolvedHost = parsed.host ?? config?.daemon.host ?? DEFAULT_HOST;
+  const resolvedMcpPort = parsed.mcpPort ?? config?.mcp.port;
 
   const dbDir = `${workspaceRoot}/.vision-control`;
   const dbPath = parsed.db ?? `${dbDir}/daemon.db`;
@@ -152,13 +166,35 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       updated_at: Date.now(),
     });
   }
-  void changesetRepo;
-  void sourceRepo;
 
   const sessionService = new SessionService({ sessionRepo, auditRepo, logger });
   const connectionService = new ConnectionService(logger);
   const workspaceService = new WorkspaceService();
-  const protocolHandler = new ProtocolHandler({ logger });
+  const changesetService = new ChangesetService({ changesetRepo, logger });
+  const sourceRegistryService = new SourceRegistryService({
+    sourceRepo,
+    workspaceService,
+    logger,
+  });
+
+  // The pairing session id is minted inside createDaemonServer; capture it
+  // here so the changeset.updated handler can persist against the real DB
+  // session row. onReady fires after listen, before any WS frame arrives.
+  let activeSessionId: string | undefined;
+
+  const protocolHandler = new ProtocolHandler({
+    logger,
+    onChangesetUpdated: (payload) => {
+      if (activeSessionId === undefined) {
+        return;
+      }
+      changesetService.persist({
+        sessionId: activeSessionId,
+        workspaceId,
+        operations: payload.operations,
+      });
+    },
+  });
 
   const originConfig = {
     ...defaultAllowlistConfig(),
@@ -176,9 +212,13 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       connectionService,
       workspaceService,
       protocolHandler,
+      changesetService,
+      sourceRegistryService,
       originConfig,
       logger,
+      ...(resolvedMcpPort !== undefined ? { mcpPort: resolvedMcpPort } : {}),
       onReady: (info) => {
+        activeSessionId = info.sessionId;
         process.stdout.write(
           `${JSON.stringify({
             event: "ready",
@@ -186,6 +226,8 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
             host: info.host,
             pairingUrl: info.pairingUrl,
             sessionId: info.sessionId,
+            ...(info.mcpUrl !== undefined ? { mcpUrl: info.mcpUrl } : {}),
+            ...(info.mcpToken !== undefined ? { mcpToken: info.mcpToken } : {}),
           })}\n`,
         );
       },

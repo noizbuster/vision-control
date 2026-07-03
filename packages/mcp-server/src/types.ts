@@ -20,6 +20,8 @@ export interface SessionSummary {
   readonly connected: boolean;
   readonly clientVersion?: string;
   readonly protocolVersion: string;
+  /** Explanatory note when `connected` is false (e.g. no active session). */
+  readonly note?: string;
 }
 
 /** Redacted selection summary returned by `vision_get_selection`. */

@@ -17,6 +17,23 @@
 export { PACKAGE_NAME } from "./_package-name.js";
 export type { AuthConfig, AuthResult } from "./auth.js";
 export { checkAuth } from "./auth.js";
+export {
+  type ActiveSessionRead,
+  type ChangesetServiceRead,
+  type ConnectionServiceDispatch,
+  type ContextCompileInput,
+  type ContextCompilerRead,
+  type CurrentChangesetRead,
+  createDaemonMcpDeps,
+  type DaemonMcpDepsServices,
+  type PreviewClearDispatch,
+  type SelectionChangedRead,
+  type SessionServiceRead,
+  type SourceRegistryServiceRead,
+  type VerificationCoordinatorRead,
+  type VerificationPlanRead,
+  type VerificationRequestedDispatch,
+} from "./daemon-deps.js";
 export { createMcpServer, MCP_SERVER_NAME, MCP_SERVER_VERSION } from "./server.js";
 export { createStubDeps } from "./stub-deps.js";
 export { errorResult, textResult } from "./tool-helpers.js";

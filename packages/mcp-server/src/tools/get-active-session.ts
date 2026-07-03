@@ -10,6 +10,7 @@ export const GetActiveSessionOutputSchema = z.object({
   connected: z.boolean(),
   clientVersion: z.string().optional(),
   protocolVersion: z.string(),
+  note: z.string().optional(),
 });
 
 /** Register the `vision_get_active_session` read-only tool. */

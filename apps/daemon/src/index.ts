@@ -124,7 +124,10 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   } = await import("@vision-control/storage");
   const { defaultAllowlistConfig } = await import("@vision-control/security");
   const { loadConfig } = await import("./config-loader.js");
-  const { buildSourcePipeline, resolveSourceRequest } = await import("./source-pipeline.js");
+  const { buildSourcePipeline } = await import("./source-pipeline.js");
+  const { createBusinessHandlers, createConnectionDispatch, createSelectionStore } = await import(
+    "./business-handlers.js"
+  );
   const Database = (await import("better-sqlite3")).default;
 
   const logger = new RedactingLogger(new ConsoleLogger());
@@ -207,38 +210,34 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   });
 
   // The pairing session id is minted inside createDaemonServer; capture it
-  // here so the changeset.updated handler can persist against the real DB
+  // here so the business handlers + connection dispatch can address the real DB
   // session row. onReady fires after listen, before any WS frame arrives.
   let activeSessionId: string | undefined;
+  const getActiveSessionId = (): string | undefined => activeSessionId;
+
+  const selectionStore = createSelectionStore();
+  const businessHandlers = createBusinessHandlers({
+    workspaceId,
+    getActiveSessionId,
+    auditRepo,
+    logger,
+    changesetService,
+    sourcePipeline,
+    selectionStore,
+  });
+  const connectionDispatch = createConnectionDispatch({
+    connectionService,
+    getActiveSessionId,
+  });
 
   const protocolHandler = new ProtocolHandler({
     logger,
-    onSourceRequest: (payload, sender) => {
-      // §25.1.6 source.request → §25.2.3 source.resolved. The resolver runs the
-      // full never-wrong-HIGH cascade; a registered marker resolves HIGH, an
-      // unknown id falls through to the LOW fallback. Never a false HIGH.
-      const resolved = resolveSourceRequest(
-        sourcePipeline.resolver,
-        sourcePipeline.registry,
-        payload.elementId,
-      );
-      sender.sendSourceResolved({
-        requestId: payload.requestId,
-        elementId: payload.elementId,
-        sourceToken: resolved.sourceToken,
-        confidence: resolved.confidence,
-      });
-    },
-    onChangesetUpdated: (payload) => {
-      if (activeSessionId === undefined) {
-        return;
-      }
-      changesetService.persist({
-        sessionId: activeSessionId,
-        workspaceId,
-        operations: payload.operations,
-      });
-    },
+    onPageNavigated: businessHandlers.onPageNavigated,
+    onSelectionChanged: businessHandlers.onSelectionChanged,
+    onChangesetUpdated: businessHandlers.onChangesetUpdated,
+    onSourceRequest: businessHandlers.onSourceRequest,
+    onVerificationRuntimeResult: businessHandlers.onVerificationRuntimeResult,
+    onDiagnosticReported: businessHandlers.onDiagnosticReported,
   });
 
   const originConfig = {
@@ -260,6 +259,8 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       changesetService,
       sourceRegistryService,
       sourcePipeline,
+      selectionStore,
+      connectionDispatch,
       originConfig,
       logger,
       ...(resolvedMcpPort !== undefined ? { mcpPort: resolvedMcpPort } : {}),

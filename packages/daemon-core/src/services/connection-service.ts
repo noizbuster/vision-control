@@ -35,6 +35,26 @@ export class ConnectionService {
     return this.connections.get(socket);
   }
 
+  /**
+   * Send `data` to the connection pinned to `sessionId`, if one exists and is
+   * OPEN. Returns `true` when the frame was written, `false` when no matching
+   * OPEN connection was found. The single source of truth for server-initiated
+   * (§25.2) dispatch — MCP coordination signals address the active session's
+   * socket through this method rather than a per-message sender.
+   */
+  sendToSession(sessionId: string, data: string): boolean {
+    for (const record of this.connections.values()) {
+      if (record.sessionId === sessionId) {
+        if (record.socket.readyState === record.socket.OPEN) {
+          record.socket.send(data);
+          return true;
+        }
+        return false;
+      }
+    }
+    return false;
+  }
+
   /** Number of currently tracked connections. */
   get size(): number {
     return this.connections.size;

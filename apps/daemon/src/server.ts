@@ -10,6 +10,7 @@ import type {
 } from "@vision-control/daemon-core";
 import { authenticateUpgrade } from "@vision-control/daemon-core";
 import type { Logger } from "@vision-control/logger";
+import type { ConnectionServiceDispatch } from "@vision-control/mcp-server";
 import {
   type ActiveSessionRead,
   createDaemonMcpDeps,
@@ -23,6 +24,7 @@ import type { SessionRow } from "@vision-control/storage";
 import { runMigrations } from "@vision-control/storage";
 import type Database from "better-sqlite3";
 import { type WebSocket, WebSocketServer } from "ws";
+import type { SelectionStore } from "./business-handlers.js";
 import { createDaemonMcpAdapters } from "./mcp-adapters.js";
 import type { SourcePipeline } from "./source-pipeline.js";
 
@@ -65,6 +67,19 @@ export interface DaemonServerOptions {
    * `--mcp-port`; the WS `source.request` flow uses it when present.
    */
   readonly sourcePipeline?: SourcePipeline;
+  /**
+   * In-memory last-selection store (per session). When set, the MCP
+   * `sessionService.getLastSelection` port reads from it so `vision_get_selection`
+   * surfaces the element id from the most recent §25.1.4 `selection.changed`.
+   */
+  readonly selectionStore?: SelectionStore;
+  /**
+   * Server→client dispatch port for MCP coordination signals. When set, the
+   * `vision_request_verification` / `vision_clear_preview` tools emit the
+   * matching §25.2 frame to the active session's socket instead of degrading
+   * to "not dispatched".
+   */
+  readonly connectionDispatch?: ConnectionServiceDispatch;
   readonly originConfig: OriginAllowlistConfig;
   readonly logger: Logger;
   /** MCP HTTP transport port. When set, serves the read-only MCP server over loopback HTTP (ADR-013). */
@@ -225,7 +240,15 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
             protocolVersion: PROTOCOL_VERSION,
           };
         },
+        ...(options.selectionStore !== undefined
+          ? {
+              getLastSelection: async (sessionId: string) => options.selectionStore?.get(sessionId),
+            }
+          : {}),
       },
+      ...(options.connectionDispatch !== undefined
+        ? { connectionService: options.connectionDispatch }
+        : {}),
       ...serviceAdapters,
     });
     const mcpServer = createMcpServer(mcpDeps);

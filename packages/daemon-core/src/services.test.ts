@@ -9,9 +9,10 @@ import {
   WorkspaceRepository,
 } from "@vision-control/storage";
 import Database from "better-sqlite3";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { WorkspaceNotBoundError } from "./errors.js";
 import { ChangesetService } from "./services/changeset-service.js";
+import { ConnectionService } from "./services/connection-service.js";
 import { SessionService } from "./services/session-service.js";
 import { SourceRegistryService } from "./services/source-registry-service.js";
 import { WorkspaceService } from "./services/workspace-service.js";
@@ -174,5 +175,45 @@ describe("ChangesetService persist + restore", () => {
     ]);
     db.close();
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+interface FakeSocket {
+  readyState: number;
+  OPEN: number;
+  sent: string[];
+  send: (data: string) => void;
+}
+
+function fakeOpenSocket(): FakeSocket {
+  const sent: string[] = [];
+  return { readyState: 1, OPEN: 1, sent, send: (d) => sent.push(d) };
+}
+
+describe("ConnectionService.sendToSession", () => {
+  it("writes the frame to the OPEN socket pinned to the session", () => {
+    const svc = new ConnectionService(new NoopLogger());
+    const socket = fakeOpenSocket();
+    svc.register(socket as never, "sess-active");
+
+    const sent = svc.sendToSession("sess-active", "hello");
+
+    expect(sent).toBe(true);
+    expect(socket.sent).toEqual(["hello"]);
+  });
+
+  it("returns false when no connection matches the session", () => {
+    const svc = new ConnectionService(new NoopLogger());
+    expect(svc.sendToSession("missing", "x")).toBe(false);
+  });
+
+  it("returns false when the matching socket is not OPEN", () => {
+    const svc = new ConnectionService(new NoopLogger());
+    const socket = fakeOpenSocket();
+    socket.readyState = 2; // CLOSING
+    svc.register(socket as never, "sess-closing");
+    const sendSpy = vi.spyOn(socket, "send");
+    expect(svc.sendToSession("sess-closing", "x")).toBe(false);
+    expect(sendSpy).not.toHaveBeenCalled();
   });
 });

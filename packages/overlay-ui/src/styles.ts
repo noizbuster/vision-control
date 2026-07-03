@@ -364,4 +364,13 @@ export const OVERLAY_CSS = /* css */ `
     border-radius: var(--vc-radius-sm);
     background: color-mix(in oklch, var(--vc-drag-placeholder) 12%, transparent);
   }
+
+  /* PRD §9.1 — marquee drag-rectangle (distinct from select outline). */
+  .vc-marquee-rect {
+    position: absolute;
+    pointer-events: none;
+    border: 1px dashed var(--vc-select);
+    background: color-mix(in oklch, var(--vc-select) 10%, transparent);
+    border-radius: var(--vc-radius-sm);
+  }
 `;

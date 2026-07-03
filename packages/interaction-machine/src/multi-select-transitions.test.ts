@@ -1,5 +1,6 @@
 import type { ElementRef, MultiSelectMember } from "@vision-control/element-identity";
 import { createMultiSelectGroupId } from "@vision-control/element-identity";
+import type { Rect } from "@vision-control/geometry";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -186,6 +187,7 @@ describe("transitionMultiSelect — marquee-select", () => {
       createInitialMultiSelectState(),
       {
         type: "marquee-select",
+        marqueeRect: { x: -10, y: -10, width: 100, height: 50 },
         members: [member("a"), member("b"), member("c")],
         memberRects: [
           { x: 0, y: 0, width: 10, height: 10 },
@@ -207,6 +209,7 @@ describe("transitionMultiSelect — marquee-select", () => {
       createInitialMultiSelectState(),
       {
         type: "marquee-select",
+        marqueeRect: { x: 0, y: 0, width: 100, height: 100 },
         members: [
           member("a", { frameId: "main" }),
           member("b", { frameId: "frame-2", frameKind: "same-origin-iframe" }),
@@ -229,6 +232,7 @@ describe("transitionMultiSelect — marquee-select", () => {
       createInitialMultiSelectState(),
       {
         type: "marquee-select",
+        marqueeRect: { x: 0, y: 0, width: 50, height: 50 },
         members: [member("a")],
         memberRects: [{ x: 0, y: 0, width: 10, height: 10 }],
         parentChains: [[ref("body")]],
@@ -237,6 +241,48 @@ describe("transitionMultiSelect — marquee-select", () => {
     );
     expect(result.state.group).toBeNull();
     expect(findEffect(result.effects, "multi-select-error")).toBeUndefined();
+  });
+
+  it("marquee drag over 3 same-frame elements forms a group with exactly 3 members", () => {
+    const result = transitionMultiSelect(
+      createInitialMultiSelectState(),
+      {
+        type: "marquee-select",
+        marqueeRect: { x: 0, y: 0, width: 60, height: 20 },
+        members: [member("el-1"), member("el-2"), member("el-3")],
+        memberRects: [
+          { x: 0, y: 0, width: 15, height: 15 },
+          { x: 20, y: 0, width: 15, height: 15 },
+          { x: 40, y: 0, width: 15, height: 15 },
+        ],
+        parentChains: [[ref("body")], [ref("body")], [ref("body")]],
+      },
+      deterministicIds("grp-3"),
+    );
+    expect(result.state.group).not.toBeNull();
+    expect(result.state.group?.members).toHaveLength(3);
+    expect(result.state.group?.members.map((m) => m.runtimeId)).toEqual(["el-1", "el-2", "el-3"]);
+    expect(findEffect(result.effects, "show-multi-outline")).toBeDefined();
+  });
+
+  it("marquee-select carries the drag rectangle on the event", () => {
+    const marqueeRect: Rect = { x: 5, y: 5, width: 200, height: 100 };
+    const result = transitionMultiSelect(
+      createInitialMultiSelectState(),
+      {
+        type: "marquee-select",
+        marqueeRect,
+        members: [member("a"), member("b")],
+        memberRects: [
+          { x: 10, y: 10, width: 10, height: 10 },
+          { x: 30, y: 10, width: 10, height: 10 },
+        ],
+        parentChains: [[ref("body")], [ref("body")]],
+      },
+      deterministicIds("grp-rect"),
+    );
+    expect(result.state.group).not.toBeNull();
+    expect(findEffect(result.effects, "show-multi-outline")).toBeDefined();
   });
 });
 

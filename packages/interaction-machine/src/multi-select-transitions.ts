@@ -57,6 +57,7 @@ export type MultiSelectEvent =
     }
   | {
       readonly type: "marquee-select";
+      readonly marqueeRect: Rect;
       readonly members: readonly MultiSelectMember[];
       readonly memberRects: readonly Rect[];
       readonly parentChains: readonly (readonly ElementRef[])[];

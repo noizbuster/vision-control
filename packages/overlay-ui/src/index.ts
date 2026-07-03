@@ -35,7 +35,12 @@ export {
   type FlexGridAxis,
   type FlexGridAxisState,
 } from "./flex-grid-axis.js";
-export { hitTest } from "./hit-testing.js";
+export {
+  type ElementsFromRectOptions,
+  elementsFromRect,
+  hitTest,
+  isInsideClosedShadowRoot,
+} from "./hit-testing.js";
 export {
   type BridgedRectResult,
   bridgeRectToTopFrame,
@@ -48,6 +53,10 @@ export {
   type KeyboardControllerCallbacks,
   type ModifierState,
 } from "./keyboard.js";
+export {
+  createMarqueeOverlay,
+  type MarqueeOverlay,
+} from "./marquee-overlay.js";
 export {
   createMultiSelectOverlay,
   type MultiSelectOverlay,

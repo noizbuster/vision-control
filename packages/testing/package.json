@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/testing",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Shared testing harness: Vitest preset, Playwright extension loader, daemon process helper, evidence writer, fake clock/UUID, fixture builders.",

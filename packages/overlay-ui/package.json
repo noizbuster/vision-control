@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/overlay-ui",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Browser library skeleton for @vision-control/overlay-ui.",

@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/logger",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Structured logging with correlation IDs and a redacting logger wrapper for Vision Control.",

@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/verification-engine",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "HMR assertion engine: proves source patches landed in runtime state after clearing the preview layer.",

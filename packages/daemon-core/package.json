@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/daemon-core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Daemon business logic: sessions, connections, workspace binding, auth, and protocol dispatch (node-only).",

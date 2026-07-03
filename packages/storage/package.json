@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/storage",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "SQLite persistence layer for Vision Control (node-only runtime; better-sqlite3).",

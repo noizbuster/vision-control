@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/nx-plugin",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Local Nx plugin: package-skeleton generators and workspace boundary conformance checker for Vision Control.",

@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/context-compiler",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Compiles a redacted, token-budgeted agent context from selection, changes, and source data.",

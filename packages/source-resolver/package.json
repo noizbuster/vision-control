@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/source-resolver",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Resolves a selection identity to a source candidate using source markers, CSS tokens, and fallback search.",

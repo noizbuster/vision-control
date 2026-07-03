@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/security",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Redaction, origin allowlist, pairing tokens, audit events, and secret detection for Vision Control.",

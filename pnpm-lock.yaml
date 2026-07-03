@@ -659,6 +659,9 @@ importers:
       '@vision-control/security':
         specifier: workspace:*
         version: link:../security
+      '@vision-control/verification-engine':
+        specifier: workspace:*
+        version: link:../verification-engine
       zod:
         specifier: 'catalog:'
         version: 4.4.3

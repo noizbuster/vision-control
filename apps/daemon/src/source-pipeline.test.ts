@@ -186,7 +186,7 @@ describe("MCP adapters — real verification plan (not STUB)", () => {
     }
   });
 
-  it("contextCompiler.compile injects the real verificationPlan (never STUB_VERIFICATION_PLAN)", async () => {
+  it("contextCompiler.compile injects a real verificationPlan (never the empty-assertions stub)", async () => {
     const workspace = makeWorkspace();
     try {
       const pipeline = await buildSourcePipeline({

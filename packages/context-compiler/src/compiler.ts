@@ -30,7 +30,6 @@ import {
   type SourceCandidateSummary,
   type SourceConfidenceDetail,
   type SourceSummary,
-  STUB_VERIFICATION_PLAN,
   type SuggestedDiffSummary,
   type TargetSummary,
   type TokenRegistrySummary,
@@ -38,6 +37,7 @@ import {
 } from "./context-schema.js";
 import { summarizeOperation } from "./operation-summary.js";
 import { TokenBudget } from "./token-budget.js";
+import { projectVerificationPlan } from "./verification-plan-projector.js";
 
 /** Inputs to {@link compileContext}. */
 export interface CompileContextInputs {
@@ -99,7 +99,7 @@ export const compileContext = (inputs: CompileContextInputs): CompiledContext =>
     operations,
     source,
     layout,
-    verificationPlan: STUB_VERIFICATION_PLAN,
+    verificationPlan: projectVerificationPlan(inputs.changeset.operations),
     warnings,
     privacyReport: { redactions: [], totalRedacted: 0 },
     metadata: {

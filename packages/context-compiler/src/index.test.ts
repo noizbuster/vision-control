@@ -12,7 +12,6 @@ import {
   redactContext,
   renderJson,
   renderMarkdown,
-  STUB_VERIFICATION_PLAN,
   TokenBudget,
 } from "./index.js";
 
@@ -192,10 +191,35 @@ describe("context-compiler", () => {
       expect(styleOp?.detail.property).toBe("color");
     });
 
-    it("includes a verification plan stub with empty assertions", () => {
+    it("derives a REAL verification plan (non-empty assertions) from the changeset", () => {
       const context = compileContext(makeInputs());
-      expect(context.verificationPlan.assertions).toEqual([]);
-      expect(context.verificationPlan.notes).toBe(STUB_VERIFICATION_PLAN.notes);
+      expect(context.verificationPlan.assertions.length).toBeGreaterThan(0);
+      expect(context.verificationPlan.notes).not.toContain("STUB");
+      // style-edit maps to a computed-style assertion via createPlan.
+      expect(context.verificationPlan.assertions[0]?.description).toBe("style-edit:value");
+    });
+
+    it("derives non-empty assertions for a reorder op (createPlan wired through)", () => {
+      const reorderOp: Operation = {
+        id: "op-reorder01",
+        kind: "reorder-child",
+        parent: { runtimeId: "runtime-parent", selector: "main" },
+        child: { runtimeId: "runtime-0001", sourceId: "src-btn-0001", selector: "button.primary" },
+        fromIndex: 0,
+        toIndex: 2,
+        timestamp: 1002,
+        runtime: false,
+        origin: "canvas-drag" as const,
+        confidence: 1,
+      };
+      const context = compileContext(makeInputs({ changeset: makeChangeSet([reorderOp]) }));
+      expect(context.verificationPlan.assertions.length).toBeGreaterThan(0);
+      expect(context.verificationPlan.assertions[0]?.description).toBe("reorder-child:toIndex");
+    });
+
+    it("notes the preview-clear-before-verify invariant on the plan (R7)", () => {
+      const context = compileContext(makeInputs());
+      expect(context.verificationPlan.notes).toContain("preview layer is cleared");
     });
 
     it("marks runtime preview operations distinctly from source intent", () => {
@@ -407,7 +431,7 @@ describe("context-compiler", () => {
       expect(context.metadata.truncatedSections).toContain("warnings");
     });
 
-    it("orders truncatedSections lowest-priority first", () => {
+    it("orders truncatedSections lowest-priority first (PRD §16.5: operations > source > parent/target > verification > diagnostics)", () => {
       const context = compileContext(
         makeInputs({
           sourceCandidates: [makeCandidate({ snippet: "y".repeat(8000) })],
@@ -419,9 +443,9 @@ describe("context-compiler", () => {
         "warnings",
         "verificationPlan",
         "layout",
+        "target",
         "source",
         "operations",
-        "target",
       ];
       const present = context.metadata.truncatedSections;
       const ranks = present.map((section) => priority.indexOf(section));

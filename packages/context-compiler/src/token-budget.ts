@@ -8,9 +8,11 @@
  * (~4 characters per token) so it stays dependency-free and isomorphic; a
  * production tokenizer can be swapped in later without changing the call sites.
  *
- * Priority (high → low, PRD 14.6):
- *   goal > target > operations > source > layout > verification plan >
- *   warnings > privacy report
+ * Priority (high → low, PRD 16.5):
+ *   operations > source snippets > parent/target > verification plan >
+ *   screenshot > diagnostics (warnings / privacy report)
+ *
+ * Sections are reduced lowest-priority first; the goal is never modified.
  */
 
 import type { CompiledContext, SourceCandidateSummary } from "./context-schema.js";
@@ -144,15 +146,18 @@ const reduceTarget = (context: CompiledContext): CompiledContext => {
   });
 };
 
-/** Ordered low → high priority: the first entry is reduced first. */
+/**
+ * Ordered low → high priority: the first entry is reduced first (PRD §16.5).
+ * operations survives longest (tier 1); diagnostics go first (tier 6).
+ */
 const REDUCTION_STEPS: readonly ReductionStep[] = [
   { section: "privacyReport", reduce: reducePrivacyReport },
   { section: "warnings", reduce: reduceWarnings },
   { section: "verificationPlan", reduce: reduceVerificationPlan },
   { section: "layout", reduce: reduceLayout },
+  { section: "target", reduce: reduceTarget },
   { section: "source", reduce: reduceSource },
   { section: "operations", reduce: reduceOperations },
-  { section: "target", reduce: reduceTarget },
 ];
 
 const finalize = (

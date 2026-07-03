@@ -18,6 +18,7 @@
   "dependencies": {
     "@vision-control/change-ir": "workspace:*",
     "@vision-control/security": "workspace:*",
+    "@vision-control/verification-engine": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

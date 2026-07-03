@@ -18,6 +18,46 @@ export {
   transition,
 } from "./machine.js";
 export {
+  beginReorder,
+  commitReorder,
+  endReorder,
+  type ReorderLayoutContext,
+  type ReorderResult,
+  type ReorderState,
+  type ReorderTarget,
+  updateReorder,
+} from "./operations/reorder.js";
+export type {
+  CandidateContainer,
+  DropEvaluation,
+  DropTarget,
+  DropValidity,
+  FeasibilityReport,
+  ReparentConfidence,
+  ReparentElementDescriptor,
+  ReparentPhase,
+  ReparentResult,
+  ReparentRisk,
+  ReparentRiskKind,
+  ReparentSession,
+} from "./operations/reparent.js";
+export {
+  beginReparent,
+  cancelReparent,
+  endReparent,
+  evaluateDropTarget,
+} from "./operations/reparent.js";
+export {
+  createResizeOperation,
+  type ResizeAxis,
+  type ResizeModifiers,
+  type ResizeOperation,
+  type ResizePhase,
+  type ResizePreview,
+  type ResizeResult,
+  type ResizeTarget,
+} from "./operations/resize.js";
+export {
   type AcquirePointerResult,
   acquirePointer,
   createPointerId,

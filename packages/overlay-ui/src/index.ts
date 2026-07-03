@@ -1,3 +1,16 @@
+export {
+  createDropIndicator,
+  type DropIndicatorApi,
+  type DropIndicatorOrientation,
+} from "./drop-indicator.js";
+export {
+  clearHighlight,
+  createDropTargetHighlighter,
+  type DropTargetHighlighter,
+  type DropTargetHighlightState,
+  type DropTargetValidity,
+  highlightDropTarget,
+} from "./drop-target-highlight.js";
 export { hitTest } from "./hit-testing.js";
 export {
   type BridgedRectResult,
@@ -24,3 +37,9 @@ export {
   setHandlePointerEvents,
   setHostPointerEvents,
 } from "./pointer-events-policy.js";
+export {
+  createResizeHandles,
+  RESIZE_HANDLE_POSITIONS,
+  type ResizeHandlePosition,
+  type ResizeHandles,
+} from "./resize-handles.js";

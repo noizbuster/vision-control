@@ -16,8 +16,10 @@
     "dist"
   ],
   "dependencies": {
+    "@vision-control/change-ir": "workspace:*",
     "@vision-control/element-identity": "workspace:*",
     "@vision-control/geometry": "workspace:*",
+    "@vision-control/layout-engine": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

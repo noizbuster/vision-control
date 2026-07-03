@@ -57,3 +57,14 @@ export function createEditorCommandMessage(operation: Operation): BusMessage {
     timestamp: Date.now(),
   };
 }
+
+export function createReorderOperationMessage(operation: Operation): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `reorder-operation-${Date.now()}`,
+    messageType: "reorder-operation",
+    targetRoute: "panel",
+    payload: operation,
+    timestamp: Date.now(),
+  };
+}

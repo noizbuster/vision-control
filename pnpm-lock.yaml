@@ -177,6 +177,9 @@ importers:
       '@vision-control/layout-engine':
         specifier: workspace:*
         version: link:../../packages/layout-engine
+      '@vision-control/overlay-ui':
+        specifier: workspace:*
+        version: link:../../packages/overlay-ui
       '@vision-control/preview-engine':
         specifier: workspace:*
         version: link:../../packages/preview-engine

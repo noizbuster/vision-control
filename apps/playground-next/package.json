@@ -21,6 +21,9 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vision-control/next-react": "workspace:*",
+    "autoprefixer": "catalog:",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

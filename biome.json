@@ -68,7 +68,7 @@
   },
   "overrides": [
     {
-      "includes": ["apps/playground-react-vite/**/*.css"],
+      "includes": ["apps/playground-react-vite/**/*.css", "apps/playground-next/**/*.css"],
       "linter": {
         "rules": {
           "suspicious": {

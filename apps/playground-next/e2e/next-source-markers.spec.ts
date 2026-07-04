@@ -7,7 +7,7 @@ test.describe("@next-source-markers — dev-only source markers", () => {
     const main = page.locator("main");
     await expect(main).toBeVisible();
 
-    const card = page.locator(".card span");
+    const card = page.locator("div.bg-white");
     await expect(card).toBeVisible();
   });
 

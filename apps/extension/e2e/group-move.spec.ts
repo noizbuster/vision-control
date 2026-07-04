@@ -179,9 +179,7 @@ test.describe("@group-move unit", () => {
 
 test.describe("@group-move browser", () => {
   // OUT: panel-context — group-reorder/reparent ops record to the journal which lives in the DevTools panel context; the overlay harness loads the content runtime + overlay only and cannot open the panel. D41 free-move rejection produces no overlay signal. Unit tests above cover classifyGroupMove → buildGroup*Operation → computeInverse end-to-end.
-  test.fixme("move two adjacent cards as a group within the same flex parent", async ({
-    _page,
-  }) => {
+  test.fixme("move two adjacent cards as a group within the same flex parent", async () => {
     // Given: a multi-select group of three sibling `.card` elements in a flex-row.
     // When: the user drags two selected cards to a new position in the same parent.
     // Then: a `group-reorder` operation is recorded with per-child refs and inverses.
@@ -189,7 +187,7 @@ test.describe("@group-move browser", () => {
   });
 
   // OUT: panel-context — group-reparent records to the panel journal; the ownership-risk warning renders in the inspector. Overlay harness cannot open the panel context.
-  test.fixme("reparent a multi-select group to a compatible parent", async ({ _page }) => {
+  test.fixme("reparent a multi-select group to a compatible parent", async () => {
     // Given: a multi-select group in container A.
     // When: the user drags the group onto container B (same frame, open shadow root).
     // Then: a `group-reparent` operation is recorded; ownership-risk warning shows
@@ -198,9 +196,7 @@ test.describe("@group-move browser", () => {
   });
 
   // OUT: panel-context — D41 free-move rejection produces no overlay signal; the diagnostic surfaces in the DevTools panel inspector.
-  test.fixme("normal-flow group free-move is rejected with a diagnostic (D41)", async ({
-    _page,
-  }) => {
+  test.fixme("normal-flow group free-move is rejected with a diagnostic (D41)", async () => {
     // Given: a multi-select group in a normal-flow flex container.
     // When: the user attempts a free-move drag (arbitrary positioning, not an insertion slot).
     // Then: the move is REJECTED with `unsupported-group-free-move`; NO `position: absolute`
@@ -209,7 +205,7 @@ test.describe("@group-move browser", () => {
   });
 
   // OUT: panel-context — per-member style-edit ops with free-move record to the panel journal; the overlay harness cannot open the panel context.
-  test.fixme("positioned-context group free-move works with explicit opt-in", async ({ _page }) => {
+  test.fixme("positioned-context group free-move works with explicit opt-in", async () => {
     // Given: a multi-select group of absolutely-positioned children.
     // When: the user opts into free-move (explicit intent) and drags the group.
     // Then: per-member style-edit operations carry `userIntent: "free-move"`.

@@ -148,9 +148,7 @@ test.describe("@alignment-distribution unit", () => {
 
 test.describe("@alignment-distribution browser", () => {
   // OUT: panel-context — alignment commands are issued via the AlignmentPanel buttons in the DevTools panel and record parent-layout-property intents to the panel journal; the overlay harness loads the content runtime + overlay only and cannot open the panel. Unit tests above cover resolveAlignmentCandidate end-to-end.
-  test.fixme("align three buttons in a flex row and record a parent justify-content intent", async ({
-    _page,
-  }) => {
+  test.fixme("align three buttons in a flex row and record a parent justify-content intent", async () => {
     // Given: a multi-select group of three sibling <button> elements in a flex-row.
     // When: the user issues the "align center" command.
     // Then: a parent-layout-property intent (justify-content: center) is recorded,
@@ -159,9 +157,7 @@ test.describe("@alignment-distribution browser", () => {
   });
 
   // OUT: panel-context — equalize-gap issues a command via the AlignmentPanel (DevTools panel); the overlay harness cannot open the panel context.
-  test.fixme("equalize-gap records a parent flex gap intent, not raw transforms", async ({
-    _page,
-  }) => {
+  test.fixme("equalize-gap records a parent flex gap intent, not raw transforms", async () => {
     // Given: three flex-row buttons with uneven gaps.
     // When: the user issues the "equalize gap" command.
     // Then: a parent gap intent (computedGap) is recorded.
@@ -169,9 +165,7 @@ test.describe("@alignment-distribution browser", () => {
   });
 
   // OUT: panel-context — the dom-visual-order-desync warning surfaces in the DevTools panel inspector; the overlay harness cannot open the panel.
-  test.fixme("CSS order visual reorder surfaces a non-blocking accessibility warning", async ({
-    _page,
-  }) => {
+  test.fixme("CSS order visual reorder surfaces a non-blocking accessibility warning", async () => {
     // Given: a flex group where a CSS `order` value reorders items visually.
     // When: the reorder is recorded.
     // Then: a dom-visual-order-desync warning surfaces to the inspector; the warning

@@ -94,6 +94,27 @@ loopback 전용이고, `debugger`는 `optional_permissions` 항목이라 절대 
 아니다. 권한 근거는 [apps/extension/README.md](./apps/extension/README.md)를
 본다.
 
+### loopback이 아닌 호스트 검사하기 (Site access)
+
+loopback이 기본값이라 별도 설정이 필요 없다. 런타임에 다른 호스트를 검사하려면
+Vision Control 패널의 **Site Access** 영역을 쓴다. 예를 들어
+`http://subshell:10601/`로 떠 있는 dev server를 검사할 때 쓴다.
+
+1. 패널에서 **Site Access**를 열고 호스트(예: `subshell` 또는
+   `subshell:10601`)를 입력한 뒤 **Allow**를 클릭한다.
+2. Chrome이 권한 프롬프트를 띄우면 승인한다. Chrome match pattern에는 포트가
+   없어서 `subshell`을 한 번 승인하면 해당 호스트의 모든 포트(`10601` 포함)까지
+   덮는다. 이는 Chrome의 설계이지 Vision Control의 동작이 아니다.
+3. 승인된 호스트는 새로고침해도 유지되고 확장 프로그램의 Site Access 설정에
+   나타난다. 거기서도, 패널에서도 철회할 수 있다. 이제 content script가 해당
+   호스트에 주입되고 패널이 정상 동작한다. overlay, 선택, 편집, context export가
+   해당 호스트에서 모두 작동한다.
+4. loopback은 설정 없이 항상 켜져 있다.
+
+Vision Control은 로컬 개발 도구다. 승인은 본인이 직접 제어하는 호스트, 그것도
+본인 기기에서만 하라. 자동 승인이나 와일드카드 승인은 없다. 모든 승인은
+호스트별, 사용자가 직접 명시적으로 승인하는 방식이다.
+
 ### 4. 페어링
 
 **Vision Control** 패널의 연결 입력란에 daemon이 출력한

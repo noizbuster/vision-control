@@ -95,6 +95,27 @@ The built manifest is intentionally scoped: `host_permissions` are loopback only
 `debugger` is an `optional_permissions` entry and is never required. See
 [apps/extension/README.md](./apps/extension/README.md) for the permissions rationale.
 
+### Inspecting a non-loopback host (Site access)
+
+Loopback is the default and needs no setup. To inspect a different host at
+runtime, for example a dev server at `http://subshell:10601/`, use the **Site
+Access** section in the Vision Control panel:
+
+1. Open **Site Access** in the panel, type the host (for example `subshell` or
+   `subshell:10601`), then click **Allow**.
+2. Chrome shows a permission prompt. Grant it. Chrome match patterns do not
+   include ports, so one grant for `subshell` covers every port on that host,
+   including `10601`. That is Chrome's design, not Vision Control's.
+3. The granted host persists across reloads and appears in the extension's Site
+   Access settings. Revoke it from there or from the panel. The content script
+   now injects on that host, and the panel works there: overlay, selection,
+   editing, and context export.
+4. Loopback stays always-on with no configuration.
+
+This is a local development tool. Only grant hosts you control on your own
+machine. There is no wildcard or auto grant: every host is an explicit, per-host,
+user-gesture approval.
+
 ### 4. Pair
 
 In the **Vision Control** panel, paste the `vision-control://pair?token=...` URL

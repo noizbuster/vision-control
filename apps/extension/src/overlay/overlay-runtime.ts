@@ -8,6 +8,7 @@
  * cross-origin frames (PRD §23.4).
  */
 
+import type { Operation } from "@vision-control/change-ir";
 import {
   createBrowserDomAdapter,
   createInspector,
@@ -81,6 +82,12 @@ export interface OverlayRuntime {
   /** Switch the active PRD §8.3 interaction mode (gates controller behavior). */
   readonly setInteractionMode: (mode: InteractionMode) => void;
   readonly getInteractionMode: () => InteractionMode;
+  /**
+   * Apply a panel-driven operation to the page DOM. The content script is the
+   * single DOM applier; the panel never mutates the DOM directly.
+   */
+  readonly applyOperation: (operation: Operation) => void;
+  readonly clearPreviews: () => void;
 }
 
 /**
@@ -114,13 +121,13 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     bus: inspectorBus,
   });
 
+  const previewDom = createBrowserPreviewDomAdapter();
+  const previewManager: PreviewManager = createPreviewManager({ dom: previewDom });
+
   const overlayContainer = overlayRoot.shadowRoot.querySelector<HTMLElement>(".vc-overlay-root");
   const enableControllers = options.interactionControllers ?? true;
   let controllers: InteractionControllers | null = null;
   if (enableControllers && overlayContainer !== null) {
-    const previewManager: PreviewManager = createPreviewManager({
-      dom: createBrowserPreviewDomAdapter(),
-    });
     controllers = createInteractionControllers({
       overlayElement,
       overlayContainer,
@@ -136,7 +143,9 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   const gridPlacement: GridPlacementController = createGridPlacementController({ bus });
 
   const notifySelection = (target: Element): void => {
-    controllers?.onSelectionChange(buildSelectionContext(target));
+    const context = buildSelectionContext(target);
+    previewDom.registerElement(context.elementRef.runtimeId, target);
+    controllers?.onSelectionChange(context);
     gridPlacement.onSelection(target);
   };
 
@@ -274,6 +283,14 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     inspector.dispose();
   };
 
+  const applyOperation = (operation: Operation): void => {
+    previewManager.applyOperation(operation);
+  };
+
+  const clearPreviews = (): void => {
+    previewManager.clearAll();
+  };
+
   return {
     start,
     stop,
@@ -282,6 +299,8 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     getInteractionControllers: () => controllers,
     setInteractionMode,
     getInteractionMode,
+    applyOperation,
+    clearPreviews,
   };
 }
 

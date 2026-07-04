@@ -10,6 +10,11 @@ export {
   type PermissionResult,
 } from "./context-permissions.js";
 export {
+  createEditForwarder,
+  type EditForwarder,
+  type EditForwarderOptions,
+} from "./edit-forwarding.js";
+export {
   classifyFrames,
   createWebNavigationFrameProvider,
   discoverFrames,
@@ -17,6 +22,7 @@ export {
 export {
   type ComponentPropEntry,
   type ComponentPropsPayload,
+  createClearPreviewMessage,
   createComponentPropsMessage,
   createConnectionStateMessage,
   createDaemonConnectMessage,

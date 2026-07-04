@@ -1,5 +1,6 @@
 import type { AlignmentCommandKind } from "@vision-control/layout-engine";
 import type { ReactElement, ReactNode } from "react";
+import { useCallback } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { type PropEditCommand, PropsPanel } from "./components/editors/PropsPanel.js";
 import { HostAllowlistPanel } from "./components/HostAllowlistPanel.js";
@@ -28,6 +29,7 @@ import {
 } from "./inspector-slot-commands.js";
 import type { FrameInfo } from "./messaging/index.js";
 import {
+  createClearPreviewMessage,
   createDaemonConnectMessage,
   createDaemonDisconnectMessage,
   createEditorCommandMessage,
@@ -60,7 +62,18 @@ export function App(): ReactElement {
   const { state: gridPlacementState } = useGridPlacement(bus);
   const { componentProps } = useComponentProps(bus, summary);
   const editor = useEditor();
-  const journal = useJournal({ connectionState });
+  const dispatchOperation = useCallback(
+    (operation: Parameters<typeof createEditorCommandMessage>[0]): void => {
+      if (bus === undefined) return;
+      bus.send("background", createEditorCommandMessage(operation, tabId ?? undefined));
+    },
+    [bus, tabId],
+  );
+  const dispatchClear = useCallback((): void => {
+    if (bus === undefined) return;
+    bus.send("background", createClearPreviewMessage(tabId ?? undefined));
+  }, [bus, tabId]);
+  const journal = useJournal({ connectionState, dispatchOperation, dispatchClear });
   useJournalPersistence({
     journal: journal.journal,
     client: null,
@@ -71,7 +84,7 @@ export function App(): ReactElement {
     editor.actions.addPendingOperation(command);
     journal.record(command);
     if (bus !== undefined) {
-      bus.send("background", createEditorCommandMessage(command));
+      bus.send("background", createEditorCommandMessage(command, tabId ?? undefined));
     }
   };
 

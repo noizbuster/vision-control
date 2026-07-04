@@ -62,13 +62,26 @@ export function createConnectionStateMessage(state: ConnectionState): BusMessage
   };
 }
 
-export function createEditorCommandMessage(operation: Operation): BusMessage {
+export function createEditorCommandMessage(operation: Operation, tabId?: number): BusMessage {
   return {
     protocolVersion: "1.0.0",
     messageId: `editor-command-${Date.now()}`,
     messageType: "editor-command",
     targetRoute: "background",
+    ...(tabId !== undefined ? { tabId } : {}),
     payload: operation,
+    timestamp: Date.now(),
+  };
+}
+
+export function createClearPreviewMessage(tabId?: number): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `clear-preview-${Date.now()}`,
+    messageType: "clear-preview",
+    targetRoute: "background",
+    ...(tabId !== undefined ? { tabId } : {}),
+    payload: {},
     timestamp: Date.now(),
   };
 }

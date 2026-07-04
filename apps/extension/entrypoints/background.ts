@@ -7,6 +7,7 @@ import {
   createBackgroundBus,
   createChromeRouterTransport,
   createConnectionStateMessage,
+  createEditForwarder,
   createSessionUpdateMessage,
   createWebNavigationFrameProvider,
   discoverFrames,
@@ -121,6 +122,26 @@ const background: BackgroundDefinition = defineBackground(() => {
   backgroundBus.on("daemon-disconnect", () => {
     reconnectManager?.disconnect();
     reconnectManager = undefined;
+  });
+
+  const forwardEditToContent = createEditForwarder({
+    store,
+    sendToFrame: (tabId, frameId, message) => {
+      if (typeof chrome === "undefined" || chrome.tabs?.sendMessage === undefined) {
+        return;
+      }
+      void chrome.tabs.sendMessage(tabId, message, { frameId }).catch(() => {
+        // no-excuse-ok: catch — content script may not be loaded yet.
+      });
+    },
+  });
+
+  backgroundBus.on("editor-command", (message) => {
+    forwardEditToContent(message);
+  });
+
+  backgroundBus.on("clear-preview", (message) => {
+    forwardEditToContent(message);
   });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {

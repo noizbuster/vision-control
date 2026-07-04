@@ -1,6 +1,7 @@
 import type { ContentScriptDefinition } from "wxt";
 import { defineContentScript } from "wxt/utils/define-content-script";
 import { createRuntimeBus } from "../src/messaging/index.js";
+import { wireContentEditHandlers } from "../src/overlay/content-edit-wiring.js";
 import { createOverlayRuntime, isRouteableFrame } from "../src/overlay/overlay-runtime.js";
 
 const contentScript: ContentScriptDefinition = defineContentScript({
@@ -10,18 +11,20 @@ const contentScript: ContentScriptDefinition = defineContentScript({
   main() {
     const bus = createRuntimeBus("content");
 
+    let editHandlers: { dispose: () => void } | null = null;
     if (isRouteableFrame(window)) {
       const runtime = createOverlayRuntime({ document, bus });
       runtime.start();
-      window.addEventListener("pagehide", () => runtime.dispose(), { once: true });
+      editHandlers = wireContentEditHandlers(bus, runtime);
+      window.addEventListener(
+        "pagehide",
+        () => {
+          editHandlers?.dispose();
+          runtime.dispose();
+        },
+        { once: true },
+      );
     }
-
-    bus.on("edit-request", (message) => {
-      const payload = message.payload as { readonly operation?: unknown } | undefined;
-      // Edit application is owned by the interaction controllers (task 19+);
-      // the overlay runtime (task 18) owns pick/select only.
-      void payload;
-    });
 
     bus.send("background", {
       protocolVersion: "1.0.0",

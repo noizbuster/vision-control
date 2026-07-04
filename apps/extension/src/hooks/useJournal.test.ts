@@ -207,4 +207,98 @@ describe("useJournal", () => {
     });
     expect(result.current.entries[0]?.status).toBe("committed");
   });
+
+  describe("dispatch path (panel routes edits to content via the bus)", () => {
+    it("undo dispatches the stored inverse operation to content", () => {
+      const dispatched: Operation[] = [];
+      const cleared: boolean[] = [];
+      const { result } = renderHook(() =>
+        useJournal({
+          dispatchOperation: (op) => dispatched.push(op),
+          dispatchClear: () => cleared.push(true),
+        }),
+      );
+
+      act(() => {
+        result.current.record(styleEdit("op-dispatch-001", "blue", "red"));
+      });
+      act(() => {
+        result.current.undo();
+      });
+
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(true);
+      expect(dispatched).toHaveLength(1);
+      expect(dispatched[0]?.id).not.toBe("op-dispatch-001");
+      expect((dispatched[0] as { inverseOf?: string }).inverseOf).toBe("op-dispatch-001");
+      expect((dispatched[0] as { value: string }).value).toBe("red");
+    });
+
+    it("redo dispatches the original operation to content", () => {
+      const dispatched: Operation[] = [];
+      const { result } = renderHook(() =>
+        useJournal({ dispatchOperation: (op) => dispatched.push(op) }),
+      );
+
+      act(() => {
+        result.current.record(styleEdit("op-dispatch-002", "blue", "red"));
+      });
+      act(() => {
+        result.current.undo();
+      });
+      act(() => {
+        result.current.redo();
+      });
+
+      expect(result.current.canUndo).toBe(true);
+      expect(result.current.canRedo).toBe(false);
+      expect(dispatched).toHaveLength(2);
+      expect((dispatched[1] as { id: string }).id).toBe("op-dispatch-002");
+    });
+
+    it("clear dispatches a clear-preview signal and empties the journal", () => {
+      const cleared: boolean[] = [];
+      const { result } = renderHook(() => useJournal({ dispatchClear: () => cleared.push(true) }));
+
+      act(() => {
+        result.current.record(styleEdit("op-dispatch-003", "blue"));
+      });
+      act(() => {
+        result.current.clear();
+      });
+
+      expect(result.current.entries).toHaveLength(0);
+      expect(result.current.canUndo).toBe(false);
+      expect(cleared).toEqual([true]);
+    });
+
+    it("record does not dispatch (App.handleEditorCommand owns the apply dispatch)", () => {
+      const dispatched: Operation[] = [];
+      const { result } = renderHook(() =>
+        useJournal({ dispatchOperation: (op) => dispatched.push(op) }),
+      );
+
+      act(() => {
+        result.current.record(styleEdit("op-dispatch-004", "blue"));
+      });
+
+      expect(dispatched).toHaveLength(0);
+      expect(result.current.entries).toHaveLength(1);
+    });
+
+    it("undo with no preview engine and no dispatch still updates journal state", () => {
+      const { result } = renderHook(() => useJournal({}));
+
+      act(() => {
+        result.current.record(styleEdit("op-dispatch-005", "blue", "red"));
+      });
+      act(() => {
+        result.current.undo();
+      });
+
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(true);
+      expect(result.current.entries[0]?.status).toBe("reverted");
+    });
+  });
 });

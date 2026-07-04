@@ -20,6 +20,8 @@ import type { ConnectionState } from "../messaging/index.js";
 export interface UseJournalOptions {
   readonly previewEngine?: PreviewManager | null;
   readonly connectionState?: ConnectionState;
+  readonly dispatchOperation?: (operation: Operation) => void;
+  readonly dispatchClear?: () => void;
 }
 
 export interface UseJournalResult {
@@ -58,7 +60,12 @@ function applyCommitted(engine: PreviewManager, operation: Operation): boolean {
 }
 
 export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
-  const { previewEngine = null, connectionState = "disconnected" } = options;
+  const {
+    previewEngine = null,
+    connectionState = "disconnected",
+    dispatchOperation,
+    dispatchClear,
+  } = options;
   const [journal, setJournal] = useState<Journal>(createJournal);
   const [changeSetId] = useState<string>(newId);
   const [sequence, setSequence] = useState(0);
@@ -93,43 +100,39 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
   }, []);
 
   const undo = useCallback((): void => {
-    if (previewEngine !== null && previewEngine !== undefined) {
-      setJournal((current) => {
-        if (!canUndoJournal(current)) return current;
-        const { journal: next, inverse } = undoEntry(current);
+    setJournal((current) => {
+      if (!canUndoJournal(current)) return current;
+      const { journal: next, inverse } = undoEntry(current);
+      if (dispatchOperation !== undefined) {
+        dispatchOperation(inverse);
+      } else if (previewEngine !== null && previewEngine !== undefined) {
         applyCommitted(previewEngine, inverse);
-        return next;
-      });
-    } else {
-      setJournal((current) => {
-        if (!canUndoJournal(current)) return current;
-        return undoEntry(current).journal;
-      });
-    }
-  }, [previewEngine]);
+      }
+      return next;
+    });
+  }, [previewEngine, dispatchOperation]);
 
   const redo = useCallback((): void => {
-    if (previewEngine !== null && previewEngine !== undefined) {
-      setJournal((current) => {
-        if (!canRedoJournal(current)) return current;
-        const { journal: next, operation } = redoEntry(current);
+    setJournal((current) => {
+      if (!canRedoJournal(current)) return current;
+      const { journal: next, operation } = redoEntry(current);
+      if (dispatchOperation !== undefined) {
+        dispatchOperation(operation);
+      } else if (previewEngine !== null && previewEngine !== undefined) {
         applyCommitted(previewEngine, operation);
-        return next;
-      });
-    } else {
-      setJournal((current) => {
-        if (!canRedoJournal(current)) return current;
-        return redoEntry(current).journal;
-      });
-    }
-  }, [previewEngine]);
+      }
+      return next;
+    });
+  }, [previewEngine, dispatchOperation]);
 
   const clear = useCallback((): void => {
-    if (previewEngine !== null && previewEngine !== undefined) {
+    if (dispatchClear !== undefined) {
+      dispatchClear();
+    } else if (previewEngine !== null && previewEngine !== undefined) {
       previewEngine.clearAll();
     }
     setJournal(clearJournal());
-  }, [previewEngine]);
+  }, [previewEngine, dispatchClear]);
 
   const replaceJournal = useCallback((next: Journal): void => {
     setJournal(next);

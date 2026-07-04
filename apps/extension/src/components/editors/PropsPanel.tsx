@@ -5,9 +5,36 @@ import {
   type SelectionSummary,
 } from "@vision-control/inspector-core";
 import type { BoundaryKind, OwnershipContext } from "@vision-control/source-resolver";
-import { hasBlockingWarning, propFlowWarnings } from "@vision-control/source-resolver";
 import type { ReactElement } from "react";
 import { useCallback, useState } from "react";
+
+/**
+ * Local mirror of `@vision-control/source-resolver`'s `propFlowWarnings`
+ * cross-boundary blocking message. Inlined here so the panel (platform:browser)
+ * does not VALUE-import the node-tagged source-resolver package (caught by the
+ * symmetric `browser-imports-node` boundary rule). The canonical logic lives in
+ * `packages/source-resolver/src/component-props/prop-flow-warnings.ts`; keep
+ * these in sync until the logic relocates to an isomorphic package.
+ */
+const boundaryLabel = (boundary: BoundaryKind | undefined): string => {
+  switch (boundary) {
+    case "server-to-client":
+      return "Server → Client";
+    case "client-to-server":
+      return "Client → Server";
+    case "context-provider":
+      return "Context Provider";
+    default:
+      return "framework";
+  }
+};
+
+const crossBoundaryBlockReason = (
+  componentName: string,
+  propName: string,
+  boundary: BoundaryKind | undefined,
+): string =>
+  `Component "${componentName}" prop "${propName}" crosses a ${boundaryLabel(boundary)} boundary without explicit opt-in; a deterministic suggestion is blocked — agent reasoning required`;
 
 /** The source-range shape carried by a set-component-prop operation. */
 type ComponentPropSourceRange = SetComponentPropOperation["sourceRange"];
@@ -76,16 +103,8 @@ const buildPropCommand = (
     return { reason: `component-prop "${prop.name}" has no resolved source range` };
   }
 
-  const warnings = propFlowWarnings({
-    componentName: prop.componentName,
-    propName: prop.name,
-    context: prop.ownershipContext ?? "same-component",
-    ...(prop.boundary !== undefined ? { boundary: prop.boundary } : {}),
-    ...(boundaryOptIn ? { boundaryOptIn: true } : {}),
-  });
-  if (hasBlockingWarning(warnings)) {
-    const blocking = warnings.find((w) => w.severity === "error");
-    return { reason: blocking?.message ?? "cross-boundary prop edit without opt-in" };
+  if (prop.ownershipContext === "cross-boundary" && !boundaryOptIn) {
+    return { reason: crossBoundaryBlockReason(prop.componentName, prop.name, prop.boundary) };
   }
 
   return {

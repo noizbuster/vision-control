@@ -33,5 +33,7 @@ export default function markerLoader(this: WebpackLoaderContext, source: string)
     callback(null, source);
     return;
   }
-  callback(null, result.code, result.map);
+  // SWC expects a parsed source-map object, not a JSON string.
+  const sourceMap = result.map ? (JSON.parse(result.map) as unknown) : undefined;
+  callback(null, result.code, sourceMap);
 }

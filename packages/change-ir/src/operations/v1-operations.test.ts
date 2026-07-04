@@ -1,5 +1,5 @@
+import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-
 import {
   appendOperation,
   type ChangeSet,
@@ -10,6 +10,8 @@ import {
   OperationSchema,
   serializeChangeSet,
 } from "../index.js";
+import { arbByKind } from "../property-arbitraries.test.js";
+import { OPERATION_KINDS, type OperationKind } from "./index.js";
 
 const BASE_TIME = 1_700_000_000_000;
 
@@ -174,6 +176,17 @@ const suggestedDiffOp: Operation = {
   applied: false,
 };
 
+const pseudoStyleEditOp: Operation = {
+  ...base("op-pseu-00001", BASE_TIME + 14),
+  kind: "pseudo-style-edit",
+  target: el("card-a"),
+  pseudoTarget: "::before",
+  property: "content",
+  value: '"NEW"',
+  important: false,
+  previousValue: '"OLD"',
+};
+
 const v1Ops: ReadonlyArray<readonly [string, Operation]> = [
   ["multi-select-group", multiSelectGroupOp],
   ["group-reorder", groupReorderOp],
@@ -189,6 +202,7 @@ const v1Ops: ReadonlyArray<readonly [string, Operation]> = [
   ["breakpoint-text-edit", breakpointTextEditOp],
   ["screenshot-crop-ref", screenshotCropRefOp],
   ["suggested-diff", suggestedDiffOp],
+  ["pseudo-style-edit", pseudoStyleEditOp],
 ];
 
 describe("V1 operation schema validation", () => {
@@ -306,6 +320,50 @@ describe("V1 computeInverse — every new kind has a computable inverse", () => 
     if (inv.kind !== "suggested-diff") throw new Error("expected suggested-diff");
     expect(inv.applied).toBe(false);
     expect(inv.diff).toBe(suggestedDiffOp.diff);
+  });
+
+  it("pseudo-style-edit inverse swaps value/previousValue and preserves pseudoTarget", () => {
+    const inv = computeInverse(pseudoStyleEditOp);
+    if (inv.kind !== "pseudo-style-edit") throw new Error("expected pseudo-style-edit");
+    expect(inv.value).toBe('"OLD"');
+    expect(inv.previousValue).toBe('"NEW"');
+    expect(inv.pseudoTarget).toBe("::before");
+    expect(inv.property).toBe("content");
+    expect(inv.important).toBe(false);
+    expect(inv.target.runtimeId).toBe("card-a");
+  });
+});
+
+describe("computeInverse exhaustiveness — every OPERATION_KINDS entry has a non-throwing inverse", () => {
+  it("OPERATION_KINDS has no duplicates", () => {
+    expect(new Set(OPERATION_KINDS).size).toBe(OPERATION_KINDS.length);
+  });
+
+  it("every OperationKind has a registered property arbitrary (compile-time Record + runtime parity)", () => {
+    expect(new Set(Object.keys(arbByKind) as OperationKind[])).toEqual(new Set(OPERATION_KINDS));
+  });
+
+  it.each(
+    OPERATION_KINDS,
+  )("computeInverse does not throw and yields a schema-valid inverse for %s", (kind) => {
+    fc.assert(
+      fc.property(arbByKind[kind], (op) => {
+        const inverse = computeInverse(op);
+        expect(inverse.inverseOf).toBe(op.id);
+        expect(inverse.runtime).toBe(op.runtime);
+        expect(OperationSchema.safeParse(inverse).success).toBe(true);
+      }),
+      { numRuns: 25 },
+    );
+  });
+
+  it("pseudo-style-edit round-trips: apply inverse twice restores the original value", () => {
+    const inverse = computeInverse(pseudoStyleEditOp);
+    const restored = computeInverse(inverse);
+    if (restored.kind !== "pseudo-style-edit") throw new Error("expected pseudo-style-edit");
+    expect(restored.value).toBe(pseudoStyleEditOp.value);
+    expect(restored.previousValue).toBe(pseudoStyleEditOp.previousValue);
+    expect(restored.pseudoTarget).toBe(pseudoStyleEditOp.pseudoTarget);
   });
 });
 

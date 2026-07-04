@@ -221,6 +221,41 @@ describe("additive field compatibility (forward compat)", () => {
   });
 });
 
+describe("page.navigated additive page-session fields (v1 runtime wiring)", () => {
+  const base = {
+    type: "page.navigated" as const,
+    url: "https://localhost/app",
+    title: "App",
+    framePath: [],
+  };
+
+  it("round-trips viewport + activeBreakpoint + screens when present", () => {
+    const msg = {
+      ...base,
+      viewport: { width: 1280, height: 720 },
+      activeBreakpoint: "md",
+      screens: ["sm", "md", "lg"],
+    };
+    const result = parseMessage(msg);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const parsed = result.data as {
+        viewport?: unknown;
+        activeBreakpoint?: unknown;
+        screens?: unknown;
+      };
+      expect(parsed.viewport).toEqual({ width: 1280, height: 720 });
+      expect(parsed.activeBreakpoint).toBe("md");
+      expect(parsed.screens).toEqual(["sm", "md", "lg"]);
+    }
+  });
+
+  it("still parses a legacy page.navigated without the new fields (backward compat, no version bump)", () => {
+    const result = parseMessage(base);
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("error taxonomy", () => {
   const codes = [
     "PROTOCOL_VERSION_MISMATCH",

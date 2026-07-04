@@ -497,6 +497,19 @@ export const computeInverse = (op: Operation): Operation => {
         previousValue: op.value,
         sourceRange: op.sourceRange,
       };
+    case "pseudo-style-edit":
+      // Inverse: swap value/previousValue; pseudoTarget/property/important fixed.
+      return {
+        ...base,
+        kind: "pseudo-style-edit",
+        confidence: op.confidence,
+        target: op.target,
+        pseudoTarget: op.pseudoTarget,
+        property: op.property,
+        value: op.previousValue ?? "",
+        important: op.important,
+        previousValue: op.value,
+      };
     case "position-element":
       // Inverse: swap the from/to position values.
       return {

@@ -8,8 +8,16 @@
  *
  * Rules enforced (PRD 20.3 + 35.2):
  *   1. A `platform:node` package MUST NOT import a `platform:browser` package.
+ *   1b. A `platform:browser` package MUST NOT import a `platform:node` package.
  *   2. No source file may deep-import another workspace package's `src/*`
  *      (e.g. `@vision-control/protocol/src/internal`).
+ *
+ * Platform rules (1, 1b) consider only VALUE imports: a type-only
+ * (`import type`) reference is erased at compile time and creates no runtime
+ * boundary, and test/spec files run under the test runner rather than a
+ * platform bundle. Rule 2 (deep-import) applies to every file and to
+ * type-only imports alike (reaching into another package's internals is a
+ * boundary violation regardless of value/type).
  *
  * The checker is tag-driven: it reads each package's `project.json#tags` and
  * `package.json#name`, so re-tagging a package instantly changes enforcement
@@ -32,7 +40,7 @@ export interface PackageInfo {
 }
 
 export interface BoundaryViolation {
-  readonly rule: "node-imports-browser" | "deep-import";
+  readonly rule: "node-imports-browser" | "browser-imports-node" | "deep-import";
   readonly file: string;
   readonly importer: string;
   readonly specifier: string;
@@ -128,11 +136,47 @@ const walkSourceFiles = (packageDir: string): string[] => {
 const IMPORT_SPEC_RE =
   /\bfrom\s*['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-const extractSpecifiers = (source: string): string[] => {
-  const specs: string[] = [];
+/**
+ * One extracted import with whether it is type-only. A type-only import
+ * (`import type {…}` / `export type {…} from "…"`) is erased at compile time,
+ * so it creates no runtime dependency across a platform boundary; platform
+ * rules skip it. Deep-import rules still apply (reaching into another
+ * package's `src/*` is a boundary violation regardless of value/type).
+ */
+export interface SpecifierImport {
+  readonly specifier: string;
+  readonly isTypeOnly: boolean;
+}
+
+/** Test/spec files run under the vitest node/jsdom runner, not a platform bundle, so platform-direction rules skip them. */
+const isTestFile = (relFile: string): boolean => /\.(?:test|spec)\.[tj]sx?$/.test(relFile);
+
+/**
+ * Detect whether an `import`/`export … from "…"` statement is type-only by
+ * checking for the `type` token immediately after the leading keyword. The
+ * per-element `import { type Foo, Bar }` mixed form is treated as a VALUE
+ * import (the statement-level `type` modifier is absent, so `Bar` is a value).
+ */
+const TYPE_PREFIX_RE = /\b(?:import|export)\b\s+(?:type\b)/;
+
+const extractSpecifiers = (source: string): SpecifierImport[] => {
+  const specs: SpecifierImport[] = [];
   for (const match of source.matchAll(IMPORT_SPEC_RE)) {
     const spec = match[1] ?? match[2] ?? match[3];
-    if (spec) specs.push(spec);
+    if (!spec) continue;
+    let isTypeOnly = false;
+    // match.index points at the start of the matched `from`/`import` keyword.
+    // Look back to the enclosing statement's `import`/`export` keyword to see
+    // whether it carries the `type` modifier (`import type {…} from …`).
+    if (match.index !== undefined && (match[1] ?? undefined) !== undefined) {
+      const head = source.slice(0, match.index);
+      const stmtStart = Math.max(head.lastIndexOf("import"), head.lastIndexOf("export"));
+      if (stmtStart >= 0) {
+        const stmt = source.slice(stmtStart, match.index);
+        isTypeOnly = TYPE_PREFIX_RE.test(stmt);
+      }
+    }
+    specs.push({ specifier: spec, isTypeOnly });
   }
   return specs;
 };
@@ -181,7 +225,11 @@ export const checkBoundaries = (repoRoot: string): BoundaryReport => {
       const source = readFileSync(file, "utf8");
       const importer = ownerOf(relFile);
       const importerName = importer?.packageName ?? importer?.projectName ?? relFile;
-      for (const spec of extractSpecifiers(source)) {
+      // Platform-direction rules (node↔browser) do not apply to test/spec
+      // files: those run under the test runner, not a platform bundle, so a
+      // node import there cannot ship into the browser. Deep-import still applies.
+      const platformRuleApplies = !isTestFile(relFile);
+      for (const { specifier: spec, isTypeOnly } of extractSpecifiers(source)) {
         const parsed = parseOrgPackage(spec);
         if (!parsed) continue; // not an internal @vision-control import
         const { packageName: targetName, subpath } = parsed;
@@ -199,6 +247,7 @@ export const checkBoundaries = (repoRoot: string): BoundaryReport => {
         }
         const target = byPackage.get(targetName);
         if (!target) continue; // unknown internal package; not a boundary rule
+        if (!platformRuleApplies || isTypeOnly) continue; // platform rules skip tests + type-only imports
         // Rule 1: node package importing a browser package.
         if (importer?.platform === "node" && target.platform === "browser") {
           violations.push({
@@ -207,6 +256,16 @@ export const checkBoundaries = (repoRoot: string): BoundaryReport => {
             importer: importerName,
             specifier: spec,
             detail: `node package ${importerName} cannot import browser package ${targetName}`,
+          });
+        }
+        // Rule 1b (symmetric): browser package importing a node package.
+        if (importer?.platform === "browser" && target.platform === "node") {
+          violations.push({
+            rule: "browser-imports-node",
+            file: relFile,
+            importer: importerName,
+            specifier: spec,
+            detail: `browser package ${importerName} cannot import node package ${targetName}`,
           });
         }
       }

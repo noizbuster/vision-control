@@ -25,6 +25,7 @@ import {
   makeInsertElement,
   makeMultiSelectGroup,
   makePositionElement,
+  makePseudoStyleEdit,
   makeRemoveElement,
   makeRemoveStyle,
   makeScreenshotCropRef,
@@ -332,6 +333,51 @@ describe("preview-engine operation dispatch", () => {
 
       rollback();
       expect(el.textContent).toBe("original");
+    });
+  });
+
+  describe("pseudo-style-edit dispatches to applyPseudoPreview (option-a routing)", () => {
+    it("a ::before edit synthesizes a [data-vc-preview-id]::before rule", () => {
+      const { manager, dom } = setup();
+      regDiv(dom, "rt-pseu0001");
+
+      manager.applyOperation(makePseudoStyleEdit("rt-pseu0001", "::before", "content", '"NEW"'));
+
+      expect(manager.stylesheet.ruleCount()).toBe(1);
+      expect(manager.stylesheet.hasRule('[data-vc-preview-id="rt-pseu0001"]::before')).toBe(true);
+    });
+
+    it("round-trips: computeInverse yields a pseudo-style-edit and dispatching it applies a distinct rule", () => {
+      const { manager, dom } = setup();
+      regDiv(dom, "rt-pseu0002");
+      const forward = makePseudoStyleEdit("rt-pseu0002", "::after", "color", "red", "blue");
+
+      const rollback = manager.applyOperation(forward);
+      expect(manager.stylesheet.hasRule('[data-vc-preview-id="rt-pseu0002"]::after')).toBe(true);
+
+      rollback();
+      expect(manager.stylesheet.ruleCount()).toBe(0);
+    });
+
+    it("a :hover state edit synthesizes the state selector", () => {
+      const { manager, dom } = setup();
+      regDiv(dom, "rt-pseu0003");
+
+      manager.applyOperation(makePseudoStyleEdit("rt-pseu0003", ":hover", "color", "blue"));
+
+      expect(manager.stylesheet.hasRule('[data-vc-preview-id="rt-pseu0003"]:hover')).toBe(true);
+    });
+
+    it("does not leak past clearAll (stale-state guard)", () => {
+      const { manager, dom } = setup();
+      regDiv(dom, "rt-pseu0004");
+
+      manager.applyOperation(makePseudoStyleEdit("rt-pseu0004", "::before", "content", '"X"'));
+      expect(manager.stylesheet.ruleCount()).toBe(1);
+
+      manager.clearAll();
+      expect(manager.stylesheet.ruleCount()).toBe(0);
+      expect(manager.activeCount).toBe(0);
     });
   });
 

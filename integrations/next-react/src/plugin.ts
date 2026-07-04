@@ -30,7 +30,6 @@ import {
 import {
   computeElementFingerprint,
   computeWorkspaceRelativePath,
-  findJsxElements,
   generateSourceId,
   matchAny,
   normalizePath,
@@ -39,6 +38,7 @@ import {
 } from "@vision-control/vite-react";
 import MagicString from "magic-string";
 
+import { findJsxElements } from "./find-jsx-elements.js";
 import type { RouteSegmentInfo, ServerClientBoundary } from "./types.js";
 
 export { SOURCE_MARKER_ATTRIBUTE } from "@vision-control/vite-react";

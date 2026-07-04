@@ -9,8 +9,8 @@
  *
  * Platform: node. `tailwindcss` is a peer dependency (the consumer's project
  * provides the runtime); this package never imports it at runtime — it parses
- * the already-resolved config object. The v4 `@theme` seam is documented but
- * empty in V1 (do not claim v4 support in V1).
+ * the already-resolved config object. v4 `@theme` tokens are parsed from the
+ * consumer's CSS via {@link createTailwindV4ThemeRegistry} (PostCSS, PRD §22).
  */
 
 export const PACKAGE_NAME = "@vision-control/tailwind";
@@ -51,4 +51,9 @@ export {
   type TokenCategory,
   type TokenRegistrySink,
 } from "./tokens.js";
-export { NOOP_V4_THEME_REGISTRY, type TailwindV4ThemeRegistry } from "./v4-seam.js";
+export {
+  createTailwindV4ThemeRegistry,
+  NOOP_V4_THEME_REGISTRY,
+  type TailwindV4ThemeRegistry,
+} from "./v4-seam.js";
+export { parseThemeTokens, THEME_NAMESPACE_RULES } from "./v4-theme-parser.js";

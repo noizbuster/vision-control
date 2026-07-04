@@ -68,49 +68,89 @@ export class CssTokenIndex {
 
 const CLASS_NAME_RE = /\.([a-zA-Z_][a-zA-Z0-9_-]*)/g;
 
+const computeLineStarts = (content: string): readonly number[] => {
+  const starts: number[] = [0];
+  for (let i = 0; i < content.length; i += 1) {
+    if (content.charCodeAt(i) === 10 /* \n */) starts.push(i + 1);
+  }
+  return starts;
+};
+
+const offsetToLineCol = (
+  offset: number,
+  lineStarts: readonly number[],
+): { readonly line: number; readonly column: number } => {
+  let lo = 0;
+  let hi = lineStarts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1;
+    if ((lineStarts[mid] ?? 0) <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+  return { line: lo + 1, column: offset - (lineStarts[lo] ?? 0) };
+};
+
 /**
  * Parse plain CSS content and extract every class-selector definition.
  *
- * Strategy: scan line-by-line; when a line opens a `{` block, treat the text
- * before the brace as a selector and extract class names from it. Text inside
- * declaration blocks (`{ ... }`) is never scanned, so class-like strings in
- * property values (`content: ".fake"`) are not false-positive matches.
+ * A single-pass scan over the whole file: text accumulates into a selector
+ * buffer until a `{` is hit, at which point class names are extracted from the
+ * accumulated text (handling comma lists and selectors spanning multiple
+ * lines); a `}` discards any text accumulated inside a declaration block. The
+ * buffer is reset at every brace, so selectors nested inside `@media` (or CSS
+ * nesting) are captured at their real position. Text inside a declaration
+ * value (`content: ".fake"`) accumulates only between a `{` and the next `}`
+ * and is never flushed by a `{`, so class-like property values are not matched.
  *
- * Known limitation: multi-line selectors where the selector text spans several
- * lines before the `{` are only partially captured (the line containing `{`).
- * This covers well-formatted single-line selectors which are the overwhelming
- * majority of plain CSS.
+ * Robust to malformed input: an unclosed trailing selector is simply not
+ * flushed (no entry), a stray `}` only clears the buffer, and an empty input
+ * yields an empty result.
  */
 export const parseCssClasses = (
   content: string,
   workspaceRelativePath: string,
 ): CssTokenEntry[] => {
   const entries: CssTokenEntry[] = [];
-  const lines = content.split("\n");
-  for (let lineIdx = 0; lineIdx < lines.length; lineIdx += 1) {
-    const line = lines[lineIdx];
-    if (lineIdx >= lines.length) break;
-    if (line === undefined) continue;
-    const openBrace = line.indexOf("{");
-    if (openBrace === -1) continue;
-    const selectorText = line.slice(0, openBrace).trim();
-    if (selectorText.length === 0) continue;
+  const lineStarts = computeLineStarts(content);
+
+  const flushSelector = (selector: string, selectorOffset: number): void => {
+    const trimmed = selector.trim();
+    if (trimmed.length === 0) return;
+    const baseOffset = selectorOffset + (selector.length - selector.trimStart().length);
     CLASS_NAME_RE.lastIndex = 0;
-    let match: RegExpExecArray | null = CLASS_NAME_RE.exec(selectorText);
+    let match: RegExpExecArray | null = CLASS_NAME_RE.exec(trimmed);
     while (match !== null) {
       const className = match[1];
       if (className !== undefined) {
+        const { line, column } = offsetToLineCol(baseOffset + match.index, lineStarts);
         entries.push(
           CssTokenEntrySchema.parse({
             className,
             workspaceRelativePath,
-            line: lineIdx + 1,
-            column: match.index,
-            selector: selectorText,
+            line,
+            column,
+            selector: trimmed,
           }),
         );
       }
-      match = CLASS_NAME_RE.exec(selectorText);
+      match = CLASS_NAME_RE.exec(trimmed);
+    }
+  };
+
+  let buffer = "";
+  let bufferOffset = 0;
+  for (let i = 0; i < content.length; i += 1) {
+    const ch = content[i];
+    if (ch === "{") {
+      flushSelector(buffer, bufferOffset);
+      buffer = "";
+      bufferOffset = i + 1;
+    } else if (ch === "}") {
+      buffer = "";
+      bufferOffset = i + 1;
+    } else {
+      if (buffer.length === 0) bufferOffset = i;
+      buffer += ch;
     }
   }
   return entries;

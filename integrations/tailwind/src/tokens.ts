@@ -140,7 +140,12 @@ const remToPx = (value: string): number | undefined => {
   return Number.isFinite(n) ? n * REM_TO_PX : undefined;
 };
 
-const pxValue = (value: string): number | undefined => {
+/**
+ * Pixel equivalent of a spacing CSS value. Supports `rem` (×16) and `px`.
+ * Exported so the v4 `@theme` parser reuses the same conversion rather than
+ * duplicating it. Returns `undefined` for non-numeric / other units.
+ */
+export const pxValue = (value: string): number | undefined => {
   const rem = remToPx(value);
   if (rem !== undefined) return rem;
   const match = /^([0-9.]+)px$/.exec(value);

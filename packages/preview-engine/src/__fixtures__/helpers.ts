@@ -20,6 +20,8 @@ import type {
   InsertElementOperation,
   MultiSelectGroupOperation,
   PositionElementOperation,
+  PseudoStyleEditOperation,
+  PseudoStyleTarget,
   RemoveElementOperation,
   RemoveStyleOperation,
   ReorderChildOperation,
@@ -437,6 +439,28 @@ export function makeBreakpointStyleEdit(
     timestamp: 0,
     runtime: false,
     ...opDefaults,
+  };
+}
+
+export function makePseudoStyleEdit(
+  runtimeId: string,
+  pseudoTarget: PseudoStyleTarget,
+  property: string,
+  value: string,
+  previousValue?: string,
+): PseudoStyleEditOperation {
+  return {
+    id: makeOpId("pse"),
+    kind: "pseudo-style-edit",
+    target: elementRef(runtimeId),
+    pseudoTarget,
+    property,
+    value,
+    important: false,
+    timestamp: 0,
+    runtime: false,
+    ...opDefaults,
+    ...(previousValue !== undefined ? { previousValue } : {}),
   };
 }
 

@@ -29,6 +29,11 @@
  *   multi-select-group      → composition assertion (target count resolves)
  *   screenshot-crop-ref     → none (metadata ref only, ADR-011)
  *   suggested-diff          → none (inert data, no DOM state, ADR-012)
+ *   set-component-prop      → context-dependent note (source-only JSX attr edit;
+ *                             DOM effect is component-specific, PRD §7.2)
+ *   pseudo-style-edit       → context-dependent note (pseudo-element computed
+ *                             style needs the two-arg getComputedStyle form not
+ *                             yet exposed on the verification DOM adapter)
  *
  * Every plan also implicitly includes `assertExists` (added by the runner, not
  * stored here, so plan assertions stay focused on operation-specific checks).
@@ -252,6 +257,40 @@ function assertionsForOperation(operation: Operation): AssertionEntry[] {
     case "suggested-diff":
       return [];
 
+    // Component-prop edit: a source-only JSX attribute change (PRD §7.2). Its
+    // DOM effect is component-specific (a class, an attribute, text, etc.) and
+    // cannot be generically predicted from the operation, so emit an honest
+    // context-dependent note rather than a wrong HIGH. The agent verifies the
+    // rendered component reflects the new prop value.
+    case "set-component-prop":
+      return [
+        {
+          name: "set-component-prop:context-dependent",
+          run: () =>
+            contextDependentNote(
+              `set-component-prop (${operation.componentName}.${operation.propName})`,
+              "Component prop is a source-only edit; verify the rendered component reflects the new prop value.",
+            ),
+        },
+      ];
+
+    // Pseudo-element/state edit: the post-HMR assertion would read the pseudo
+    // computed style via the two-argument getComputedStyle(el, "::before")
+    // form, which the verification DOM adapter does not yet expose. Emit an
+    // honest context-dependent note (never a wrong HIGH); full pseudo
+    // computed-style verification lands when the adapter grows the pseudo lens.
+    case "pseudo-style-edit":
+      return [
+        {
+          name: `pseudo-style-edit:${operation.pseudoTarget}`,
+          run: () =>
+            contextDependentNote(
+              `pseudo-style-edit (${operation.pseudoTarget} ${operation.property})`,
+              "Pseudo-element/state edit; verify the pseudo computed style reflects the new declaration after HMR.",
+            ),
+        },
+      ];
+
     // PRD §12.3 structural kinds (Task 6): schemas + inverses are in place, but
     // the verification assertions land in Task 33. No UI emits them yet, so this
     // path is unreachable until then; throw loud rather than silently passing.
@@ -263,7 +302,6 @@ function assertionsForOperation(operation: Operation): AssertionEntry[] {
     case "duplicate-element":
     case "wrap-elements":
     case "unwrap-element":
-    case "set-component-prop":
       throw new Error(
         `Verification plan not yet implemented for operation kind: ${operation.kind}`,
       );

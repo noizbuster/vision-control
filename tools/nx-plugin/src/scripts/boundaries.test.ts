@@ -148,4 +148,115 @@ describe("checkBoundaries", () => {
 
     expect(report.violations).toEqual([]);
   });
+
+  // Baseline characterization: pin the existing node->browser direction so the
+  // symmetric browser->node addition cannot regress it.
+  it("baseline: still flags a node package importing a browser package alongside the reverse direction", () => {
+    makePackage(
+      root,
+      "n2b",
+      "node",
+      "library",
+      "@vision-control/n2b",
+      'import { X } from "@vision-control/br2";\nexport const Y = X;\n',
+    );
+    makePackage(root, "br2", "browser", "library", "@vision-control/br2", "export const X = 1;\n");
+
+    const report = checkBoundaries(root);
+
+    const nodeViolations = report.violations.filter((v) => v.rule === "node-imports-browser");
+    expect(nodeViolations.length).toBe(1);
+    expect(nodeViolations[0]?.importer).toBe("@vision-control/n2b");
+    expect(nodeViolations[0]?.specifier).toBe("@vision-control/br2");
+  });
+
+  // Failing-first: a platform:browser package VALUE-importing a platform:node
+  // package MUST be flagged as `browser-imports-node`. Without the rule this is
+  // a false-pass; the symmetric rule makes the proof sound (PRD 20.3).
+  it("flags a browser package value-importing a node package (browser-imports-node)", () => {
+    makePackage(
+      root,
+      "br2n",
+      "browser",
+      "library",
+      "@vision-control/br2n",
+      [
+        "// browser consumer",
+        'import { pureHelper } from "@vision-control/nodepkg2";',
+        "export const Z = pureHelper;",
+      ].join("\n"),
+    );
+    makePackage(
+      root,
+      "nodepkg2",
+      "node",
+      "library",
+      "@vision-control/nodepkg2",
+      "export const pureHelper = 1;\n",
+    );
+
+    const report = checkBoundaries(root);
+
+    const browserViolations = report.violations.filter((v) => v.rule === "browser-imports-node");
+    expect(browserViolations.length).toBe(1);
+    expect(browserViolations[0]?.importer).toBe("@vision-control/br2n");
+    expect(browserViolations[0]?.specifier).toBe("@vision-control/nodepkg2");
+  });
+
+  it("allows a type-only browser→node import (erased at compile, no runtime dep)", () => {
+    makePackage(
+      root,
+      "brtype",
+      "browser",
+      "library",
+      "@vision-control/brtype",
+      'import type { OnlyAType } from "@vision-control/nodetype";\nexport type R = OnlyAType;\n',
+    );
+    makePackage(
+      root,
+      "nodetype",
+      "node",
+      "library",
+      "@vision-control/nodetype",
+      "export type OnlyAType = string;\n",
+    );
+
+    const report = checkBoundaries(root);
+
+    expect(report.violations).toEqual([]);
+  });
+
+  it("does not flag browser→node value imports inside test files (tests run under a node runner, not the browser bundle)", () => {
+    const dir = path.join(root, "packages", "brtest");
+    mkdirSync(path.join(dir, "src"), { recursive: true });
+    writeFileSync(
+      path.join(dir, "project.json"),
+      JSON.stringify({
+        name: "brtest",
+        tags: ["platform:browser", "type:library", "scope:brtest"],
+        sourceRoot: "packages/brtest/src",
+      }),
+    );
+    writeFileSync(
+      path.join(dir, "package.json"),
+      JSON.stringify({ name: "@vision-control/brtest" }),
+    );
+    writeFileSync(path.join(dir, "src", "index.ts"), "export const ok = 1;\n");
+    writeFileSync(
+      path.join(dir, "src", "index.test.ts"),
+      'import { helper } from "@vision-control/nodetest";\nexport const r = helper;\n',
+    );
+    makePackage(
+      root,
+      "nodetest",
+      "node",
+      "library",
+      "@vision-control/nodetest",
+      "export const helper = 2;\n",
+    );
+
+    const report = checkBoundaries(root);
+
+    expect(report.violations.filter((v) => v.rule === "browser-imports-node")).toEqual([]);
+  });
 });

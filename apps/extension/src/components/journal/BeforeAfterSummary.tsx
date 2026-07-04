@@ -146,6 +146,13 @@ export function summarizeOperation(op: Operation): OperationSummary {
         to: op.value,
         variant: "set",
       };
+    case "pseudo-style-edit":
+      return {
+        subject: `pseudo:${op.pseudoTarget}:${op.property}`,
+        from: op.previousValue ?? "",
+        to: op.value,
+        variant: "set",
+      };
     case "remove-style":
     case "set-attribute":
     case "position-element":
@@ -194,6 +201,7 @@ const KIND_LABEL: Record<OperationKind, string> = {
   "screenshot-crop-ref": "Screenshot",
   "suggested-diff": "Suggested diff",
   "set-component-prop": "Component prop",
+  "pseudo-style-edit": "Pseudo style",
 };
 
 export function operationLabel(op: Operation): string {

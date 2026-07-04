@@ -415,6 +415,25 @@ const arbSuggestedDiff = fc
     applied: fc.constant(false),
   })
   .map(parse(OperationSchema));
+const arbPseudoStyleEdit = fc
+  .record({
+    ...opBase,
+    kind: fc.constant("pseudo-style-edit"),
+    target: arbElementRef,
+    pseudoTarget: fc.constantFrom(
+      "::before",
+      "::after",
+      ":hover",
+      ":focus",
+      ":active",
+      ":disabled",
+    ),
+    property: arbIdent,
+    value: arbText,
+    important: arbBool,
+    previousValue: arbText,
+  })
+  .map(parse(OperationSchema));
 
 /** Per-kind generator lookup (covers all 31 kinds in OPERATION_KINDS order). */
 export const arbByKind: Record<OperationKind, fc.Arbitrary<Operation>> = {
@@ -449,6 +468,7 @@ export const arbByKind: Record<OperationKind, fc.Arbitrary<Operation>> = {
   "breakpoint-text-edit": arbBpText,
   "screenshot-crop-ref": arbScreenshot,
   "suggested-diff": arbSuggestedDiff,
+  "pseudo-style-edit": arbPseudoStyleEdit,
 };
 
 /** Arbitrary operation of ANY kind (uniform over all 31). */

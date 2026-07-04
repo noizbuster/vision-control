@@ -535,4 +535,86 @@ describe("createPlan V1 assertions (VC-V1V2-16)", () => {
     const plan = createPlan(op, { selector: "#target" });
     expect(plan.assertions).toHaveLength(0);
   });
+
+  it("set-component-prop -> non-throwing context-dependent note (gap fill)", () => {
+    const op: Extract<Operation, { kind: "set-component-prop" }> = {
+      id: ID,
+      kind: "set-component-prop",
+      target: ref("target"),
+      componentName: "Button",
+      propName: "size",
+      value: "lg",
+      previousValue: "md",
+      sourceRange: { startLine: 1, startColumn: 0, endLine: 1, endColumn: 2 },
+      timestamp: 0,
+      runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
+    };
+    const plan = createPlan(op, { selector: "#target" });
+    expect(plan.assertions).toHaveLength(1);
+    expect(plan.assertions[0]?.name).toBe("set-component-prop:context-dependent");
+    const result = plan.assertions[0]?.run(fakeTarget());
+    expect(result?.passed).toBe(true);
+    expect(result?.name).toContain("Button.size");
+  });
+
+  it("pseudo-style-edit ::before -> non-throwing context-dependent note", () => {
+    const op: Extract<Operation, { kind: "pseudo-style-edit" }> = {
+      id: ID,
+      kind: "pseudo-style-edit",
+      target: ref("target"),
+      pseudoTarget: "::before",
+      property: "content",
+      value: '"NEW"',
+      important: false,
+      timestamp: 0,
+      runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
+    };
+    const plan = createPlan(op, { selector: "#target" });
+    expect(plan.assertions).toHaveLength(1);
+    expect(plan.assertions[0]?.name).toBe("pseudo-style-edit:::before");
+    const result = plan.assertions[0]?.run(fakeTarget());
+    expect(result?.passed).toBe(true);
+    expect(result?.name).toContain("::before");
+  });
+
+  it("pseudo-style-edit :hover -> non-throwing context-dependent note", () => {
+    const op: Extract<Operation, { kind: "pseudo-style-edit" }> = {
+      id: ID,
+      kind: "pseudo-style-edit",
+      target: ref("target"),
+      pseudoTarget: ":hover",
+      property: "color",
+      value: "blue",
+      important: false,
+      timestamp: 0,
+      runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
+    };
+    const plan = createPlan(op, { selector: "#target" });
+    expect(plan.assertions[0]?.name).toBe("pseudo-style-edit::hover");
+    expect(() => plan.assertions[0]?.run(fakeTarget())).not.toThrow();
+  });
+
+  it("adversarial: malformed pseudo-style-edit (empty value) still does not throw in the plan", () => {
+    const op: Extract<Operation, { kind: "pseudo-style-edit" }> = {
+      id: ID,
+      kind: "pseudo-style-edit",
+      target: ref("target"),
+      pseudoTarget: "::after",
+      property: "color",
+      value: "",
+      important: true,
+      timestamp: 0,
+      runtime: false,
+      origin: "property-panel" as const,
+      confidence: 1,
+    };
+    const plan = createPlan(op, { selector: "#target" });
+    expect(() => plan.assertions[0]?.run(fakeTarget())).not.toThrow();
+  });
 });

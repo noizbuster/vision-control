@@ -524,6 +524,9 @@ importers:
       '@babel/types':
         specifier: 'catalog:'
         version: 7.29.7
+      postcss:
+        specifier: 'catalog:'
+        version: 8.5.3
       zod:
         specifier: 'catalog:'
         version: 4.4.3

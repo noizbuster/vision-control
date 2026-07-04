@@ -186,6 +186,16 @@ const describeOperation = (
           startLine: String(op.sourceRange.startLine),
         },
       };
+    case "pseudo-style-edit":
+      return {
+        description: `Pseudo ${op.pseudoTarget} ${op.property}: ${describeValue(op.value)}`,
+        detail: {
+          pseudoTarget: op.pseudoTarget,
+          property: op.property,
+          value: op.value,
+          important: String(op.important),
+        },
+      };
     default: {
       const exhaustive: never = op;
       throw new Error(`describeOperation: unhandled kind: ${JSON.stringify(exhaustive)}`);
@@ -245,6 +255,8 @@ const describeTarget = (op: Operation): string | undefined => {
     case "unwrap-element":
       throw new Error(`describeTarget: summary not yet implemented for ${op.kind}`);
     case "set-component-prop":
+      return op.target.sourceId ?? op.target.selector;
+    case "pseudo-style-edit":
       return op.target.sourceId ?? op.target.selector;
     default: {
       const exhaustive: never = op;

@@ -33,6 +33,7 @@ import { applyTransformPreview } from "./adapters/transform-adapter.js";
 import { detectSpecificityConflict, type SpecificityConflictDiagnostic } from "./diagnostics.js";
 import type { PreviewDomAdapter } from "./dom-adapter.js";
 import { createPreviewTransaction, type PreviewTransaction } from "./preview-transaction.js";
+import { applyPseudoPreview } from "./pseudo-preview.js";
 import {
   createReconciliationObserver,
   type ReconciliationObserver,
@@ -209,6 +210,18 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
       case "set-attribute":
         return {
           rollback: applySetAttributePreview(dom, operation),
+          observer: null,
+          simulated: null,
+        };
+      case "pseudo-style-edit":
+        return {
+          rollback: applyPseudoPreview(stylesheet, {
+            runtimeId: operation.target.runtimeId,
+            pseudoClass: operation.pseudoTarget,
+            property: operation.property,
+            value: operation.value,
+            ...(operation.important ? { important: true } : {}),
+          }),
           observer: null,
           simulated: null,
         };

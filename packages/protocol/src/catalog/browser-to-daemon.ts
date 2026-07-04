@@ -30,6 +30,28 @@ export const PageNavigatedSchema = z.object({
   url: z.string(),
   title: z.string(),
   framePath: z.array(z.string()),
+  /**
+   * Additive page-session context (v1 runtime wiring). All optional so older
+   * clients/servers keep parsing: the protocol parser ignores unknown fields
+   * within the same MAJOR version (no version bump required).
+   *
+   * - `viewport` / `activeBreakpoint`: populated browser-side and emitted up
+   *   so the daemon (W3) can compile breakpoint-aware agent context.
+   * - `screens`: the workspace Tailwind breakpoint scale, populated
+   *   daemon-side and echoed to the browser so the content runtime can resolve
+   *   the active breakpoint without importing the node-only tailwind
+   *   integration. The field is DEFINED here on the page-session schema (per
+   *   the v1-runtime plan task 1); the daemon→browser delivery route is wired
+   *   in task 7.
+   */
+  viewport: z
+    .object({
+      width: z.number().int().nonnegative(),
+      height: z.number().int().nonnegative(),
+    })
+    .optional(),
+  activeBreakpoint: z.string().min(1).optional(),
+  screens: z.array(z.string().min(1)).readonly().optional(),
 });
 export type PageNavigated = z.infer<typeof PageNavigatedSchema>;
 

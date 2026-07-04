@@ -24,6 +24,7 @@ import {
   MultiSelectGroupOperationSchema,
 } from "./multi-select.js";
 import { PositionElementOperationSchema } from "./position-element.js";
+import { PseudoStyleEditOperationSchema } from "./pseudo-style-edit.js";
 import { RemoveElementOperationSchema } from "./remove-element.js";
 import { RemoveStyleOperationSchema } from "./remove-style.js";
 import { ReorderChildOperationSchema } from "./reorder.js";
@@ -46,6 +47,7 @@ export * from "./grid.js";
 export * from "./insert-element.js";
 export * from "./multi-select.js";
 export * from "./position-element.js";
+export * from "./pseudo-style-edit.js";
 export * from "./remove-element.js";
 export * from "./remove-style.js";
 export * from "./reorder.js";
@@ -101,6 +103,7 @@ export const OperationSchema = z.discriminatedUnion("kind", [
   ScreenshotCropRefOperationSchema,
   SuggestedDiffOperationSchema,
   SetComponentPropOperationSchema,
+  PseudoStyleEditOperationSchema,
 ]);
 
 export type Operation = z.infer<typeof OperationSchema>;
@@ -141,6 +144,7 @@ export const OPERATION_KINDS = [
   "screenshot-crop-ref",
   "suggested-diff",
   "set-component-prop",
+  "pseudo-style-edit",
 ] as const;
 
 export type OperationKind = (typeof OPERATION_KINDS)[number];

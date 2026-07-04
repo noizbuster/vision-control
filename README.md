@@ -3,6 +3,8 @@
 [![Build](https://img.shields.io/badge/build-pending-lightgrey)](#)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)](#)
 
+> English. 한국어: [README.ko.md](./README.ko.md).
+
 Vision Control is a Chromium DevTools panel plus a local daemon that turns
 visual editing of a live web page into structured source-change intent. You pick
 an element on the page, inspect it, and issue edit commands. The runtime

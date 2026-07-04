@@ -85,4 +85,52 @@ extTest.describe("@routing-isolation browser", () => {
       extExpect(after).toBe(1);
     },
   );
+
+  extTest(
+    "cross-origin iframe contentDocument is null in the real browser (opaque)",
+    async ({ page }) => {
+      await serveFixture(
+        page,
+        fixtureHtml('<iframe id="cross-frame" src="https://nonexistent.example.com/"></iframe>'),
+      );
+
+      const isOpaque = await page.evaluate(() => {
+        const frame = document.getElementById("cross-frame") as HTMLIFrameElement | null;
+        if (!frame) return false;
+        try {
+          return frame.contentDocument === null;
+        } catch {
+          return true;
+        }
+      });
+      extExpect(isOpaque).toBe(true);
+    },
+  );
+
+  extTest("same-origin iframe loads and is reachable in the real browser", async ({ page }) => {
+    const iframeDoc =
+      '<!DOCTYPE html><html><body><button id="inner-btn">Inner</button></body></html>';
+    await serveFixture(
+      page,
+      fixtureHtml(`<iframe id="frame" srcdoc="${iframeDoc.replace(/"/g, "&quot;")}"></iframe>`),
+    );
+
+    const frame = page.frameLocator("#frame");
+    await frame.locator("#inner-btn").waitFor({ timeout: 5000 });
+    const visible = await frame.locator("#inner-btn").isVisible();
+    extExpect(visible).toBe(true);
+  });
+
+  extTest(
+    "overlay host is present after navigation to a new loopback fixture",
+    async ({ page }) => {
+      await serveFixture(page, fixtureHtml('<div id="first">First</div>'));
+      extExpect(await page.locator("[data-vc-overlay-host]").count()).toBe(1);
+
+      await serveFixture(page, fixtureHtml('<div id="second">Second</div>'), "second");
+      await page.waitForSelector("[data-vc-overlay-host]", { timeout: 10_000 });
+      extExpect(await page.locator("[data-vc-overlay-host]").count()).toBe(1);
+      extExpect(await page.locator("#second").count()).toBe(1);
+    },
+  );
 });

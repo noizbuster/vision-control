@@ -153,7 +153,7 @@ test.describe("@css-grid-edit unit", () => {
 });
 
 test.describe("@css-grid-edit browser", () => {
-  // OUT: V1 (PRD §7.2 — CSS Grid reorder deferred to V1; not in MVP scope)
+  // OUT: panel-context — grid-placement emission publishes to the `useGridPlacement` hook in the DevTools panel (GridPanel); the overlay harness opens the content runtime + overlay only. Grid-child selection stamps a generic preview id, so the grid-specific behavior is only observable in the panel. Unit tests above cover inferGridCells → resolveGridIntent → computeInverse end-to-end.
   test.fixme("drag a grid card to a new cell and choose grid-area placement", async ({ page }) => {
     // Given: a 3-column CSS Grid with auto-placed cards on the MVP Board fixture.
     // When: the user drags card A to column 2 and chooses "Grid area" in the inspector.
@@ -161,7 +161,7 @@ test.describe("@css-grid-edit browser", () => {
     // Assert: journal kind === "grid-reorder" and placement === "grid-area"; DOM children order unchanged.
   });
 
-  // OUT: V1 (PRD §7.2 — CSS Grid reorder deferred to V1; not in MVP scope)
+  // OUT: panel-context — grid drag/span outcomes render in the DevTools panel (GridPanel + journal); the overlay harness cannot open the panel context.
   test.fixme("drag a grid card and choose DOM-order reorder when a11y semantics match", async ({
     page,
   }) => {
@@ -171,7 +171,7 @@ test.describe("@css-grid-edit browser", () => {
     // Assert: journal kind === "grid-reorder" and placement === "dom-order".
   });
 
-  // OUT: V1 (PRD §7.2 — CSS Grid reorder deferred to V1; not in MVP scope)
+  // OUT: panel-context — the a11y warning + default placement surface in the DevTools panel; the overlay harness cannot open the panel context.
   test.fixme("grid visual reorder surfaces an a11y warning and does NOT auto-commit DOM order", async ({
     page,
   }) => {
@@ -181,7 +181,7 @@ test.describe("@css-grid-edit browser", () => {
     // Assert: no dom-order operation recorded without explicit opt-in; warning visible in inspector.
   });
 
-  // OUT: V1 (PRD §7.2 — CSS Grid reorder deferred to V1; not in MVP scope)
+  // OUT: panel-context — the span control renders in the DevTools panel (GridPanel); the overlay harness cannot open the panel context.
   test.fixme("grid-column span 2 resize works", async ({ page }) => {
     // Given: a grid child with column span 1.
     // When: the user grows the span to 2 via the inspector span control.

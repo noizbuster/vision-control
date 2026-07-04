@@ -1,72 +1,109 @@
-import { test } from "@playwright/test";
+import {
+  expect,
+  fixtureHtml,
+  overlayElementCount,
+  pageElementRect,
+  serveFixture,
+  test,
+} from "./fixtures/extension-test.ts";
 
 /**
  * @multi-select — VC-V1V2-05 multi-select model, marquee selection, and overlay.
  *
- * Verifies: Shift+Click add/remove, marquee drag selection, common-parent /
- * bounding-rect display, and the constraint rejections (cross-frame, cross
- * shadow root, closed shadow root). These require the built extension loaded in
- * Chromium with a playground fixture page that renders at least three sibling
- * cards in the same flex container.
+ * The W2 wiring (plan task 2) made the content-runtime multi-select controller
+ * live: shift+click toggles membership and stamps a distinctive `vc-multi-`
+ * preview id on each toggled member; a marquee drag in empty space renders the
+ * `.vc-marquee-rect` overlay element and feeds the hit-test into the
+ * controller. The browser-driven tests below assert those observable
+ * content-runtime effects against the built extension.
+ *
+ * The remaining scenarios (member/group outline rendering, common-parent
+ * display, cross-frame/closed-shadow rejection diagnostics) render in the
+ * DevTools panel context (the `useMultiSelect` hook + AlignmentPanel), which
+ * the current Playwright overlay harness does not open; they stay `test.fixme`
+ * with explicit OUT rationales (Task 41 release-readiness gate).
  *
  * Browser binary: `pnpm playwright install chromium` first.
  */
 
-test.describe("@multi-select", () => {
-  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
-  test.fixme("Shift+Click three cards forms a group of three", async ({ page }) => {
-    // Given: inspect mode active and a row of three sibling `.card` elements.
-    // When: the user clicks card 1, then Shift+Clicks card 2 and card 3.
-    // Then: a multi-select group of three members forms; the overlay renders
-    //       three member outlines plus one group bounding outline.
-    // Assert: overlay `.vc-multi-member-outline` count === 3 and a
-    //         `.vc-multi-group-outline` is present.
+const BOARD_HTML = fixtureHtml(`
+  <div id="row" style="display:flex;gap:16px;padding:40px">
+    <div class="card" id="c1" style="width:80px;height:80px;background:#caa">1</div>
+    <div class="card" id="c2" style="width:80px;height:80px;background:#aca">2</div>
+    <div class="card" id="c3" style="width:80px;height:80px;background:#aac">3</div>
+  </div>
+`);
+
+const previewIds = (
+  page: import("@playwright/test").Page,
+): Promise<{
+  readonly c1: string | null;
+  readonly c2: string | null;
+  readonly c3: string | null;
+}> =>
+  page.evaluate(() => ({
+    c1: document.getElementById("c1")?.getAttribute("data-vc-preview-id") ?? null,
+    c2: document.getElementById("c2")?.getAttribute("data-vc-preview-id") ?? null,
+    c3: document.getElementById("c3")?.getAttribute("data-vc-preview-id") ?? null,
+  }));
+
+test.describe("@multi-select browser", () => {
+  test("Shift+Click three cards stamps each toggled member with a vc-multi preview id", async ({
+    page,
+  }) => {
+    await serveFixture(page, BOARD_HTML);
+    const c1 = await pageElementRect(page, "#c1");
+    const c2 = await pageElementRect(page, "#c2");
+    const c3 = await pageElementRect(page, "#c3");
+
+    const shiftClick = async (r: { readonly x: number; readonly y: number }): Promise<void> => {
+      await page.keyboard.down("Shift");
+      await page.mouse.click(r.x + 10, r.y + 10);
+      await page.keyboard.up("Shift");
+      await page.waitForTimeout(150);
+    };
+
+    await shiftClick(c1);
+    await shiftClick(c2);
+    await shiftClick(c3);
+
+    const ids = await previewIds(page);
+    // The multi-select controller stamps a `vc-multi-` prefixed preview id on
+    // every toggled member; plain (non-shift) selection stamps `vc-interaction-`
+    // instead, so the prefix proves the shift+click toggle path executed.
+    expect(ids.c1, "card 1 must carry a vc-multi preview id").toMatch(/^vc-multi-/);
+    expect(ids.c2, "card 2 must carry a vc-multi preview id").toMatch(/^vc-multi-/);
+    expect(ids.c3, "card 3 must carry a vc-multi preview id").toMatch(/^vc-multi-/);
   });
 
-  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
-  test.fixme("Shift+Click a selected card removes it from the group (toggle)", async ({ page }) => {
-    // Given: a group of three cards is active.
-    // When: the user Shift+Clicks card 2 again.
-    // Then: the group shrinks to two members; the overlay re-renders with two
-    //       member outlines.
-    // Assert: overlay `.vc-multi-member-outline` count === 2.
+  test("marquee drag renders the marquee rectangle overlay", async ({ page }) => {
+    await serveFixture(page, BOARD_HTML);
+
+    // Start the marquee in empty body space above the row, then drag across the
+    // cards. The marquee controller activates on pointer-down in body space.
+    await page.mouse.move(10, 10);
+    await page.mouse.down();
+    await page.mouse.move(420, 220, { steps: 8 });
+
+    const rectCount = await overlayElementCount(page, ".vc-marquee-rect");
+    expect(rectCount, "the marquee rectangle must render during the drag").toBe(1);
+
+    await page.mouse.up();
+    await page.waitForTimeout(200);
   });
 
-  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
-  test.fixme("marquee drag selects all elements intersecting the rectangle", async ({ page }) => {
-    // Given: inspect mode active over a grid of six cards.
-    // When: the user drags a marquee rectangle enclosing four of them.
-    // Then: a multi-select group of four members forms in one gesture.
-    // Assert: overlay `.vc-multi-member-outline` count === 4 and the group
-    //         bounding rect equals the enclosing box of the four rects.
+  // OUT: panel-context — member + group outlines render via the `useMultiSelect` hook in the DevTools panel; the overlay harness loads the content runtime + overlay only and does not open the DevTools panel.
+  test.fixme("Shift+Click a selected card removes it from the group (toggle)", async () => {
+    // The toggle-off path resets internal membership, but preview ids are not
+    // removed on toggle, so the removal is only observable in the panel.
   });
 
-  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
-  test.fixme("Shift+Click across two frames is rejected with a diagnostic", async ({ page }) => {
-    // Given: a same-origin iframe is present alongside a top-frame card, and a
-    //        one-member group is started on the top-frame card.
-    // When: the user Shift+Clicks an element inside the iframe.
-    // Then: the machine rejects the transition with a `cross-frame` diagnostic;
-    //       the group is NOT extended; the inspector shows the violation.
-    // Assert: overlay member count unchanged; a `.inspector-multi-select__violation`
-    //         lists code `cross-frame`.
-  });
+  // OUT: panel-context — group bounding outline + member count render in the AlignmentPanel / multi-select inspector slot, not in the content overlay.
+  test.fixme("group inspector section shows common parent and bounding rect", async () => {});
 
-  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
-  test.fixme("Shift+Click on a closed shadow root element is rejected", async ({ page }) => {
-    // Given: a web component with a closed shadow root renders a button.
-    // When: the user Shift+Clicks the button inside the closed root.
-    // Then: the element is not selectable (closed roots are opaque); no group
-    //       member is added.
-    // Assert: overlay member count unchanged (closed-shadow-root is excluded by
-    //         construction — the element never reaches the reducer).
-  });
+  // OUT: panel-context — the cross-frame rejection diagnostic surfaces in the inspector panel; cross-origin iframes are opaque by the browser's own security model so no content-runtime overlay signal is produced.
+  test.fixme("Shift+Click across two frames is rejected with a diagnostic", async () => {});
 
-  // OUT: V1 (PRD §7.2 — multi-select deferred to V1; marquee group model not in MVP scope)
-  test.fixme("group inspector section shows common parent and bounding rect", async ({ page }) => {
-    // Given: a multi-select group of three sibling cards is active.
-    // Then: the panel renders the Multi-Select Group section.
-    // Assert: the section shows member count 3, the shared common parent
-    //         (the cards' flex container), and bounding-rect dimensions.
-  });
+  // OUT: panel-context — closed-shadow-root elements are excluded by construction (never reach the controller); no overlay signal is produced.
+  test.fixme("Shift+Click on a closed shadow root element is rejected", async () => {});
 });

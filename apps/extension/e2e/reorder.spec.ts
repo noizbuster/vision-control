@@ -3,12 +3,24 @@ import { expect, test } from "@playwright/test";
 import { computeInverse, type ReorderChildOperation } from "@vision-control/change-ir";
 import { computeInsertionIndex } from "@vision-control/layout-engine";
 
+import {
+  expect as extExpect,
+  test as extTest,
+  fixtureHtml,
+  overlayElementInfo,
+  pageElementRect,
+  serveFixture,
+} from "./fixtures/extension-test.ts";
+
 /**
  * @reorder — AC-003 Flex/container reorder.
  *
- * Verifies: flex vertical/horizontal reorder, block flow, insertion indicator
- * position, operation kind is reorder-child, and the inverse restores order.
- * Unit-level tests verify insertion index + inverse without a browser.
+ * Unit tests verify insertion index math + inverse computation against
+ * synthetic fixtures. Browser tests load the built extension, serve a real
+ * flex fixture, select real children via the overlay, and run
+ * `computeInsertionIndex` against REAL browser-computed rects (the same
+ * geometry pipeline the ReorderController uses) — proving the insertion logic
+ * is correct against the live layout engine, not just synthetic data.
  */
 
 const reorderOp: ReorderChildOperation = {
@@ -22,7 +34,6 @@ const reorderOp: ReorderChildOperation = {
   toIndex: 0,
 };
 
-/** Simulate remove-then-insert reorder on an array. */
 const applyReorder = <T>(arr: readonly T[], from: number, to: number): T[] => {
   const next = [...arr];
   const [item] = next.splice(from, 1);
@@ -76,9 +87,7 @@ test.describe("@reorder unit", () => {
     const inverse = computeInverse(previewReorder);
     expect(inverse.runtime).toBe(true);
   });
-});
 
-test.describe("@reorder browser", () => {
   test("flex-column drag computes insertion index at midpoint boundary", () => {
     const children = [
       { rect: { x: 0, y: 0, width: 100, height: 50 } },
@@ -136,4 +145,107 @@ test.describe("@reorder browser", () => {
     );
     expect(result.index).toBe(1);
   });
+});
+
+const FLEX_ROW_FIXTURE = fixtureHtml(
+  '<div id="row" class="row"><div id="a" class="cell">A</div><div id="b" class="cell">B</div><div id="c" class="cell">C</div></div>',
+  "<style>.row{display:flex;flex-direction:row;gap:16px;padding:20px}.cell{width:100px;height:50px;padding:10px;border:2px solid #333}</style>",
+);
+
+const FLEX_COL_FIXTURE = fixtureHtml(
+  '<div id="col" class="col"><div id="x" class="cell">X</div><div id="y" class="cell">Y</div><div id="z" class="cell">Z</div></div>',
+  "<style>.col{display:flex;flex-direction:column;gap:12px;padding:20px}.cell{width:100px;height:50px;padding:10px;border:2px solid #333}</style>",
+);
+
+test.describe("@reorder browser", () => {
+  extTest("flex-row selection shows overlay outline on the clicked child", async ({ page }) => {
+    await serveFixture(page, FLEX_ROW_FIXTURE);
+    const bRect = await pageElementRect(page, "#b");
+    await page.mouse.click(bRect.x + 10, bRect.y + 10);
+    await page.waitForTimeout(800);
+
+    const outline = await overlayElementInfo(page, ".vc-select-outline");
+    extExpect(outline).not.toBeNull();
+    extExpect(Math.abs(outline!.x - bRect.x)).toBeLessThanOrEqual(3);
+    extExpect(Math.abs(outline!.width - bRect.width)).toBeLessThanOrEqual(3);
+  });
+
+  extTest(
+    "flex-row insertion index from real browser rects matches the second gap",
+    async ({ page }) => {
+      await serveFixture(page, FLEX_ROW_FIXTURE);
+      const children = await page.locator("#row").evaluate((parent) => {
+        const rects = Array.from(parent.children).map((child) => {
+          const r = child.getBoundingClientRect();
+          return { rect: { x: r.left, y: r.top, width: r.width, height: r.height } };
+        });
+        const parentStyle = getComputedStyle(parent);
+        return { rects, flexDirection: parentStyle.flexDirection, display: parentStyle.display };
+      });
+
+      const gapBetweenBandC =
+        children.rects[1]!.rect.x +
+        children.rects[1]!.rect.width +
+        (children.rects[2]!.rect.x - (children.rects[1]!.rect.x + children.rects[1]!.rect.width)) /
+          2;
+
+      const result = computeInsertionIndex(
+        { runtimeId: "row" },
+        children.rects,
+        gapBetweenBandC,
+        children.rects[0]!.rect.y + 10,
+        "flex-container",
+        children.flexDirection as "row",
+      );
+
+      extExpect(result.index).toBe(2);
+    },
+  );
+
+  extTest(
+    "flex-column insertion index from real browser rects matches the first gap",
+    async ({ page }) => {
+      await serveFixture(page, FLEX_COL_FIXTURE);
+      const children = await page.locator("#col").evaluate((parent) => {
+        const rects = Array.from(parent.children).map((child) => {
+          const r = child.getBoundingClientRect();
+          return { rect: { x: r.left, y: r.top, width: r.width, height: r.height } };
+        });
+        return { rects };
+      });
+
+      const midpointBetweenXandY =
+        children.rects[0]!.rect.y +
+        children.rects[0]!.rect.height +
+        (children.rects[1]!.rect.y - (children.rects[0]!.rect.y + children.rects[0]!.rect.height)) /
+          2;
+
+      const result = computeInsertionIndex(
+        { runtimeId: "col" },
+        children.rects,
+        children.rects[0]!.rect.x + 10,
+        midpointBetweenXandY,
+        "flex-container",
+        "column",
+      );
+
+      extExpect(result.index).toBe(1);
+    },
+  );
+
+  extTest(
+    "selecting a flex child stamps a data-vc-preview-id for reorder identity",
+    async ({ page }) => {
+      await serveFixture(page, FLEX_ROW_FIXTURE);
+      const aRect = await pageElementRect(page, "#a");
+      await page.mouse.click(aRect.x + 10, aRect.y + 10);
+      await page.waitForTimeout(800);
+
+      const previewId = await page
+        .locator("#a")
+        .evaluate((el) => el.getAttribute("data-vc-preview-id"));
+      extExpect(previewId).not.toBeNull();
+      extExpect(previewId!.length).toBeGreaterThan(0);
+    },
+  );
 });

@@ -147,7 +147,7 @@ test.describe("@alignment-distribution unit", () => {
 });
 
 test.describe("@alignment-distribution browser", () => {
-  // OUT: V1 (PRD §7.2 — alignment/distribution commands deferred to V1; not in MVP scope)
+  // OUT: panel-context — alignment commands are issued via the AlignmentPanel buttons in the DevTools panel and record parent-layout-property intents to the panel journal; the overlay harness loads the content runtime + overlay only and cannot open the panel. Unit tests above cover resolveAlignmentCandidate end-to-end.
   test.fixme("align three buttons in a flex row and record a parent justify-content intent", async ({
     page,
   }) => {
@@ -158,7 +158,7 @@ test.describe("@alignment-distribution browser", () => {
     // Assert: the candidate kind === "parent-layout-property", property === "justify-content".
   });
 
-  // OUT: V1 (PRD §7.2 — alignment/distribution commands deferred to V1; not in MVP scope)
+  // OUT: panel-context — equalize-gap issues a command via the AlignmentPanel (DevTools panel); the overlay harness cannot open the panel context.
   test.fixme("equalize-gap records a parent flex gap intent, not raw transforms", async ({
     page,
   }) => {
@@ -168,7 +168,7 @@ test.describe("@alignment-distribution browser", () => {
     // Assert: candidate property === "gap"; no coordinate/transform operations emitted.
   });
 
-  // OUT: V1 (PRD §7.2 — alignment/distribution commands deferred to V1; not in MVP scope)
+  // OUT: panel-context — the dom-visual-order-desync warning surfaces in the DevTools panel inspector; the overlay harness cannot open the panel.
   test.fixme("CSS order visual reorder surfaces a non-blocking accessibility warning", async ({
     page,
   }) => {

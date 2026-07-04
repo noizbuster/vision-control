@@ -47,6 +47,8 @@
     "jsdom": "29.1.1",
     "typescript": "catalog:",
     "vitest": "catalog:",
+    "ws": "catalog:",
+    "@types/ws": "catalog:",
     "wxt": "catalog:"
   }
 }

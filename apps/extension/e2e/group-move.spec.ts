@@ -178,7 +178,7 @@ test.describe("@group-move unit", () => {
 });
 
 test.describe("@group-move browser", () => {
-  // OUT: V1 (PRD §7.2 — group move deferred to V1; not in MVP scope)
+  // OUT: panel-context — group-reorder/reparent ops record to the journal which lives in the DevTools panel context; the overlay harness loads the content runtime + overlay only and cannot open the panel. D41 free-move rejection produces no overlay signal. Unit tests above cover classifyGroupMove → buildGroup*Operation → computeInverse end-to-end.
   test.fixme("move two adjacent cards as a group within the same flex parent", async ({ page }) => {
     // Given: a multi-select group of three sibling `.card` elements in a flex-row.
     // When: the user drags two selected cards to a new position in the same parent.
@@ -186,7 +186,7 @@ test.describe("@group-move browser", () => {
     // Assert: the journal entry kind === "group-reorder" and newOrder reflects the drop.
   });
 
-  // OUT: V1 (PRD §7.2 — group move deferred to V1; not in MVP scope)
+  // OUT: panel-context — group-reparent records to the panel journal; the ownership-risk warning renders in the inspector. Overlay harness cannot open the panel context.
   test.fixme("reparent a multi-select group to a compatible parent", async ({ page }) => {
     // Given: a multi-select group in container A.
     // When: the user drags the group onto container B (same frame, open shadow root).
@@ -195,7 +195,7 @@ test.describe("@group-move browser", () => {
     // Assert: journal kind === "group-reparent"; inspector shows the ownership warning.
   });
 
-  // OUT: V1 (PRD §7.2 — group move deferred to V1; not in MVP scope)
+  // OUT: panel-context — D41 free-move rejection produces no overlay signal; the diagnostic surfaces in the DevTools panel inspector.
   test.fixme("normal-flow group free-move is rejected with a diagnostic (D41)", async ({
     page,
   }) => {
@@ -206,7 +206,7 @@ test.describe("@group-move browser", () => {
     // Assert: no group operation recorded; diagnostic surfaces in the inspector.
   });
 
-  // OUT: V1 (PRD §7.2 — group move deferred to V1; not in MVP scope)
+  // OUT: panel-context — per-member style-edit ops with free-move record to the panel journal; the overlay harness cannot open the panel context.
   test.fixme("positioned-context group free-move works with explicit opt-in", async ({ page }) => {
     // Given: a multi-select group of absolutely-positioned children.
     // When: the user opts into free-move (explicit intent) and drags the group.

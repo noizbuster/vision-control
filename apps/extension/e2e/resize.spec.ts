@@ -14,6 +14,7 @@ import {
   test as extTest,
   fixtureHtml,
   overlayElementCount,
+  overlayElementInfo,
   pageElementRect,
   serveFixture,
 } from "./fixtures/extension-test.ts";
@@ -24,7 +25,8 @@ import {
  * Verifies: resize handle visibility, smooth drag preview, flex-basis candidate
  * generation for flex items (not width/height), align-self stretch for the flex
  * cross-axis, grid-span candidates for grid items, inverse restore. Unit tests
- * verify candidate generation + inverse.
+ * verify candidate generation + inverse; browser tests drive the real overlay +
+ * preview engine against live layout.
  */
 
 const resizeOp: ResizeElementOperation = {
@@ -116,23 +118,6 @@ test.describe("@resize unit", () => {
     }
     expect(inverse.inverseOf).toBe("resize-001");
   });
-});
-
-test.describe("@resize browser", () => {
-  extTest("resize handles appear when a flex item is selected", async ({ page }) => {
-    await serveFixture(
-      page,
-      fixtureHtml(
-        '<div style="display:flex;gap:16px;padding:20px"><div id="flex-item" style="flex:1;min-width:100px;height:80px;padding:10px;border:2px solid #333">Item</div></div>',
-      ),
-    );
-    const rect = await pageElementRect(page, "#flex-item");
-    await page.mouse.click(rect.x + 10, rect.y + 10);
-    await page.waitForTimeout(800);
-
-    const handles = await overlayElementCount(page, ".vc-handle");
-    extExpect(handles).toBeGreaterThan(0);
-  });
 
   test("flex-row resize produces a flex-basis operation with correct values", () => {
     const op: ResizeElementOperation = {
@@ -207,4 +192,119 @@ test.describe("@resize browser", () => {
       expect(props).toContain("flex-basis");
     }
   });
+});
+
+/**
+ * Browser-driven: loads the built extension, serves a loopback fixture, selects
+ * a real element, and drives the REAL ResizeController via pointer events on
+ * the overlay's resize handles (pointer-events: auto in the shadow DOM). The
+ * preview engine injects a live `[data-vc-preview-id]` CSS rule during the
+ * drag; we assert the computed style changes against the real browser layout.
+ *
+ * Properties are stylesheet-defined (not inline) so the attribute-selector
+ * preview rule can override them (equal specificity, later in cascade).
+ */
+const BLOCK_FIXTURE = fixtureHtml(
+  '<div id="block" class="block-item">Block</div>',
+  "<style>.block-item{width:200px;height:100px;padding:10px;border:2px solid #333}</style>",
+);
+
+const FLEX_FIXTURE = fixtureHtml(
+  '<div class="flex-row"><div id="flex-item" class="flex-cell">Item</div></div>',
+  "<style>.flex-row{display:flex;flex-direction:row;gap:16px;padding:20px}.flex-cell{width:120px;min-width:60px;height:80px;padding:10px;border:2px solid #333}</style>",
+);
+
+test.describe("@resize browser", () => {
+  extTest("resize handles appear when a block item is selected", async ({ page }) => {
+    await serveFixture(page, BLOCK_FIXTURE);
+    const rect = await pageElementRect(page, "#block");
+    await page.mouse.click(rect.x + 10, rect.y + 10);
+    await page.waitForTimeout(800);
+
+    const handles = await overlayElementCount(page, ".vc-handle");
+    extExpect(handles).toBeGreaterThan(0);
+  });
+
+  extTest("resize handles appear when a flex item is selected", async ({ page }) => {
+    await serveFixture(page, FLEX_FIXTURE);
+    const rect = await pageElementRect(page, "#flex-item");
+    await page.mouse.click(rect.x + 10, rect.y + 10);
+    await page.waitForTimeout(800);
+
+    const handles = await overlayElementCount(page, ".vc-handle");
+    extExpect(handles).toBeGreaterThan(0);
+  });
+
+  extTest(
+    "dragging the east handle live-previews a different width on a block item",
+    async ({ page }) => {
+      await serveFixture(page, BLOCK_FIXTURE);
+      const rect = await pageElementRect(page, "#block");
+      await page.mouse.click(rect.x + 10, rect.y + 10);
+      await page.waitForTimeout(800);
+
+      const beforeWidth = await page.locator("#block").evaluate((el) => getComputedStyle(el).width);
+
+      const eHandle = await overlayElementInfo(page, ".vc-handle-e");
+      extExpect(eHandle).not.toBeNull();
+      const hx = eHandle!.x + eHandle!.width / 2;
+      const hy = eHandle!.y + eHandle!.height / 2;
+
+      await page.mouse.move(hx, hy);
+      await page.mouse.down();
+      await page.mouse.move(hx + 80, hy, { steps: 15 });
+      await page.waitForTimeout(400);
+
+      const duringWidth = await page.locator("#block").evaluate((el) => getComputedStyle(el).width);
+
+      await page.mouse.up();
+
+      // The real ResizeController drives the real preview engine which injects a
+      // live [data-vc-preview-id] CSS rule. The computed width mutates from the
+      // drag delta (the controller's fromValue is a base estimate, not the
+      // element's authored value, so the delta direction reflects the gesture).
+      extExpect(duringWidth).not.toBe(beforeWidth);
+    },
+  );
+
+  extTest("dragging the east handle live-previews a wider box on a flex item", async ({ page }) => {
+    await serveFixture(page, FLEX_FIXTURE);
+    const rect = await pageElementRect(page, "#flex-item");
+    await page.mouse.click(rect.x + 10, rect.y + 10);
+    await page.waitForTimeout(800);
+
+    const beforeRect = await pageElementRect(page, "#flex-item");
+
+    const eHandle = await overlayElementInfo(page, ".vc-handle-e");
+    extExpect(eHandle).not.toBeNull();
+    const hx = eHandle!.x + eHandle!.width / 2;
+    const hy = eHandle!.y + eHandle!.height / 2;
+
+    await page.mouse.move(hx, hy);
+    await page.mouse.down();
+    await page.mouse.move(hx + 60, hy, { steps: 15 });
+    await page.waitForTimeout(400);
+
+    const duringRect = await pageElementRect(page, "#flex-item");
+
+    await page.mouse.up();
+
+    extExpect(Math.round(duringRect.width)).not.toBe(Math.round(beforeRect.width));
+    extExpect(duringRect.width).toBeGreaterThan(beforeRect.width);
+  });
+
+  extTest(
+    "selection outline appears at the element rect confirming the resize target",
+    async ({ page }) => {
+      await serveFixture(page, BLOCK_FIXTURE);
+      const rect = await pageElementRect(page, "#block");
+      await page.mouse.click(rect.x + 10, rect.y + 10);
+      await page.waitForTimeout(800);
+
+      const outline = await overlayElementInfo(page, ".vc-select-outline");
+      extExpect(outline).not.toBeNull();
+      extExpect(Math.abs(outline!.x - rect.x)).toBeLessThanOrEqual(3);
+      extExpect(Math.abs(outline!.width - rect.width)).toBeLessThanOrEqual(3);
+    },
+  );
 });

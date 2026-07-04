@@ -1,4 +1,9 @@
-import { type ChangeSet, createChangeSet, type Operation, withPrivacyReport } from "@vision-control/change-ir";
+import {
+  type ChangeSet,
+  createChangeSet,
+  type Operation,
+  withPrivacyReport,
+} from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { describe, expect, it } from "vitest";
 
@@ -140,9 +145,7 @@ describe("computeChangesetPrivacyReport — PRD §12.2 / Appendix D.6", () => {
       ],
     });
     const report = computeChangesetPrivacyReport(baseChangeset, { selection });
-    const valueRedactions = report.redactions.filter(
-      (r) => r.field === "target.attributes.value",
-    );
+    const valueRedactions = report.redactions.filter((r) => r.field === "target.attributes.value");
     expect(valueRedactions).toHaveLength(1);
     expect(valueRedactions[0]?.source).toBe("selector");
   });

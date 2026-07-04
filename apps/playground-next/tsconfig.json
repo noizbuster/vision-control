@@ -1,23 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "ES2022"
-    ],
+    "lib": ["dom", "dom.iterable", "ES2022"],
     "allowJs": true,
     "noEmit": true,
     "jsx": "preserve",
     "incremental": true,
     "rootDir": ".",
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     },
     "plugins": [
       {
@@ -32,9 +24,5 @@
     "next-env.d.ts",
     ".next-turbo/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "e2e",
-    "dist"
-  ]
+  "exclude": ["node_modules", "e2e", "dist"]
 }

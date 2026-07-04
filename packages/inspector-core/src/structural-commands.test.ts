@@ -209,7 +209,12 @@ describe("create stack / flex container", () => {
 describe("move to front / back", () => {
   it("moveToFront sets z-index on a positioned element", () => {
     const op = createMoveToFrontCommand(
-      { target: ref("el-1"), zIndex: "10", currentRole: "absolute-positioned", previousZIndex: "1" },
+      {
+        target: ref("el-1"),
+        zIndex: "10",
+        currentRole: "absolute-positioned",
+        previousZIndex: "1",
+      },
       { id: "op-front-001", timestamp },
     );
 

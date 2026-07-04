@@ -229,7 +229,12 @@ describe("mergeChangeSets — structural inverse pairs cancel across sets", () =
 
 describe("mergeChangeSets — set-component-prop conflict signature (PRD §7.2)", () => {
   const range = { startLine: 5, startColumn: 10, endLine: 5, endColumn: 14 };
-  const componentPropOp = (id: string, propName: string, value: string, previousValue: string): Operation => ({
+  const componentPropOp = (
+    id: string,
+    propName: string,
+    value: string,
+    previousValue: string,
+  ): Operation => ({
     ...base(id, BASE_TIME),
     kind: "set-component-prop",
     target: el("btn-primary"),

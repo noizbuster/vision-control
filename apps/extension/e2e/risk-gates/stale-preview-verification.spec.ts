@@ -123,8 +123,8 @@ test.describe("risk: stale preview verification (browser)", () => {
   extTest("source-patched DOM passes verification after clearAll", async ({ page }) => {
     await serveFixture(page, fixtureHtml('<div id="target" style="padding:10px">Box</div>'));
 
-    await page.evaluate(() => {
-      document.getElementById("target")!.style.padding = "24px";
+    await page.locator("#target").evaluate((el) => {
+      el.style.padding = "24px";
     });
 
     await page.evaluate(() => {

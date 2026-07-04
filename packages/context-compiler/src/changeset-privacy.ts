@@ -55,14 +55,15 @@ export const computeChangesetPrivacyReport = (
     operations: changeset.operations,
   };
   const redactedSurface = redactObject(surface);
-  const stringRedactions: PrivacyRedaction[] = createPrivacyReport(surface, redactedSurface).redactions.map(
-    (entry) => ({
-      field: entry.field,
-      patternId: entry.patternId,
-      description: entry.description,
-      source: "string-pattern" as const,
-    }),
-  );
+  const stringRedactions: PrivacyRedaction[] = createPrivacyReport(
+    surface,
+    redactedSurface,
+  ).redactions.map((entry) => ({
+    field: entry.field,
+    patternId: entry.patternId,
+    description: entry.description,
+    source: "string-pattern" as const,
+  }));
 
   return {
     redactions: [...selectorRedactions, ...stringRedactions],

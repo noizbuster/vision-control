@@ -80,9 +80,7 @@ function parseJsonRpc(body: string): McpJsonRpcResponse | undefined {
     if (trimmed.startsWith("data: ")) {
       try {
         return JSON.parse(trimmed.slice("data: ".length)) as McpJsonRpcResponse;
-      } catch {
-        continue;
-      }
+      } catch {}
     }
   }
   try {

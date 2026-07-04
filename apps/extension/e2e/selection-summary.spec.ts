@@ -90,7 +90,9 @@ extTest.describe("@selection-summary browser", () => {
   extTest("parent layout context shows parent display mode for a flex child", async ({ page }) => {
     await serveFixture(page, FIXTURE);
     const parentDisplay = await page.locator("#flex-item").evaluate((el) => {
-      return getComputedStyle(el.parentElement!).display;
+      const parent = el.parentElement;
+      if (!parent) throw new Error("#flex-item has no parent element");
+      return getComputedStyle(parent).display;
     });
     extExpect(parentDisplay).toBe("flex");
   });

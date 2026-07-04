@@ -43,13 +43,7 @@
           "additionalProperties": {}
         }
       },
-      "required": [
-        "protocolVersion",
-        "messageId",
-        "messageType",
-        "payload",
-        "timestamp"
-      ],
+      "required": ["protocolVersion", "messageId", "messageType", "payload", "timestamp"],
       "additionalProperties": false
     },
     "message": {
@@ -71,11 +65,7 @@
               }
             }
           },
-          "required": [
-            "type",
-            "clientVersion",
-            "clientCapabilities"
-          ],
+          "required": ["type", "clientVersion", "clientCapabilities"],
           "additionalProperties": false
         },
         {
@@ -101,13 +91,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "type",
-            "serverVersion",
-            "serverCapabilities",
-            "sessionId",
-            "sessionToken"
-          ],
+          "required": ["type", "serverVersion", "serverCapabilities", "sessionId", "sessionToken"],
           "additionalProperties": false
         },
         {
@@ -139,11 +123,7 @@
             },
             "details": {}
           },
-          "required": [
-            "type",
-            "code",
-            "message"
-          ],
+          "required": ["type", "code", "message"],
           "additionalProperties": false
         },
         {
@@ -157,10 +137,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "type",
-            "messageId"
-          ],
+          "required": ["type", "messageId"],
           "additionalProperties": false
         },
         {
@@ -177,10 +154,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "type",
-            "messageId"
-          ],
+          "required": ["type", "messageId"],
           "additionalProperties": false
         },
         {
@@ -195,10 +169,7 @@
               "minLength": 1
             }
           },
-          "required": [
-            "type",
-            "tabId"
-          ],
+          "required": ["type", "tabId"],
           "additionalProperties": false
         },
         {
@@ -214,10 +185,7 @@
               "maximum": 9007199254740991
             }
           },
-          "required": [
-            "type",
-            "clientTime"
-          ],
+          "required": ["type", "clientTime"],
           "additionalProperties": false
         },
         {
@@ -240,12 +208,7 @@
               }
             }
           },
-          "required": [
-            "type",
-            "url",
-            "title",
-            "framePath"
-          ],
+          "required": ["type", "url", "title", "framePath"],
           "additionalProperties": false
         },
         {
@@ -266,11 +229,7 @@
               }
             }
           },
-          "required": [
-            "type",
-            "elementId",
-            "framePath"
-          ],
+          "required": ["type", "elementId", "framePath"],
           "additionalProperties": false
         },
         {
@@ -294,12 +253,7 @@
               "items": {}
             }
           },
-          "required": [
-            "type",
-            "changesetId",
-            "revision",
-            "operations"
-          ],
+          "required": ["type", "changesetId", "revision", "operations"],
           "additionalProperties": false
         },
         {
@@ -318,11 +272,7 @@
               "minLength": 1
             }
           },
-          "required": [
-            "type",
-            "requestId",
-            "elementId"
-          ],
+          "required": ["type", "requestId", "elementId"],
           "additionalProperties": false
         },
         {
@@ -341,11 +291,7 @@
             },
             "diff": {}
           },
-          "required": [
-            "type",
-            "changesetId",
-            "passed"
-          ],
+          "required": ["type", "changesetId", "passed"],
           "additionalProperties": false
         },
         {
@@ -357,11 +303,7 @@
             },
             "severity": {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "info"
-              ]
+              "enum": ["error", "warning", "info"]
             },
             "message": {
               "type": "string"
@@ -370,11 +312,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "type",
-            "severity",
-            "message"
-          ],
+          "required": ["type", "severity", "message"],
           "additionalProperties": false
         },
         {
@@ -394,10 +332,7 @@
               "maximum": 9007199254740991
             }
           },
-          "required": [
-            "type",
-            "sessionId"
-          ],
+          "required": ["type", "sessionId"],
           "additionalProperties": false
         },
         {
@@ -413,10 +348,7 @@
               "maximum": 9007199254740991
             }
           },
-          "required": [
-            "type",
-            "fileCount"
-          ],
+          "required": ["type", "fileCount"],
           "additionalProperties": false
         },
         {
@@ -440,21 +372,10 @@
             },
             "confidence": {
               "type": "string",
-              "enum": [
-                "high",
-                "medium",
-                "low",
-                "none"
-              ]
+              "enum": ["high", "medium", "low", "none"]
             }
           },
-          "required": [
-            "type",
-            "requestId",
-            "elementId",
-            "sourceToken",
-            "confidence"
-          ],
+          "required": ["type", "requestId", "elementId", "sourceToken", "confidence"],
           "additionalProperties": false
         },
         {
@@ -475,18 +396,10 @@
             },
             "format": {
               "type": "string",
-              "enum": [
-                "json",
-                "markdown"
-              ]
+              "enum": ["json", "markdown"]
             }
           },
-          "required": [
-            "type",
-            "contextId",
-            "tokenCount",
-            "format"
-          ],
+          "required": ["type", "contextId", "tokenCount", "format"],
           "additionalProperties": false
         },
         {
@@ -506,11 +419,7 @@
               "maximum": 9007199254740991
             }
           },
-          "required": [
-            "type",
-            "changesetId",
-            "timeoutMs"
-          ],
+          "required": ["type", "changesetId", "timeoutMs"],
           "additionalProperties": false
         },
         {
@@ -527,10 +436,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "type",
-            "reason"
-          ],
+          "required": ["type", "reason"],
           "additionalProperties": false
         },
         {
@@ -547,18 +453,12 @@
               }
             }
           },
-          "required": [
-            "type",
-            "keys"
-          ],
+          "required": ["type", "keys"],
           "additionalProperties": false
         }
       ]
     }
   },
-  "required": [
-    "envelope",
-    "message"
-  ],
+  "required": ["envelope", "message"],
   "additionalProperties": false
 }

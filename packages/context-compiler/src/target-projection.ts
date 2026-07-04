@@ -14,9 +14,7 @@ export const projectSelectionToTarget = (selection: SelectionSummary): TargetSum
     ...(selection.identity.runtimeId !== undefined
       ? { runtimeId: selection.identity.runtimeId }
       : {}),
-    ...(selection.identity.sourceId !== undefined
-      ? { sourceId: selection.identity.sourceId }
-      : {}),
+    ...(selection.identity.sourceId !== undefined ? { sourceId: selection.identity.sourceId } : {}),
     ...(selection.identity.fingerprint !== undefined
       ? { fingerprint: selection.identity.fingerprint }
       : {}),

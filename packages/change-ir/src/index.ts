@@ -51,9 +51,9 @@ export {
 } from "./operations/index.js";
 export {
   type PrivacyRedaction,
+  PrivacyRedactionSchema,
   type PrivacyRedactionSource,
   PrivacyRedactionSourceSchema,
-  PrivacyRedactionSchema,
   type PrivacyReport,
   PrivacyReportSchema,
 } from "./privacy.js";

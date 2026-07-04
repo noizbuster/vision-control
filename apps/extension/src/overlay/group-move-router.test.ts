@@ -29,18 +29,17 @@ import {
 import {
   createBrowserPreviewDomAdapter,
   createPreviewManager,
+  PREVIEW_ID_ATTR,
   type PreviewManager,
 } from "@vision-control/preview-engine";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { BusMessage, BusMessageHandler, BusRoute } from "../messaging/index.js";
-import { PREVIEW_ID_ATTR } from "@vision-control/preview-engine";
+import type { GroupDragIntent, GroupMoveRouteResult } from "./group-move-router.js";
 import {
   createInteractionControllers,
   type InteractionBus,
   type InteractionControllers,
 } from "./interaction-wiring.js";
-import type { GroupDragIntent, GroupMoveRouteResult } from "./group-move-router.js";
 
 type SentMessage = { readonly route: BusRoute; readonly message: BusMessage };
 
@@ -149,7 +148,9 @@ function buildGroup(
   return result.group;
 }
 
-function interactionOperationMessages(bus: ReturnType<typeof createFakeBus>): readonly BusMessage[] {
+function interactionOperationMessages(
+  bus: ReturnType<typeof createFakeBus>,
+): readonly BusMessage[] {
   return bus.sent
     .filter((entry) => entry.message.messageType === "interaction-operation")
     .map((entry) => entry.message);

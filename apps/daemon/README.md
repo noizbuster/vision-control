@@ -26,6 +26,9 @@ On a successful start the daemon prints one JSON line to stdout:
 ```
 
 The pairing token is shown exactly once; only its SHA-256 hash is persisted.
+The `pairingUrl` is meant to be pasted into the Vision Control DevTools panel's
+connect field, not opened in a browser address bar; the `vision-control://`
+scheme has no browser handler.
 
 ## CLI
 

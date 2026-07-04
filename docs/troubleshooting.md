@@ -106,6 +106,14 @@ That is correct. The ready line
 is emitted once on stdout. The token is shown exactly once; it is stored only as
 a SHA-256 hash. The extension uses it to authenticate the WebSocket upgrade.
 
+### Pasting the `vision-control://pair?...` URL into a browser does nothing
+
+That URL is not a browser-openable link. Paste it into the **Vision Control**
+DevTools panel's connect field instead. If the address bar sends it to a search
+engine, that is expected: the `vision-control://` scheme has no browser or OS
+protocol handler. The panel reads the token, host, and port out of the URL
+itself, so you can also paste just the token and it fills in the daemon defaults.
+
 ---
 
 ## Connection issues

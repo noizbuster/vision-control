@@ -96,9 +96,14 @@ loopback 전용이고, `debugger`는 `optional_permissions` 항목이라 절대 
 
 ### 4. 페어링
 
-일회용 페어링 토큰을 입력하거나, daemon이 출력한
-`vision-control://pair?token=...` URL을 연다. 패널의 연결 상태가 connected로
-바뀌고, 작업 공간에 바인딩된다.
+**Vision Control** 패널의 연결 입력란에 daemon이 출력한
+`vision-control://pair?token=...` URL을 붙여넣고 **Connect**를 클릭한다 (또는
+Enter를 누른다). 이 URL을 브라우저 주소창에 넣지 마라. `vision-control://`
+스킴에는 브라우저나 OS 프로토콜 핸들러가 없어서, 주소창은 이를 검색어로
+취급한다. 이 URL은 패널이 토큰·host·port를 읽어오기 위한 데이터 형식일 뿐이다.
+토큰만 붙여넣어도 된다. 그러면 패널이 daemon 기본값(`127.0.0.1:4321`)으로 URL을
+채운다. 패널이 클라이언트에서 URL을 검증하고 WebSocket으로 연결하며, 연결 상태가
+connected로 바뀌고 작업 공간에 바인딩된다.
 
 ### 5. 편집
 

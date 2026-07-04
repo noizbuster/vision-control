@@ -97,9 +97,14 @@ The built manifest is intentionally scoped: `host_permissions` are loopback only
 
 ### 4. Pair
 
-Enter the one-time pairing token, or open the `vision-control://pair?token=...`
-URL the daemon printed. The panel's connection state moves to connected, bound to
-your workspace.
+In the **Vision Control** panel, paste the `vision-control://pair?token=...` URL
+the daemon printed into the connect field, then click **Connect** (or press
+Enter). Do not put this URL in a browser address bar: the `vision-control://`
+scheme has no browser or OS protocol handler, so the address bar treats it as a
+search query. It is only a data format that carries the token, host, and port for
+the panel. Pasting just the token also works; the panel fills in the daemon
+defaults (`127.0.0.1:4321`). The panel validates the URL client-side, connects
+over WebSocket, and its status moves to connected, bound to your workspace.
 
 ### 5. Edit
 

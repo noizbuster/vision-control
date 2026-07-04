@@ -7,6 +7,14 @@ import type {
   GridReorderCandidateSet,
   GridSpanCandidate,
 } from "@vision-control/layout-engine";
+// Type-only imports from source-resolver (platform:node) are boundary-safe: they
+// are erased at compile time and pull zero runtime code into the browser bundle.
+// The symmetric `browser-imports-node` checker (task 1) skips type-only imports.
+import type {
+  BoundaryKind,
+  OwnershipContext,
+  PropFlowWarningSeverity,
+} from "@vision-control/source-resolver";
 
 import type { BusMessage, ConnectionState, TabSession } from "./types.js";
 
@@ -121,6 +129,90 @@ export function createGridPlacementMessage(state: GridPlacementMessage): BusMess
     messageType: "grid-placement",
     targetRoute: "panel",
     payload: state,
+    timestamp: Date.now(),
+  };
+}
+
+/**
+ * Serializable mirror of `@vision-control/source-resolver`'s `PropFlowWarning`.
+ * The daemon computes warnings via the real `propFlowWarnings` (platform:node)
+ * and serialises them into this shape so the browser-side panel can apply the
+ * full `hasBlockingWarning` semantics without value-importing source-resolver.
+ */
+export interface PropFlowWarningEntry {
+  readonly code: string;
+  readonly message: string;
+  readonly severity: PropFlowWarningSeverity;
+  readonly context: OwnershipContext;
+  readonly boundary: BoundaryKind;
+}
+
+/**
+ * One daemon-resolved editable prop on the selected element, carried on the wire
+ * from daemon→background→panel. Structurally compatible with PropsPanel's
+ * `EditableProp` so the panel consumes it directly.
+ */
+export interface ComponentPropEntry {
+  readonly name: string;
+  readonly value: string;
+  readonly kind: "dom-attribute" | "component-prop";
+  readonly componentName?: string;
+  readonly sourceRange?: {
+    readonly startLine: number;
+    readonly startColumn: number;
+    readonly endLine: number;
+    readonly endColumn: number;
+  };
+  readonly ownershipContext?: OwnershipContext;
+  readonly boundary?: BoundaryKind;
+  readonly warnings?: readonly PropFlowWarningEntry[];
+}
+
+/**
+ * Panel-bound payload: the daemon-resolved props for one selected element.
+ * The `elementId` matches the `request-component-props` signal so the panel
+ * discards stale responses from a superseded selection (adversarial: stale_state).
+ */
+export interface ComponentPropsPayload {
+  readonly elementId: string;
+  readonly props: readonly ComponentPropEntry[];
+}
+
+export function createComponentPropsMessage(payload: ComponentPropsPayload): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `component-props-${Date.now()}`,
+    messageType: "component-props",
+    targetRoute: "panel",
+    payload,
+    timestamp: Date.now(),
+  };
+}
+
+/**
+ * Selection identity the panel sends to the background to request daemon-side
+ * prop discovery. The background forwards this to the daemon source-resolver
+ * (the `discoverProps`/`propFlowWarnings` functions are platform:node and must
+ * not run in the browser — symmetric `browser-imports-node` rule from task 1).
+ */
+export interface RequestComponentPropsPayload {
+  readonly elementId: string;
+  readonly tagName: string;
+  readonly sourceId?: string;
+  readonly componentName?: string;
+  readonly ownershipContext?: OwnershipContext;
+  readonly boundary?: BoundaryKind;
+}
+
+export function createRequestComponentPropsMessage(
+  payload: RequestComponentPropsPayload,
+): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `request-component-props-${Date.now()}`,
+    messageType: "request-component-props",
+    targetRoute: "background",
+    payload,
     timestamp: Date.now(),
   };
 }

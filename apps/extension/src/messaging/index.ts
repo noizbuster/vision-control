@@ -15,15 +15,21 @@ export {
   discoverFrames,
 } from "./frame-discovery.js";
 export {
+  type ComponentPropEntry,
+  type ComponentPropsPayload,
+  createComponentPropsMessage,
   createConnectionStateMessage,
   createEditorCommandMessage,
   createGridPlacementMessage,
   createInteractionOperationMessage,
   createMultiSelectGroupMessage,
+  createRequestComponentPropsMessage,
   createSelectElementMessage,
   createSelectionSummaryMessage,
   createSessionUpdateMessage,
   type GridPlacementMessage,
+  type PropFlowWarningEntry,
+  type RequestComponentPropsPayload,
 } from "./panel-messages.js";
 export {
   connectionStateFromDaemonClient,

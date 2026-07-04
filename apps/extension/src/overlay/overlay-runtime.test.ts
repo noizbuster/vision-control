@@ -33,6 +33,36 @@ function installObserverMocks(): void {
   }) as unknown as typeof IntersectionObserver;
 }
 
+/** Install a matchMedia mock that resolves `(min-width: Npx)` against `width`. */
+function installMatchMedia(width: number): { setWidth: (w: number) => void } {
+  let currentWidth = width;
+  const matchMedia = vi.fn((query: string): MediaQueryList => {
+    const match = /^\(min-width:\s*(\d+)px\)$/.exec(query);
+    const threshold =
+      match === null ? Number.POSITIVE_INFINITY : Number.parseInt(match[1] ?? "0", 10);
+    return {
+      matches: currentWidth >= threshold,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    } as MediaQueryList;
+  });
+  Object.defineProperty(window, "matchMedia", {
+    value: matchMedia,
+    configurable: true,
+    writable: true,
+  });
+  return {
+    setWidth: (w) => {
+      currentWidth = w;
+    },
+  };
+}
+
 function setRect(element: Element, rect: Rect): void {
   vi.spyOn(element as HTMLElement, "getBoundingClientRect").mockReturnValue({
     x: rect.x,
@@ -118,6 +148,7 @@ describe("overlay runtime", () => {
     document.body.innerHTML = "";
     document.documentElement.innerHTML = "<head></head><body></body>";
     installObserverMocks();
+    installMatchMedia(1024);
   });
 
   afterEach(() => {
@@ -264,6 +295,95 @@ describe("overlay runtime", () => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
     expect(selectionSummaryMessages(bus)).toHaveLength(0);
+  });
+
+  it("emits the active breakpoint resolved from matchMedia on the selection summary", () => {
+    installMatchMedia(900);
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus });
+    runtime.start();
+
+    const button = document.createElement("button");
+    button.id = "bp-btn";
+    document.body.appendChild(button);
+    setRect(button, { x: 10, y: 20, width: 100, height: 40 });
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    const summaries = selectionSummaryMessages(bus);
+    expect(summaries).toHaveLength(1);
+    expect((summaries[0]?.payload as { activeBreakpoint?: string }).activeBreakpoint).toBe("md");
+  });
+
+  it("updates the emitted breakpoint when the viewport resizes (stale_state)", async () => {
+    const matchMedia = installMatchMedia(500);
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus });
+    runtime.start();
+
+    const button = document.createElement("button");
+    button.id = "bp-resize";
+    document.body.appendChild(button);
+    setRect(button, { x: 0, y: 0, width: 50, height: 50 });
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(
+      (selectionSummaryMessages(bus).at(-1)?.payload as { activeBreakpoint?: string })
+        .activeBreakpoint,
+    ).toBeUndefined();
+
+    matchMedia.setWidth(1300);
+    window.dispatchEvent(new Event("resize"));
+    await flushRaf();
+
+    const summaries = selectionSummaryMessages(bus);
+    expect(summaries).toHaveLength(2);
+    expect((summaries[1]?.payload as { activeBreakpoint?: string }).activeBreakpoint).toBe("xl");
+  });
+
+  it("respects daemon-delivered screens over the default scale", () => {
+    installMatchMedia(1100);
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus, screens: ["sm", "md", "lg"] });
+    runtime.start();
+
+    const button = document.createElement("button");
+    button.id = "bp-screens";
+    document.body.appendChild(button);
+    setRect(button, { x: 0, y: 0, width: 50, height: 50 });
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    expect(
+      (selectionSummaryMessages(bus).at(-1)?.payload as { activeBreakpoint?: string })
+        .activeBreakpoint,
+    ).toBe("lg");
+  });
+
+  it("updates screens at runtime via a viewport-screens bus message", () => {
+    installMatchMedia(1300);
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus });
+    runtime.start();
+
+    const button = document.createElement("button");
+    button.id = "bp-bus";
+    document.body.appendChild(button);
+    setRect(button, { x: 0, y: 0, width: 50, height: 50 });
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(
+      (selectionSummaryMessages(bus).at(-1)?.payload as { activeBreakpoint?: string })
+        .activeBreakpoint,
+    ).toBe("xl");
+
+    bus.emit("viewport-screens", { screens: ["sm", "md"] });
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(
+      (selectionSummaryMessages(bus).at(-1)?.payload as { activeBreakpoint?: string })
+        .activeBreakpoint,
+    ).toBe("md");
   });
 });
 

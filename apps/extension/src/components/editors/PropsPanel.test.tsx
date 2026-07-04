@@ -179,3 +179,112 @@ describe("PropsPanel — empty state", () => {
     expect(screen.getByText("No editable props for this element.")).toBeDefined();
   });
 });
+
+describe("PropsPanel — daemon-warnings-driven blocking (full propFlowWarnings semantics)", () => {
+  const propWithBlockingWarning: EditableProp = {
+    name: "variant",
+    value: "primary",
+    kind: "component-prop",
+    componentName: "Button",
+    sourceRange: { startLine: 8, startColumn: 10, endLine: 8, endColumn: 18 },
+    ownershipContext: "cross-boundary",
+    boundary: "server-to-client",
+    warnings: [
+      {
+        code: "prop-flow-cross-boundary-no-opt-in",
+        message:
+          'Component "Button" prop "variant" crosses a Server → Client boundary without explicit opt-in',
+        severity: "error",
+        context: "cross-boundary",
+        boundary: "server-to-client",
+      },
+    ],
+  };
+
+  it("blocks a prop edit when daemon warnings include an error-severity entry", () => {
+    const onCommand = vi.fn();
+    const onValidationError = vi.fn();
+    render(
+      <PropsPanel
+        summary={makeSummary()}
+        props={[propWithBlockingWarning]}
+        onCommand={onCommand}
+        onValidationError={onValidationError}
+      />,
+    );
+
+    const input = screen.getByLabelText("Edit Button.variant");
+    fireEvent.change(input, { target: { value: "secondary" } });
+    fireEvent.blur(input);
+
+    expect(onCommand).not.toHaveBeenCalled();
+    expect(onValidationError).toHaveBeenCalled();
+    expect(onValidationError.mock.calls.at(-1)?.[0]).toEqual(
+      expect.stringContaining("Server → Client"),
+    );
+  });
+
+  it("allows the edit when opt-in is checked (cures cross-boundary-no-opt-in warning)", () => {
+    const onCommand = vi.fn();
+    render(
+      <PropsPanel
+        summary={makeSummary()}
+        props={[propWithBlockingWarning]}
+        onCommand={onCommand}
+      />,
+    );
+
+    screen.getByLabelText("cross-boundary opt-in").click();
+
+    const input = screen.getByLabelText("Edit Button.variant");
+    fireEvent.change(input, { target: { value: "secondary" } });
+    fireEvent.blur(input);
+
+    expect(onCommand).toHaveBeenCalledOnce();
+    expect(onCommand.mock.calls[0]?.[0].kind).toBe("set-component-prop");
+  });
+
+  it("still blocks when a non-cross-boundary error warning is present even with opt-in", () => {
+    const propWithOtherError: EditableProp = {
+      ...propWithBlockingWarning,
+      warnings: [
+        {
+          code: "prop-flow-cross-boundary-no-opt-in",
+          message: "cross-boundary (cured by opt-in)",
+          severity: "error",
+          context: "cross-boundary",
+          boundary: "server-to-client",
+        },
+        {
+          code: "prop-flow-ownership-unresolvable",
+          message: "prop ownership could not be resolved",
+          severity: "error",
+          context: "cross-boundary",
+          boundary: "server-to-client",
+        },
+      ],
+    };
+    const onCommand = vi.fn();
+    const onValidationError = vi.fn();
+    render(
+      <PropsPanel
+        summary={makeSummary()}
+        props={[propWithOtherError]}
+        onCommand={onCommand}
+        onValidationError={onValidationError}
+      />,
+    );
+
+    screen.getByLabelText("cross-boundary opt-in").click();
+
+    const input = screen.getByLabelText("Edit Button.variant");
+    fireEvent.change(input, { target: { value: "secondary" } });
+    fireEvent.blur(input);
+
+    expect(onCommand).not.toHaveBeenCalled();
+    expect(onValidationError).toHaveBeenCalled();
+    expect(onValidationError.mock.calls.at(-1)?.[0]).toEqual(
+      expect.stringContaining("ownership could not be resolved"),
+    );
+  });
+});

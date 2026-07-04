@@ -127,6 +127,15 @@ export type ParentLayoutSummary = z.infer<typeof ParentLayoutSummarySchema>;
 export const SourceConfidenceSchema = IdentityConfidenceSchema;
 export type SourceConfidence = z.infer<typeof SourceConfidenceSchema>;
 
+/**
+ * Active responsive breakpoint label (e.g. `"md"`) resolved browser-side from
+ * the viewport via `matchMedia` against the workspace Tailwind `screens` scale
+ * (plan task 7). Additive + optional so legacy summaries without it still
+ * validate. `undefined` means base styles apply (viewport below the smallest
+ * breakpoint, or no scale delivered).
+ */
+export const ActiveBreakpointSchema = z.string().min(1).optional();
+
 /** Complete redactable summary displayed in the panel and exported to agents. */
 export const SelectionSummarySchema = z.object({
   identity: SelectionIdentitySchema,
@@ -139,5 +148,6 @@ export const SelectionSummarySchema = z.object({
   siblingSummary: SiblingSummarySchema,
   parentLayout: ParentLayoutSummarySchema,
   sourceConfidence: SourceConfidenceSchema,
+  activeBreakpoint: ActiveBreakpointSchema,
 });
 export type SelectionSummary = z.infer<typeof SelectionSummarySchema>;

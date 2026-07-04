@@ -46,6 +46,7 @@ import {
   discoverCssModulesManifest,
   discoverCssSourceMaps,
   discoverSourceFileContents,
+  discoverTailwindScreens,
   resolveTailwindConfig,
 } from "./workspace-discovery.js";
 
@@ -60,6 +61,13 @@ export interface SourcePipeline {
    * properties. Fed into `compileContext` so the agent sees the token section.
    */
   readonly tokenRegistry: TokenRegistry;
+  /**
+   * Workspace Tailwind breakpoint scale (plan task 7). Delivered to the content
+   * runtime so it resolves the active breakpoint without importing this node
+   * package. `undefined` when no config is present (content falls back to its
+   * default scale).
+   */
+  readonly screens: readonly string[] | undefined;
 }
 
 /**
@@ -151,6 +159,7 @@ export const buildSourcePipeline = async (
   const adapterRegistry = new AdapterRegistry();
 
   const tailwindConfig = await resolveTailwindConfig(opts.workspaceRoot);
+  const screens = await discoverTailwindScreens(opts.workspaceRoot);
   const sourceFiles = await discoverSourceFileContents(workspaceIndex.getAll());
   const cssManifest = await discoverCssModulesManifest(opts.workspaceRoot);
   const cssSourceMaps = await discoverCssSourceMaps(opts.workspaceRoot);
@@ -198,6 +207,7 @@ export const buildSourcePipeline = async (
     ...(cssManifest !== undefined ? { cssModulesManifest: true } : {}),
     ...(cssSourceMaps.size > 0 ? { cssSourceMaps: cssSourceMaps.size } : {}),
     tokenCount: tokenRegistry.size,
+    ...(screens !== undefined ? { breakpointScreens: screens.length } : {}),
   });
 
   const resolver = new SourceResolver({
@@ -207,7 +217,7 @@ export const buildSourcePipeline = async (
     adapters: adapterRegistry,
   });
 
-  return { workspaceIndex, registry, adapterRegistry, resolver, tokenRegistry };
+  return { workspaceIndex, registry, adapterRegistry, resolver, tokenRegistry, screens };
 };
 
 /** Protocol confidence values (one richer than the resolver's three). */

@@ -3,13 +3,14 @@ import type { MultiSelectGroup } from "@vision-control/editor-core";
 import { createMultiSelectGroupId } from "@vision-control/element-identity";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { GridPlacementMessage } from "./messaging/index.js";
+import type { ComponentPropEntry, GridPlacementMessage } from "./messaging/index.js";
 
 const { slotState } = vi.hoisted(() => ({
   slotState: {
     summary: null as SelectionSummary | null,
     group: null as MultiSelectGroup | null,
     gridPlacement: null as GridPlacementMessage | null,
+    componentProps: [] as readonly ComponentPropEntry[],
   },
 }));
 
@@ -21,6 +22,9 @@ vi.mock("./hooks/useMultiSelect.js", () => ({
 }));
 vi.mock("./hooks/useGridPlacement.js", () => ({
   useGridPlacement: () => ({ state: slotState.gridPlacement }),
+}));
+vi.mock("./hooks/useComponentProps.js", () => ({
+  useComponentProps: () => ({ componentProps: slotState.componentProps }),
 }));
 
 import { App } from "./App.js";
@@ -139,6 +143,7 @@ function resetSlotState(): void {
   slotState.summary = null;
   slotState.group = null;
   slotState.gridPlacement = null;
+  slotState.componentProps = [];
 }
 
 describe("App", () => {
@@ -232,5 +237,47 @@ describe("App", () => {
 
     expect(screen.getByText("Grid")).toBeDefined();
     expect(document.querySelector("[data-vc-grid-panel]")).not.toBeNull();
+  });
+
+  it("does not render the Component Props section when componentProps is empty (baseline)", () => {
+    slotState.summary = makeSummary("inline");
+    slotState.componentProps = [];
+    render(<App />);
+
+    expect(screen.queryByText("Component Props")).toBeNull();
+  });
+
+  it("renders the Component Props section when a selection has discoverable props (showPropsPanel true)", () => {
+    slotState.summary = makeSummary("inline");
+    slotState.componentProps = [
+      {
+        name: "variant",
+        value: "primary",
+        kind: "component-prop",
+        componentName: "Button",
+        sourceRange: { startLine: 5, startColumn: 10, endLine: 5, endColumn: 18 },
+        ownershipContext: "same-component",
+      },
+    ];
+    render(<App />);
+
+    expect(screen.getByText("Component Props")).toBeDefined();
+    expect(screen.getByText("Button.variant")).toBeDefined();
+  });
+
+  it("does not render the Component Props section when props exist but no selection (additive-slot contract)", () => {
+    slotState.summary = null;
+    slotState.componentProps = [
+      {
+        name: "variant",
+        value: "primary",
+        kind: "component-prop",
+        componentName: "Button",
+        sourceRange: { startLine: 5, startColumn: 10, endLine: 5, endColumn: 18 },
+      },
+    ];
+    render(<App />);
+
+    expect(screen.queryByText("Component Props")).toBeNull();
   });
 });

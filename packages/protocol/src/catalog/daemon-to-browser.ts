@@ -20,6 +20,14 @@ export type SessionAccepted = z.infer<typeof SessionAcceptedSchema>;
 export const WorkspaceBoundSchema = z.object({
   type: z.literal("workspace.bound"),
   fileCount: z.number().int().nonnegative(),
+  /**
+   * Workspace Tailwind breakpoint scale (plan task 7). Populated daemon-side
+   * from the resolved `theme.screens` and delivered to the content runtime so
+   * it resolves the active breakpoint via `matchMedia` without importing the
+   * node-only tailwind integration. Absent when no config is present (content
+   * falls back to its hardcoded default scale).
+   */
+  screens: z.array(z.string().min(1)).readonly().optional(),
 });
 export type WorkspaceBound = z.infer<typeof WorkspaceBoundSchema>;
 

@@ -7,6 +7,7 @@ import {
 import type { BoundaryKind, OwnershipContext } from "@vision-control/source-resolver";
 import type { ReactElement } from "react";
 import { useCallback, useState } from "react";
+import type { ComponentPropEntry, PropFlowWarningEntry } from "../../messaging/index.js";
 
 /**
  * Local mirror of `@vision-control/source-resolver`'s `propFlowWarnings`
@@ -46,9 +47,10 @@ export type PropEditCommand = SetAttributeOperation | SetComponentPropOperation;
 export type EditablePropKind = "dom-attribute" | "component-prop";
 
 /**
- * One editable prop on the selected element. The caller (App.tsx) populates
- * this from source-resolver prop discovery; the panel classifies and emits the
- * matching operation kind.
+ * One editable prop on the selected element. The caller (App.tsx via
+ * `useComponentProps`) populates this from daemon-side prop discovery; the
+ * panel classifies and emits the matching operation kind. Structurally
+ * compatible with the wire {@link ComponentPropEntry} shape.
  */
 export interface EditableProp {
   readonly name: string;
@@ -62,6 +64,13 @@ export interface EditableProp {
   readonly ownershipContext?: OwnershipContext;
   /** Boundary kind when the prop crosses a framework/server/client boundary. */
   readonly boundary?: BoundaryKind;
+  /**
+   * Daemon-computed prop-flow warnings (full `propFlowWarnings` semantics).
+   * When present, the panel blocks on any `severity: "error"` entry instead of
+   * the inline cross-boundary predicate, so future warning additions are
+   * honoured without a panel change.
+   */
+  readonly warnings?: readonly PropFlowWarningEntry[];
 }
 
 interface PropsPanelProps {
@@ -81,6 +90,12 @@ interface PropRowProps {
 /**
  * Classify a prop and build the matching command, or return a blocking reason.
  * Cross-boundary component-prop edits without opt-in are blocked here (PRD §7.2).
+ *
+ * Blocking decision: when daemon-computed `warnings` are present, blocks on any
+ * `severity: "error"` entry (full `propFlowWarnings` semantics). This is
+ * forward-compatible — a future warning addition blocks without a panel change.
+ * Falls back to the inline `cross-boundary` predicate when no daemon warnings
+ * accompany the prop (backward compat, test isolation).
  */
 const buildPropCommand = (
   prop: EditableProp,
@@ -103,8 +118,9 @@ const buildPropCommand = (
     return { reason: `component-prop "${prop.name}" has no resolved source range` };
   }
 
-  if (prop.ownershipContext === "cross-boundary" && !boundaryOptIn) {
-    return { reason: crossBoundaryBlockReason(prop.componentName, prop.name, prop.boundary) };
+  const blockReason = computeBlockReason(prop, boundaryOptIn);
+  if (blockReason !== null) {
+    return { reason: blockReason };
   }
 
   return {
@@ -119,12 +135,36 @@ const buildPropCommand = (
   };
 };
 
+const CROSS_BOUNDARY_NO_OPT_IN_CODE = "prop-flow-cross-boundary-no-opt-in";
+
+const computeBlockReason = (prop: EditableProp, boundaryOptIn: boolean): string | null => {
+  const warnings = prop.warnings;
+  if (warnings !== undefined && warnings.length > 0) {
+    const errorWarnings = warnings.filter((w) => w.severity === "error");
+    if (errorWarnings.length === 0) {
+      return null;
+    }
+    if (boundaryOptIn) {
+      const surviving = errorWarnings.find((w) => w.code !== CROSS_BOUNDARY_NO_OPT_IN_CODE);
+      return surviving?.message ?? null;
+    }
+    return errorWarnings[0]?.message ?? null;
+  }
+
+  if (prop.ownershipContext === "cross-boundary" && !boundaryOptIn) {
+    return crossBoundaryBlockReason(prop.componentName ?? "unknown", prop.name, prop.boundary);
+  }
+  return null;
+};
+
 function PropRow({ prop, target, onCommand, onValidationError }: PropRowProps): ReactElement {
   const [draft, setDraft] = useState(prop.value);
   const [optIn, setOptIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isCrossBoundary = prop.ownershipContext === "cross-boundary";
+  const isCrossBoundary =
+    prop.ownershipContext === "cross-boundary" ||
+    (prop.warnings?.some((w) => w.code.startsWith("prop-flow-cross-boundary")) ?? false);
 
   const commit = useCallback((): void => {
     const trimmed = draft.trim();

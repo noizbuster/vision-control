@@ -27,6 +27,7 @@ import {
   createJournalEntry,
   type Journal,
 } from "@vision-control/change-journal";
+import type { MultiSelectGroup } from "@vision-control/editor-core";
 import type { ElementRef } from "@vision-control/element-identity";
 import type { Rect } from "@vision-control/geometry";
 import type { LayoutComputedStyle } from "@vision-control/layout-engine";
@@ -45,6 +46,7 @@ import {
   createResizeController,
   type SelectedElementContext,
 } from "../components/interaction/ResizeController.js";
+import { createGroupMoveRouter, type GroupMoveRouter } from "./group-move-router.js";
 import type { OverlayRuntimeBus } from "./overlay-runtime.js";
 
 export interface InteractionWiringOptions {
@@ -72,6 +74,7 @@ export interface InteractionControllers {
   readonly reorder: ReorderController;
   readonly resize: ReturnType<typeof createResizeController>;
   readonly reparent: ReparentController;
+  readonly groupMove: GroupMoveRouter;
   readonly attach: () => void;
   readonly detach: () => void;
   readonly onSelectionChange: (context: SelectionContext | null) => void;
@@ -135,6 +138,15 @@ export function createInteractionControllers(
     journal: { record: recordOperation },
   });
 
+  // Group-move router (plan task 3): the wiring caches the latest
+  // multi-select group from the bus (task 2 publishes it) and routes a group
+  // drag to reorder.reorderGroup (same-parent) or reparent.reparentGroup
+  // (cross-parent). D41 is enforced inside classifyGroupMove in both paths.
+  const groupMove = createGroupMoveRouter({ reorder, reparent });
+  const groupMoveUnsub = bus.on("multi-select-group", (message) => {
+    groupMove.setGroup(message.payload as MultiSelectGroup);
+  });
+
   const onSelectionChange = (context: SelectionContext | null): void => {
     reorder.setSelectedElement(context?.element ?? null);
     if (context === null) {
@@ -161,12 +173,14 @@ export function createInteractionControllers(
   const dispose = (): void => {
     detach();
     resize.destroy();
+    groupMoveUnsub();
   };
 
   return {
     reorder,
     resize,
     reparent,
+    groupMove,
     attach,
     detach,
     onSelectionChange,

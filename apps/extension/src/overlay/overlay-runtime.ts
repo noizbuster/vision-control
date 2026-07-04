@@ -29,7 +29,7 @@ import {
 } from "@vision-control/preview-engine";
 
 import type { BusMessage, BusMessageHandler, BusRoute, MessageBus } from "../messaging/index.js";
-import { createSelectionSummaryMessage } from "../messaging/panel-messages.js";
+import { type BreakpointController, createBreakpointController } from "./breakpoint-controller.js";
 import {
   buildSelectionContext,
   createInteractionControllers,
@@ -59,6 +59,13 @@ export interface OverlayRuntimeOptions {
   readonly attachRoot?: (document: Document) => OverlayRoot;
   /** Instantiate the interaction controllers. Defaults to true. */
   readonly interactionControllers?: boolean;
+  /**
+   * Workspace Tailwind `screens` scale delivered daemon-side (plan task 7). The
+   * content runtime MUST NOT import `@vision-control/tailwind` (platform:node);
+   * the daemon populates this and the resolver falls back to a hardcoded
+   * default scale when absent.
+   */
+  readonly screens?: readonly string[];
 }
 
 export interface OverlayRuntime {
@@ -76,6 +83,7 @@ export interface OverlayRuntime {
  * Create the overlay runtime. Callers must invoke {@link OverlayRuntime.start}
  * to attach DOM listeners and activate inspect mode.
  */
+// allow: SIZE_OK — wiring-orchestrator hub; marquee/multi-select/breakpoint controllers already extracted. Remaining content is irreducible event-handler + mode-management wiring.
 export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRuntime {
   const { document: doc, bus } = options;
   const domAdapter = options.domAdapter ?? createBrowserDomAdapter();
@@ -84,13 +92,15 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   const overlayRoot = attach(doc);
   const overlayElement = createOverlayElement(overlayRoot.shadowRoot);
 
+  const breakpoint: BreakpointController = createBreakpointController({
+    window: doc.defaultView ?? window,
+    bus,
+    ...(options.screens !== undefined ? { screens: options.screens } : {}),
+  });
+
   const inspectorBus: InspectorBus = {
-    sendSelection: (_identity, summary) => {
-      bus.send("panel", createSelectionSummaryMessage(summary));
-    },
-    // The inspector clears the overlay locally on deselect; routing a dedicated
-    // deselect signal to the panel is a follow-up outside task 18 scope.
-    sendDeselect: () => {},
+    sendSelection: (_identity, summary) => breakpoint.onSelection(summary),
+    sendDeselect: () => breakpoint.clear(),
   };
 
   const inspector = createInspector({
@@ -224,6 +234,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   const start = (): void => {
     doc.addEventListener("mousemove", onMouseMoveCapture, true);
     doc.addEventListener("click", onClickCapture, true);
+    breakpoint.attach();
     marquee.attach();
     inspector.setInspectMode(true);
     keyboard.setMode(interactionMode);
@@ -235,6 +246,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     cancelHoverRaf();
     doc.removeEventListener("mousemove", onMouseMoveCapture, true);
     doc.removeEventListener("click", onClickCapture, true);
+    breakpoint.detach();
     marquee.detach();
     inspector.setInspectMode(false);
     selectElementUnsub?.();
@@ -246,6 +258,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     controllers?.dispose();
     controllers = null;
     multiSelect.dispose();
+    breakpoint.dispose();
     inspector.dispose();
   };
 

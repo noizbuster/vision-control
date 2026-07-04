@@ -125,9 +125,12 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   const { defaultAllowlistConfig } = await import("@vision-control/security");
   const { loadConfig } = await import("./config-loader.js");
   const { buildSourcePipeline } = await import("./source-pipeline.js");
-  const { createBusinessHandlers, createConnectionDispatch, createSelectionStore } = await import(
-    "./business-handlers.js"
-  );
+  const {
+    createBusinessHandlers,
+    createConnectionDispatch,
+    createSelectionStore,
+    createPageSessionStore,
+  } = await import("./business-handlers.js");
   const Database = (await import("better-sqlite3")).default;
 
   const logger = new RedactingLogger(new ConsoleLogger());
@@ -216,6 +219,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   const getActiveSessionId = (): string | undefined => activeSessionId;
 
   const selectionStore = createSelectionStore();
+  const pageSessionStore = createPageSessionStore();
   const businessHandlers = createBusinessHandlers({
     workspaceId,
     getActiveSessionId,
@@ -224,6 +228,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
     changesetService,
     sourcePipeline,
     selectionStore,
+    pageSessionStore,
   });
   const connectionDispatch = createConnectionDispatch({
     connectionService,

@@ -43,12 +43,14 @@ export const TailwindConfigInputSchema = z.object({
   theme: z
     .object({
       extend: z.record(z.string(), z.unknown()).optional(),
+      screens: z.record(z.string(), z.unknown()).optional(),
       spacing: z.record(z.string(), z.unknown()).optional(),
       colors: z.record(z.string(), z.unknown()).optional(),
       fontSize: z.record(z.string(), z.unknown()).optional(),
       fontFamily: z.record(z.string(), z.unknown()).optional(),
     })
     .optional(),
+  screens: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type TailwindConfigInput = z.infer<typeof TailwindConfigInputSchema>;

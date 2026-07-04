@@ -63,6 +63,37 @@ export function createSelectionStore(): SelectionStore {
   };
 }
 
+/**
+ * In-memory page-session read model, keyed by sessionId. Stores the viewport
+ * + active breakpoint the content runtime resolves (plan task 7) so the daemon
+ * (task 8 / `compileContext`) can compile breakpoint-aware agent context. The
+ * §25.1.3 `page.navigated` payload carries these as additive optional fields;
+ * absent fields store as `undefined` (the compiler then omits the section).
+ */
+export interface PageSessionState {
+  readonly viewport?: { readonly width: number; readonly height: number };
+  readonly activeBreakpoint?: string;
+}
+
+export interface PageSessionStore {
+  get(sessionId: string): PageSessionState | undefined;
+  set(sessionId: string, state: PageSessionState): void;
+  clear(sessionId: string): void;
+}
+
+export function createPageSessionStore(): PageSessionStore {
+  const store = new Map<string, PageSessionState>();
+  return {
+    get: (id) => store.get(id),
+    set: (id, state) => {
+      store.set(id, state);
+    },
+    clear: (id) => {
+      store.delete(id);
+    },
+  };
+}
+
 export interface BusinessHandlerDeps {
   readonly workspaceId: string;
   readonly getActiveSessionId: () => string | undefined;
@@ -71,6 +102,7 @@ export interface BusinessHandlerDeps {
   readonly changesetService: ChangesetService;
   readonly sourcePipeline: SourcePipeline;
   readonly selectionStore: SelectionStore;
+  readonly pageSessionStore: PageSessionStore;
   readonly now?: () => number;
   readonly uuid?: () => string;
 }
@@ -120,10 +152,20 @@ export function createBusinessHandlers(deps: BusinessHandlerDeps): BusinessHandl
 
   return {
     onPageNavigated(payload) {
+      const sessionId = deps.getActiveSessionId();
+      if (sessionId !== undefined) {
+        deps.pageSessionStore.set(sessionId, {
+          ...(payload.viewport !== undefined ? { viewport: payload.viewport } : {}),
+          ...(payload.activeBreakpoint !== undefined
+            ? { activeBreakpoint: payload.activeBreakpoint }
+            : {}),
+        });
+      }
       deps.logger.info("Page navigated", {
         url: payload.url,
         title: payload.title,
         frameDepth: payload.framePath.length,
+        ...(payload.activeBreakpoint !== undefined ? { breakpoint: payload.activeBreakpoint } : {}),
       });
       audit({
         type: "session",

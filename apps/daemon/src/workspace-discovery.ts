@@ -70,6 +70,26 @@ export const resolveTailwindConfig = async (
 };
 
 /**
+ * Extract the workspace Tailwind breakpoint scale (`screens`) as an ordered
+ * list of names. Reads `theme.screens` (modern) then the legacy top-level
+ * `screens` key. Returns `undefined` when no config is resolved or it carries
+ * no screens — the content runtime then falls back to its hardcoded default
+ * scale. Only the NAMES are delivered; the content runtime maps them to pixel
+ * widths (it MUST NOT import this node-only package).
+ */
+export const discoverTailwindScreens = async (
+  workspaceRoot: string,
+): Promise<readonly string[] | undefined> => {
+  const resolved = await resolveTailwindConfig(workspaceRoot);
+  if (resolved === undefined) return undefined;
+  const themeScreens = resolved.config.theme?.screens;
+  const source = themeScreens ?? resolved.config.screens;
+  if (source === undefined) return undefined;
+  const names = Object.keys(source);
+  return names.length > 0 ? names : undefined;
+};
+
+/**
  * Build a `relPath -> content` map over the indexed source files. Used by the
  * Tailwind adapter's AST-origin scan. Reads only files the workspace index
  * already discovered; never walks the tree itself.

@@ -2,15 +2,12 @@ import type { AlignmentCommandKind } from "@vision-control/layout-engine";
 import type { ReactElement, ReactNode } from "react";
 import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
-import {
-  type EditableProp,
-  type PropEditCommand,
-  PropsPanel,
-} from "./components/editors/PropsPanel.js";
+import { type PropEditCommand, PropsPanel } from "./components/editors/PropsPanel.js";
 import { AlignmentPanel } from "./components/inspector/AlignmentPanel.js";
 import { AutoLayoutPanel } from "./components/inspector/AutoLayoutPanel.js";
 import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
 import { ChangeJournal } from "./components/journal/ChangeJournal.js";
+import { useComponentProps } from "./hooks/useComponentProps.js";
 import { useConnectionState } from "./hooks/useConnectionState.js";
 import { useEditor } from "./hooks/useEditor.js";
 import { useFrameTree } from "./hooks/useFrameTree.js";
@@ -56,6 +53,7 @@ export function App(): ReactElement {
   const { summary, selectElement } = useSelectionSummary(bus);
   const { group: multiSelectGroup } = useMultiSelect(bus);
   const { state: gridPlacementState } = useGridPlacement(bus);
+  const { componentProps } = useComponentProps(bus, summary);
   const editor = useEditor();
   const journal = useJournal({ connectionState });
   useJournalPersistence({
@@ -92,10 +90,6 @@ export function App(): ReactElement {
     handleEditorCommand(command);
   };
 
-  // Component props for the selected element. Empty until the content-side
-  // prop-discovery emission lands (source-resolver component-props module);
-  // the panel renders nothing when empty.
-  const componentProps: readonly EditableProp[] = [];
   const showPropsPanel = summary !== null && componentProps.length > 0;
 
   const isLayoutContainer =

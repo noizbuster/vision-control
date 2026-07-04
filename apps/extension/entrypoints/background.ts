@@ -1,6 +1,8 @@
 import { DaemonClient, parsePairingUrl } from "@vision-control/daemon-client";
 import type { BackgroundDefinition } from "wxt";
 import { defineBackground } from "wxt/utils/define-background";
+import { STORAGE_KEY } from "../src/host-allowlist.js";
+import { HostAllowlistCache, reconcileHostsWithPermissions } from "../src/host-allowlist-sync.js";
 import {
   createBackgroundBus,
   createChromeRouterTransport,
@@ -14,17 +16,6 @@ import {
 } from "../src/messaging/index.js";
 import type { BusMessage, ConnectionState, TabSession } from "../src/messaging/types.js";
 
-function isLoopbackUrl(url: string | undefined): boolean {
-  if (url === undefined) {
-    return false;
-  }
-  return (
-    url.startsWith("http://localhost") ||
-    url.startsWith("http://127.0.0.1") ||
-    url.startsWith("http://[::1]")
-  );
-}
-
 function broadcastToPanel(message: BusMessage): void {
   if (typeof chrome === "undefined" || chrome.runtime?.sendMessage === undefined) {
     return;
@@ -35,6 +26,23 @@ function broadcastToPanel(message: BusMessage): void {
 }
 
 const background: BackgroundDefinition = defineBackground(() => {
+  const hostAllowlist = new HostAllowlistCache();
+  void hostAllowlist.initialize();
+
+  if (typeof chrome !== "undefined") {
+    chrome.storage.onChanged?.addListener((changes, area) => {
+      if (area === "local" && STORAGE_KEY in changes) {
+        void hostAllowlist.sync();
+      }
+    });
+    chrome.permissions?.onAdded?.addListener(() => {
+      void hostAllowlist.sync();
+    });
+    chrome.permissions?.onRemoved?.addListener(() => {
+      void reconcileHostsWithPermissions(hostAllowlist);
+    });
+  }
+
   const store = new TabSessionStore({
     storage: chrome.storage?.session,
     generateSessionId: () => crypto.randomUUID(),
@@ -116,7 +124,7 @@ const background: BackgroundDefinition = defineBackground(() => {
   });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (!isLoopbackUrl(tab.url)) {
+    if (!hostAllowlist.isAllowedUrl(tab.url)) {
       return;
     }
     if (changeInfo.status === "loading") {

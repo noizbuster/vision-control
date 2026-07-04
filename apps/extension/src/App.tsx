@@ -2,6 +2,7 @@ import type { AlignmentCommandKind } from "@vision-control/layout-engine";
 import type { ReactElement, ReactNode } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { type PropEditCommand, PropsPanel } from "./components/editors/PropsPanel.js";
+import { HostAllowlistPanel } from "./components/HostAllowlistPanel.js";
 import { AlignmentPanel } from "./components/inspector/AlignmentPanel.js";
 import { AutoLayoutPanel } from "./components/inspector/AutoLayoutPanel.js";
 import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
@@ -166,6 +167,7 @@ export function App(): ReactElement {
               </ul>
             )}
           </section>
+          <HostAllowlistPanel />
           <InspectorPanel
             summary={summary}
             onSelectElement={selectElement}

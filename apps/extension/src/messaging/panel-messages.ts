@@ -216,3 +216,34 @@ export function createRequestComponentPropsMessage(
     timestamp: Date.now(),
   };
 }
+
+/**
+ * Panel → background signal carrying the daemon pairing URL. The background
+ * re-parses this with {@link parsePairingUrl} and drives the ReconnectManager;
+ * the panel never talks to the daemon directly.
+ */
+export interface DaemonConnectPayload {
+  readonly pairingUrl: string;
+}
+
+export function createDaemonConnectMessage(pairingUrl: string): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `daemon-connect-${Date.now()}`,
+    messageType: "daemon-connect",
+    targetRoute: "background",
+    payload: { pairingUrl } satisfies DaemonConnectPayload,
+    timestamp: Date.now(),
+  };
+}
+
+export function createDaemonDisconnectMessage(): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `daemon-disconnect-${Date.now()}`,
+    messageType: "daemon-disconnect",
+    targetRoute: "background",
+    payload: {},
+    timestamp: Date.now(),
+  };
+}

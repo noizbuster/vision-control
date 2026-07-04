@@ -1,12 +1,12 @@
 import type { AlignmentCommandKind } from "@vision-control/layout-engine";
 import type { ReactElement, ReactNode } from "react";
-import { ConnectionStatus } from "./components/ConnectionStatus.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { type PropEditCommand, PropsPanel } from "./components/editors/PropsPanel.js";
 import { AlignmentPanel } from "./components/inspector/AlignmentPanel.js";
 import { AutoLayoutPanel } from "./components/inspector/AutoLayoutPanel.js";
 import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
 import { ChangeJournal } from "./components/journal/ChangeJournal.js";
+import { PairingPanel } from "./components/PairingPanel.js";
 import { useComponentProps } from "./hooks/useComponentProps.js";
 import { useConnectionState } from "./hooks/useConnectionState.js";
 import { useEditor } from "./hooks/useEditor.js";
@@ -26,7 +26,11 @@ import {
   buildGridSpanOperation,
 } from "./inspector-slot-commands.js";
 import type { FrameInfo } from "./messaging/index.js";
-import { createEditorCommandMessage } from "./messaging/index.js";
+import {
+  createDaemonConnectMessage,
+  createDaemonDisconnectMessage,
+  createEditorCommandMessage,
+} from "./messaging/index.js";
 import "./styles/variables.css";
 import "./styles/inspector.css";
 import "./styles/journal.css";
@@ -90,6 +94,18 @@ export function App(): ReactElement {
     handleEditorCommand(command);
   };
 
+  const handleConnect = (pairingUrl: string): void => {
+    if (bus !== undefined) {
+      bus.send("background", createDaemonConnectMessage(pairingUrl));
+    }
+  };
+
+  const handleDisconnect = (): void => {
+    if (bus !== undefined) {
+      bus.send("background", createDaemonDisconnectMessage());
+    }
+  };
+
   const showPropsPanel = summary !== null && componentProps.length > 0;
 
   const isLayoutContainer =
@@ -114,7 +130,11 @@ export function App(): ReactElement {
       <div className={`app app--${theme}`}>
         <header className="app__header">
           <h1 className="app__title">Vision Control</h1>
-          <ConnectionStatus status={connectionState} />
+          <PairingPanel
+            status={connectionState}
+            onConnect={handleConnect}
+            onDisconnect={handleDisconnect}
+          />
           <p className="app__target" data-testid="inspected-url">
             Inspecting: {url ?? "unknown"}
           </p>

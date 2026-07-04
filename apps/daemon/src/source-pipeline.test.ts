@@ -68,6 +68,82 @@ describe("source pipeline — marker resolution cascade", () => {
   });
 });
 
+function makeV4Workspace(): string {
+  const dir = mkdtempSync(join(tmpdir(), "vc-v4-"));
+  mkdirSync(join(dir, "src"), { recursive: true });
+  writeFileSync(
+    join(dir, "src", "app.css"),
+    [
+      '@import "tailwindcss";',
+      "@theme {",
+      "  --color-brand: oklch(0.5 0.2 250);",
+      "  --spacing-2: 0.5rem;",
+      "}",
+    ].join("\n"),
+  );
+  writeFileSync(
+    join(dir, "src", "Card.tsx"),
+    'export function Card() { return <div className="bg-brand">Hi</div>; }\n',
+  );
+  return dir;
+}
+
+describe("source pipeline — Tailwind v4 @theme detection (task 12)", () => {
+  it("detects a v4 workspace (no config + @theme) and resolves a v4 custom token", async () => {
+    const workspace = makeV4Workspace();
+    try {
+      const pipeline = await buildSourcePipeline({
+        workspaceRoot: workspace,
+        logger: silentLogger as never,
+      });
+      const candidates = pipeline.resolver.resolveCandidates(
+        {
+          runtimeId: "card",
+          tagName: "div",
+          frameId: "main",
+          fingerprint: "fp",
+          confidence: "high",
+        },
+        { cssClasses: ["bg-brand"], runtimeInstanceCount: 1 },
+      );
+      const tailwind = candidates.find(
+        (c) => c.staticClassName === "bg-brand" && c.evidence?.includes("ast-origin"),
+      );
+      expect(tailwind).toBeDefined();
+      expect(tailwind?.confidence).toBe("high");
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it("a v4 registry-only candidate (no source origin) stays <= MEDIUM", async () => {
+    const workspace = makeV4Workspace();
+    try {
+      const pipeline = await buildSourcePipeline({
+        workspaceRoot: workspace,
+        logger: silentLogger as never,
+      });
+      // bg-brand exists in CSS but NOT in the tsx source as a static literal.
+      const candidates = pipeline.resolver.resolveCandidates(
+        {
+          runtimeId: "dyn",
+          tagName: "div",
+          frameId: "main",
+          fingerprint: "fp",
+          confidence: "high",
+        },
+        { cssClasses: ["via-brand"], runtimeInstanceCount: 1 },
+      );
+      const viaBrand = candidates.find((c) => c.staticClassName === "via-brand");
+      if (viaBrand !== undefined) {
+        expect(viaBrand.confidence).not.toBe("high");
+      }
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("source pipeline — never-wrong-HIGH adversarial (R7 binding)", () => {
   it("downgrades a lying adapter claiming HIGH with only text-search evidence to MEDIUM", async () => {
     const workspace = makeWorkspace();

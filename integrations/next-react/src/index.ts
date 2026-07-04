@@ -9,8 +9,8 @@
  * - {@link injectNextMarkers} — the pure marker-injection transform.
  * - {@link NEXT_ADAPTER} — the source resolver adapter (marker evidence, HIGH).
  * - {@link createNextAdapter} — factory for adapters with injected metadata.
- * - {@link detectTurbopack} — Turbopack detection (V2+ experimental; V1 =
- *   webpack/Babel only).
+ * - {@link detectTurbopack} — Turbopack detection (V1: markers active via
+ *   `turbopack.rules` on Next 15+; webpack/Babel path kept for older Next).
  * - {@link assertHydrationSafe} — hydration-safety verification utilities.
  *
  * Platform: node (build-tool integration).
@@ -36,6 +36,9 @@ export {
   type NextSourceMarkerOptions,
   registerMarkerEntries,
   SOURCE_MARKER_ATTRIBUTE,
+  type TurbopackConfig,
+  type TurbopackLoaderItem,
+  type TurbopackRule,
   withVisionControlSourceMarkers,
 } from "./plugin.js";
 export {

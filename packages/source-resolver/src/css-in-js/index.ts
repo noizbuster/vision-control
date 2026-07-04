@@ -25,6 +25,7 @@ export {
   PSEUDO_ELEMENTS,
   PSEUDO_STATES,
   type PseudoElementEdit,
+  type PseudoElementEditRequest,
   PseudoElementEditSchema,
   type PseudoElementKind,
   type PseudoElementRule,
@@ -32,6 +33,7 @@ export {
   type PseudoTargetKind,
   PseudoTargetKindSchema,
   pseudoPreviewSelector,
+  resolvePseudoElementEdit,
   resolvePseudoElementOrigin,
 } from "./pseudo-elements.js";
 export {

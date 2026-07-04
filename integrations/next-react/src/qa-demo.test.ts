@@ -69,11 +69,22 @@ describe("VC-V1V2-13 QA demonstration", () => {
     expect(hydration.safe).toBe(true);
   });
 
-  it("demonstrates Turbopack diagnostic", () => {
-    const turbo = detectTurbopack({ env: { TURBOPACK: "1" }, argv: [] });
-    expect(turbo.detected).toBe(true);
-    expect(turbo.diagnostic).toContain("not yet supported");
-    expect(turbo.diagnostic).toContain("webpack/Babel");
+  it("demonstrates Turbopack detection", () => {
+    const turboUnconfigured = detectTurbopack({ env: { TURBOPACK: "1" }, argv: [] });
+    expect(turboUnconfigured.detected).toBe(true);
+    expect(turboUnconfigured.supported).toBe(false);
+    expect(turboUnconfigured.diagnostic).toContain("not wired");
+
+    const turboWired = detectTurbopack({
+      env: { TURBOPACK: "1" },
+      argv: [],
+      nextConfig: {
+        turbopack: { rules: { "*.tsx": { loaders: [] } } },
+      },
+    });
+    expect(turboWired.detected).toBe(true);
+    expect(turboWired.supported).toBe(true);
+    expect(turboWired.diagnostic).toContain("markers are wired");
 
     const webpack = detectTurbopack({ env: {}, argv: [] });
     expect(webpack.detected).toBe(false);

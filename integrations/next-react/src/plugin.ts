@@ -10,8 +10,9 @@
  *    `"use server"` directives and records boundary metadata.
  * 2. **Route-segment detection** — infers the route segment from the file path
  *    (app router `page.tsx` / `layout.tsx`, pages router nested .tsx).
- * 3. **Production gate** — `next build` sets `NODE_ENV=production`; the wrapper
- *    returns the config UNCHANGED so NO transform runs and NO marker ships.
+ * 3. **Production gate** — `next build` / `next build --turbo` sets
+ *    `NODE_ENV=production`; the wrapper returns the config UNCHANGED so NO
+ *    transform runs and NO marker ships.
  *
  * The opaque token is a truncated SHA-256 over (workspaceRelativePath, range,
  * fingerprint) — the same algorithm as vite-react. It contains NO file path.
@@ -19,7 +20,10 @@
  * Two integration surfaces:
  * - {@link injectNextMarkers} — the pure transform (fully unit-testable).
  * - {@link withVisionControlSourceMarkers} — a Next.js config wrapper that wires
- *   the transform into the webpack dev pipeline.
+ *   the transform into BOTH the webpack dev pipeline AND the Turbopack
+ *   `turbopack.rules` dev pipeline (Next 15+, verified on 15.5.4). The
+ *   Turbopack loader runs via webpack's `loader-runner` in a Node worker, so
+ *   the Babel-based transform executes unmodified — no SWC rewrite required.
  */
 
 import {
@@ -39,6 +43,7 @@ import {
 import MagicString from "magic-string";
 
 import { findJsxElements } from "./find-jsx-elements.js";
+import { configureTurbopackMarkers, type TurbopackConfig } from "./turbopack-rules.js";
 import type { RouteSegmentInfo, ServerClientBoundary } from "./types.js";
 
 export { SOURCE_MARKER_ATTRIBUTE } from "@vision-control/vite-react";
@@ -278,6 +283,7 @@ export type NextConfig = Record<string, unknown> & {
     config: Record<string, unknown>,
     context: Record<string, unknown>,
   ) => Record<string, unknown>;
+  readonly turbopack?: TurbopackConfig;
 };
 
 type WebpackConfig = {
@@ -291,6 +297,8 @@ type WebpackContext = {
   readonly isServer?: boolean;
 };
 
+export type { TurbopackConfig, TurbopackLoaderItem, TurbopackRule } from "./turbopack-rules.js";
+
 /**
  * A Next.js config wrapper. Usage in `next.config.js`:
  *
@@ -299,11 +307,15 @@ type WebpackContext = {
  * module.exports = withVisionControlSourceMarkers();
  * ```
  *
- * In **production** (`next build`): returns the config UNCHANGED. No webpack
- * modification, no marker transform, no `data-vc-source` anywhere in the output.
+ * In **production** (`next build`, `next build --turbo`): returns the config
+ * UNCHANGED. No webpack modification, no Turbopack rules, no marker transform,
+ * no `data-vc-source` anywhere in the output.
  *
- * In **dev** (`next dev`): wraps the user's `webpack` function to add a module
- * rule that applies {@link injectNextMarkers} to workspace `.jsx`/`.tsx` files.
+ * In **dev** (`next dev`, `next dev --turbo`): wraps the user's `webpack`
+ * function to add a module rule that applies {@link injectNextMarkers} to
+ * workspace `.jsx`/`.tsx` files (webpack path), AND registers the same loader
+ * under `turbopack.rules` so `next dev --turbo` also injects markers
+ * (VC-V1V2-13 / ADR-008).
  */
 export const withVisionControlSourceMarkers = (
   nextConfig: NextConfig = {},
@@ -319,6 +331,13 @@ export const withVisionControlSourceMarkers = (
 
   return {
     ...nextConfig,
+    turbopack: configureTurbopackMarkers({
+      loaderPath,
+      workspaceRoot,
+      include,
+      exclude,
+      existing: nextConfig.turbopack,
+    }),
     webpack: (config: WebpackConfig, context: WebpackContext): WebpackConfig => {
       const afterUser: WebpackConfig =
         typeof userWebpack === "function"

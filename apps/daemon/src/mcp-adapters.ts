@@ -33,8 +33,9 @@ import type {
   VerificationPlanRead,
 } from "@vision-control/mcp-server";
 import type { SourceRegistry } from "@vision-control/source-registry";
-import type { SourceResolver } from "@vision-control/source-resolver";
+import type { SourceResolver, TokenRegistry } from "@vision-control/source-resolver";
 import { createPlan } from "@vision-control/verification-engine";
+import { compileTokenRegistrySection } from "./token-registry-builder.js";
 
 export interface McpAdapterDeps {
   readonly changesetService: ChangesetService;
@@ -43,6 +44,13 @@ export interface McpAdapterDeps {
   readonly resolver?: SourceResolver;
   /** In-memory marker registry backing the resolver. */
   readonly registry?: SourceRegistry;
+  /**
+   * Workspace design-token registry (VC-V1V2-18). When present and non-empty,
+   * its `summary()` is emitted as the compiled context's token section and
+   * any value conflicts across sources are surfaced as `token-conflict`
+   * warnings. An empty registry omits the section (no false success output).
+   */
+  readonly tokenRegistry?: TokenRegistry;
   readonly workspaceRoot?: string;
   readonly logger?: Logger;
   /**
@@ -264,12 +272,23 @@ export function createDaemonMcpAdapters(deps: McpAdapterDeps): DaemonMcpDepsServ
               ...(sourceId !== undefined ? { sourceId } : {}),
             })
           : [];
+      const tokenSection = compileTokenRegistrySection(deps.tokenRegistry);
       const compiled = compileContext({
         goal: "Resolve the selected element's source and verify the pending changeset.",
         selection: minimalSelectionSummary(selection),
         changeset: { operations: [], id: "daemon", version: "2.0.0", revision: 0 } as never,
         sourceCandidates: candidates,
-        warnings: [],
+        warnings: tokenSection.warnings,
+        ...(tokenSection.tokenRegistry !== undefined
+          ? {
+              tokenRegistry: {
+                totalTokens: tokenSection.tokenRegistry.totalTokens,
+                categories: { ...tokenSection.tokenRegistry.categories },
+                sources: [...tokenSection.tokenRegistry.sources],
+                conflictCount: tokenSection.tokenRegistry.conflictCount,
+              },
+            }
+          : {}),
         ...(deps.redactionConfig !== undefined ? { redactionConfig: deps.redactionConfig } : {}),
       });
       return { ...compiled, verificationPlan: plan };

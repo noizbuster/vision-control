@@ -5,8 +5,12 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * The playground serves as the fixture page the extension inspects. These
  * e2e tests verify the fixture routes render and seeded edge cases exist,
- * independent of the extension. A dev server (or `vite preview`) must be
- * running on port 5173 before tests that navigate.
+ * independent of the extension. The webServer block auto-starts the vite dev
+ * server (port 5173, per vite.config.ts) so the suite runs unattended;
+ * `reuseExistingServer` lets a developer-supplied server win.
+ *
+ * Port 5173 does not collide with the extension e2e suite (which serves
+ * fixtures via its testing helper on localhost:9973 and has no webServer).
  *
  * Browser binary: `pnpm playwright install chromium` is required once.
  */
@@ -23,6 +27,13 @@ export default defineConfig({
     baseURL: process.env.VC_PLAYGROUND_URL ?? "http://localhost:5173",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+  },
+  webServer: {
+    command: "vite",
+    url: "http://localhost:5173",
+    timeout: 60_000,
+    reuseExistingServer: true,
+    cwd: ".",
   },
   projects: [
     {

@@ -31,11 +31,17 @@ import {
   type SourceAdapter,
   type SourceCandidate,
   SourceResolver,
+  type TokenRegistry,
 } from "@vision-control/source-resolver";
 import { createSvelteAdapter } from "@vision-control/svelte";
-import { createTailwindTokenAdapter } from "@vision-control/tailwind";
+import {
+  createTailwindTokenAdapter,
+  createTailwindV4ThemeRegistry,
+  type TailwindV4ThemeRegistry,
+} from "@vision-control/tailwind";
 import { createVueAdapter } from "@vision-control/vue";
 import { WorkspaceIndex } from "@vision-control/workspace-index";
+import { buildWorkspaceTokenRegistry } from "./token-registry-builder.js";
 import {
   discoverCssModulesManifest,
   discoverCssSourceMaps,
@@ -49,6 +55,11 @@ export interface SourcePipeline {
   readonly registry: SourceRegistry;
   readonly adapterRegistry: AdapterRegistry;
   readonly resolver: SourceResolver;
+  /**
+   * Workspace design-token registry (VC-V1V2-18): Tailwind config + CSS custom
+   * properties. Fed into `compileContext` so the agent sees the token section.
+   */
+  readonly tokenRegistry: TokenRegistry;
 }
 
 /**
@@ -100,6 +111,27 @@ export interface BuildSourcePipelineOptions {
   readonly logger: Logger;
 }
 
+const CSS_EXTENSION = ".css";
+
+/**
+ * Detect a Tailwind v4 workspace: no v3 config present AND `@theme` appears in
+ * at least one workspace CSS file. Returns a {@link TailwindV4ThemeRegistry}
+ * built from the concatenated `@theme`-bearing CSS, or `undefined` when the
+ * workspace is v3 (config present) or has no `@theme`. The registry is pure
+ * data — it never yields HIGH confidence on its own.
+ */
+const discoverV4ThemeRegistry = (
+  sourceFiles: ReadonlyMap<string, string>,
+): TailwindV4ThemeRegistry | undefined => {
+  const themeParts: string[] = [];
+  for (const [relPath, content] of sourceFiles) {
+    if (!relPath.endsWith(CSS_EXTENSION)) continue;
+    if (content.includes("@theme")) themeParts.push(content);
+  }
+  if (themeParts.length === 0) return undefined;
+  return createTailwindV4ThemeRegistry(themeParts.join("\n"));
+};
+
 /**
  * Build the full source-resolution pipeline: workspace index, in-memory marker
  * registry, V1 adapter registry (real-data factories only), and the resolver.
@@ -123,6 +155,18 @@ export const buildSourcePipeline = async (
   const cssManifest = await discoverCssModulesManifest(opts.workspaceRoot);
   const cssSourceMaps = await discoverCssSourceMaps(opts.workspaceRoot);
 
+  // v4 detection: when no v3 config is present, scan workspace CSS for @theme.
+  // A v4 workspace gets a v4ThemeRegistry so CSS-first custom tokens resolve.
+  // Standard utilities still resolve via the v3 default scale baked into the
+  // adapter; custom @theme tokens resolve via the v4 registry fallback.
+  const v4ThemeRegistry =
+    tailwindConfig === undefined ? discoverV4ThemeRegistry(sourceFiles) : undefined;
+
+  const tokenRegistry = buildWorkspaceTokenRegistry({
+    tailwind: tailwindConfig,
+    sourceFiles,
+  });
+
   // Real-data V1 adapter factories. The lookup closures bind to the in-memory
   // marker registry so Next/Vue/Svelte marker resolution shares the same
   // source-of-truth as the resolver's built-in marker cascade.
@@ -130,7 +174,8 @@ export const buildSourcePipeline = async (
 
   adapterRegistry.register(
     createTailwindTokenAdapter({
-      ...(tailwindConfig !== undefined ? { config: tailwindConfig } : {}),
+      ...(tailwindConfig !== undefined ? { config: tailwindConfig.config } : {}),
+      ...(v4ThemeRegistry !== undefined ? { v4ThemeRegistry } : {}),
       sourceFiles,
     }),
   );
@@ -149,8 +194,10 @@ export const buildSourcePipeline = async (
     fileCount: workspaceIndex.fileCount,
     adapterCount: adapterRegistry.size,
     ...(tailwindConfig !== undefined ? { tailwind: true } : {}),
+    ...(v4ThemeRegistry !== undefined ? { tailwindV4: true } : {}),
     ...(cssManifest !== undefined ? { cssModulesManifest: true } : {}),
     ...(cssSourceMaps.size > 0 ? { cssSourceMaps: cssSourceMaps.size } : {}),
+    tokenCount: tokenRegistry.size,
   });
 
   const resolver = new SourceResolver({
@@ -160,7 +207,7 @@ export const buildSourcePipeline = async (
     adapters: adapterRegistry,
   });
 
-  return { workspaceIndex, registry, adapterRegistry, resolver };
+  return { workspaceIndex, registry, adapterRegistry, resolver, tokenRegistry };
 };
 
 /** Protocol confidence values (one richer than the resolver's three). */

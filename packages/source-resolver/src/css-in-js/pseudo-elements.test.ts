@@ -13,9 +13,11 @@ import {
   buildPseudoElementEdit,
   PSEUDO_ELEMENTS,
   PSEUDO_STATES,
+  type PseudoElementEdit,
   PseudoElementEditSchema,
   type PseudoElementRule,
   pseudoPreviewSelector,
+  resolvePseudoElementEdit,
   resolvePseudoElementOrigin,
 } from "./pseudo-elements.js";
 
@@ -144,5 +146,67 @@ describe("pseudoPreviewSelector — preview selector builder (pure)", () => {
 
   it("builds a pseudo-state selector", () => {
     expect(pseudoPreviewSelector("rt-002", ":hover")).toBe('[data-vc-preview-id="rt-002"]:hover');
+  });
+});
+
+describe("resolvePseudoElementEdit — daemon-facing compose (buildPseudoElementEdit caller)", () => {
+  it("validates the edit, builds the preview selector, and returns null origin when no rule is supplied", () => {
+    const result = resolvePseudoElementEdit({
+      runtimeId: "rt-compose-001",
+      pseudoClass: "::before",
+      property: "content",
+      value: '"hi"',
+    });
+
+    expect(result.edit.pseudoClass).toBe("::before");
+    expect(result.previewSelector).toBe('[data-vc-preview-id="rt-compose-001"]::before');
+    expect(result.origin).toBeNull();
+  });
+
+  it("resolves a HIGH ast-origin candidate when an AST-owned rule is supplied", () => {
+    const result = resolvePseudoElementEdit(
+      {
+        runtimeId: "rt-compose-002",
+        pseudoClass: ":hover",
+        property: "color",
+        value: "red",
+        previousValue: "blue",
+      },
+      astOwnedRule({
+        selector: ".btn:hover",
+        pseudoClass: ":hover",
+        property: "color",
+        value: "red",
+      }),
+    );
+
+    expect(result.origin).not.toBeNull();
+    expect(result.origin?.confidence).toBe("high");
+    expect(result.origin?.evidence).toEqual(["ast-origin"]);
+    expect(enforceNeverWrongHigh(result.origin as never).confidence).toBe("high");
+  });
+
+  it("rejects a malformed pseudo target at the schema boundary (malformed-input guard)", () => {
+    expect(() =>
+      resolvePseudoElementEdit({
+        runtimeId: "rt-compose-003",
+        // intentionally outside the whitelist
+        pseudoClass: "::first-line" as PseudoElementEdit["pseudoClass"],
+        property: "color",
+        value: "red",
+      }),
+    ).toThrow();
+  });
+
+  it("carries previousValue through so the inverse is lossless", () => {
+    const result = resolvePseudoElementEdit({
+      runtimeId: "rt-compose-004",
+      pseudoClass: "::after",
+      property: "color",
+      value: "red",
+      previousValue: "blue",
+    });
+
+    expect(result.edit.previousValue).toBe("blue");
   });
 });

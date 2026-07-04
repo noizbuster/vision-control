@@ -231,6 +231,7 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
         ? {
             resolver: options.sourcePipeline.resolver,
             registry: options.sourcePipeline.registry,
+            tokenRegistry: options.sourcePipeline.tokenRegistry,
             workspaceRoot: options.workspaceRoot,
             logger: options.logger,
           }

@@ -29,6 +29,7 @@ import {
   type TailwindConfigInput,
   type TailwindTokenRegistry,
 } from "./tokens.js";
+import type { TailwindV4ThemeRegistry } from "./v4-seam.js";
 
 export interface TailwindTokenAdapterOptions {
   /** Parsed Tailwind v3 config. Defaults to the built-in Tailwind v3 scale. */
@@ -39,6 +40,15 @@ export interface TailwindTokenAdapterOptions {
    * the daemon wires a real file-set read from the workspace index.
    */
   readonly sourceFiles?: ReadonlyMap<string, string>;
+  /**
+   * Tailwind v4 `@theme` CSS-variable registry. When provided, the adapter
+   * consults it as a fallback when the v3 config registry misses, so v4
+   * CSS-first custom tokens (`bg-brand` → `--color-brand`) resolve. A v4
+   * registry lookup produces data only — it NEVER yields HIGH confidence on
+   * its own (HIGH still requires an `ast-origin`/`marker` via the resolver's
+   * never-wrong-HIGH policy).
+   */
+  readonly v4ThemeRegistry?: TailwindV4ThemeRegistry;
 }
 
 interface ClassPlan {
@@ -64,6 +74,7 @@ export const createTailwindTokenAdapter = (
   options: TailwindTokenAdapterOptions = {},
 ): SourceAdapter => {
   const registry: TailwindTokenRegistry = buildTokenRegistry(options.config);
+  const v4ThemeRegistry = options.v4ThemeRegistry;
 
   const allOrigins: ClassNameAstOrigin[] = [];
   if (options.sourceFiles !== undefined) {
@@ -80,7 +91,7 @@ export const createTailwindTokenAdapter = (
     for (const raw of classes) {
       const parsed = parseClassName(raw);
       if (parsed === null) continue;
-      if (!isTokenBearing(parsed, registry)) continue;
+      if (!isTokenBearing(parsed, registry, v4ThemeRegistry)) continue;
       plans.push({ raw, parsed, utility: parsed.utility });
     }
     if (plans.length === 0) return [];
@@ -97,6 +108,7 @@ export const createTailwindTokenAdapter = (
         className: plan.raw,
         parsed: plan.parsed,
         registry,
+        ...(v4ThemeRegistry !== undefined ? { v4ThemeRegistry } : {}),
         origin,
         runtimeInstanceCount: instanceCount,
         conflictPeers,
@@ -109,7 +121,7 @@ export const createTailwindTokenAdapter = (
   return {
     id: "tailwind-token",
     description:
-      "Tailwind v3 token-aware editing: resolves className utilities to source origins with nearest-token suggestions",
+      "Tailwind v3/v4 token-aware editing: resolves className utilities to source origins with nearest-token suggestions",
     resolve,
   };
 };

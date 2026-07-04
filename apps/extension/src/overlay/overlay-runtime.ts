@@ -35,6 +35,11 @@ import {
   createInteractionControllers,
   type InteractionControllers,
 } from "./interaction-wiring.js";
+import { createMarqueeController, type MarqueeController } from "./marquee-controller.js";
+import {
+  createMultiSelectController,
+  type MultiSelectController,
+} from "./multi-select-controller.js";
 
 /**
  * Narrow bus seam the runtime depends on. {@link MessageBus} satisfies this
@@ -114,6 +119,22 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     controllers?.onSelectionChange(buildSelectionContext(target));
   };
 
+  // Multi-select (PRD §9.1): shift+click toggles membership; a marquee drag in
+  // empty space replaces the group. The controller publishes the panel message.
+  const multiSelect: MultiSelectController = createMultiSelectController({ document: doc, bus });
+  const marquee: MarqueeController = createMarqueeController({
+    document: doc,
+    overlayHost: overlayRoot.host,
+    shadowRoot: overlayRoot.shadowRoot,
+    onComplete: (hits) => {
+      if (hits.length === 0) {
+        multiSelect.reset();
+        return;
+      }
+      multiSelect.setFromMarquee(hits);
+    },
+  });
+
   // PRD §8.3 interaction mode management. The keyboard controller lives inside
   // the inspector; the runtime drives its mode and gates which Task-19
   // controller receives pointer events. Move mode attaches the reorder
@@ -171,10 +192,20 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   };
 
   const onClickCapture = (event: MouseEvent): void => {
+    if (marquee.consumeCompletedGesture()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     const target = event.target as Element | null;
     if (!isInspectable(target)) return;
     event.preventDefault();
     event.stopPropagation();
+    if (event.shiftKey) {
+      multiSelect.toggle(target);
+      return;
+    }
+    multiSelect.reset();
     inspector.select(target);
     notifySelection(target);
   };
@@ -193,6 +224,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   const start = (): void => {
     doc.addEventListener("mousemove", onMouseMoveCapture, true);
     doc.addEventListener("click", onClickCapture, true);
+    marquee.attach();
     inspector.setInspectMode(true);
     keyboard.setMode(interactionMode);
     selectElementUnsub = bus.on("select-element", onSelectElement);
@@ -203,6 +235,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     cancelHoverRaf();
     doc.removeEventListener("mousemove", onMouseMoveCapture, true);
     doc.removeEventListener("click", onClickCapture, true);
+    marquee.detach();
     inspector.setInspectMode(false);
     selectElementUnsub?.();
     selectElementUnsub = null;
@@ -212,6 +245,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     stop();
     controllers?.dispose();
     controllers = null;
+    multiSelect.dispose();
     inspector.dispose();
   };
 

@@ -37,10 +37,20 @@ const TAILWIND_CONFIG_NAMES = [
  * `undefined` when no config file is present (the adapter then uses the built-in
  * default scale). The dynamic `import()` honors Node's native type stripping for
  * `.ts`; a thrown import degrades to `undefined` (malformed config → defaults).
+ *
+ * The returned `configPath` is the workspace-relative filename of the resolved
+ * config (e.g. `"tailwind.config.ts"`), used for token provenance. It is always
+ * workspace-relative — never absolute — matching the {@link SourceCandidate}
+ * path invariant.
  */
+export interface ResolvedTailwindConfig {
+  readonly config: TailwindConfigInput;
+  readonly configPath: string;
+}
+
 export const resolveTailwindConfig = async (
   workspaceRoot: string,
-): Promise<TailwindConfigInput | undefined> => {
+): Promise<ResolvedTailwindConfig | undefined> => {
   for (const name of TAILWIND_CONFIG_NAMES) {
     const absPath = join(workspaceRoot, name);
     const exists = await stat(absPath)
@@ -50,7 +60,7 @@ export const resolveTailwindConfig = async (
     try {
       const mod = (await import(`${absPath}`)) as { default?: unknown };
       if (mod.default !== undefined && typeof mod.default === "object") {
-        return mod.default as TailwindConfigInput;
+        return { config: mod.default as TailwindConfigInput, configPath: name };
       }
     } catch {
       // Malformed or uncompilable config; fall through to the next candidate.

@@ -1,15 +1,27 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 /**
  * @fixture-health — playground fixture app health check.
  *
  * Verifies every fixture route renders without errors and seeded edge cases
  * (identical buttons, private fields, shadow DOM, iframes) exist in the DOM.
- * Requires a running playground dev server (vite dev or vite preview) on the
- * configured baseURL.
+ * The webServer in playwright.config.ts auto-starts the vite dev server.
  */
 
-const ROUTES: readonly { path: string; label: string; selector: string }[] = [
+interface RouteSpec {
+  readonly path: string;
+  readonly label: string;
+  readonly selector: string;
+  /**
+   * When true the route embeds an external resource (e.g. a cross-origin
+   * iframe) whose load result is environment-dependent; the health check
+   * asserts only that no uncaught exception fires, not that zero console
+   * errors are logged (a failed external fetch is not a fixture bug).
+   */
+  readonly externalResource?: boolean;
+}
+
+const ROUTES: readonly RouteSpec[] = [
   { path: "/", label: "MVP Board", selector: "main" },
   { path: "/reparent", label: "Reparent", selector: "aside" },
   { path: "/text-edit", label: "Text Edit", selector: "main" },
@@ -23,7 +35,12 @@ const ROUTES: readonly { path: string; label: string; selector: string }[] = [
   { path: "/conditional-class", label: "Conditional Class", selector: "main" },
   { path: "/portal-case", label: "Portal Case", selector: "main" },
   { path: "/same-origin-iframe", label: "Same-Origin Iframe", selector: "iframe" },
-  { path: "/cross-origin-iframe", label: "Cross-Origin Iframe", selector: "iframe" },
+  {
+    path: "/cross-origin-iframe",
+    label: "Cross-Origin Iframe",
+    selector: "iframe",
+    externalResource: true,
+  },
   { path: "/shadow-dom-open", label: "Shadow DOM Open", selector: "main" },
   { path: "/shadow-dom-closed", label: "Shadow DOM Closed", selector: "main" },
   { path: "/private-fields", label: "Private Fields", selector: "form" },
@@ -31,6 +48,24 @@ const ROUTES: readonly { path: string; label: string; selector: string }[] = [
   { path: "/css-grid", label: "CSS Grid", selector: "main" },
   { path: "/responsive-breakpoints", label: "Responsive Breakpoints", selector: "main" },
 ];
+
+/**
+ * Attaches listeners that record uncaught exceptions and error-level console
+ * messages. Returns a accessor for the accumulated list. Must be called BEFORE
+ * navigating so listeners are in place before the page renders.
+ */
+function collectErrors(page: Page): () => readonly string[] {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => {
+    errors.push(`pageerror: ${err.message}`);
+  });
+  page.on("console", (msg) => {
+    if (msg.type() === "error") {
+      errors.push(`console.error: ${msg.text()}`);
+    }
+  });
+  return () => errors;
+}
 
 test.describe("@fixture-health", () => {
   test("all 20 fixture routes are defined", () => {
@@ -41,50 +76,83 @@ test.describe("@fixture-health", () => {
   });
 
   for (const route of ROUTES) {
-    test.fixme(`${route.label} (${route.path}) renders without console errors`, async ({
-      page,
-    }) => {
+    test(`${route.label} (${route.path}) renders without console errors`, async ({ page }) => {
+      const getErrors = collectErrors(page);
       await page.goto(route.path);
       await expect(page.locator(route.selector).first()).toBeVisible();
-      // Assert: no error-level console messages during route render.
+      const errors = getErrors();
+      if (route.externalResource) {
+        // External resource: only an uncaught exception counts as a fixture bug.
+        const pageErrors = errors.filter((e) => e.startsWith("pageerror"));
+        expect(pageErrors, "fixture route threw an uncaught exception").toEqual([]);
+      } else {
+        expect(errors, "fixture route emitted unexpected errors").toEqual([]);
+      }
     });
   }
 
-  test.fixme("identical buttons route has two visually identical buttons", async ({ page }) => {
-    // Given: the /identical-buttons route is loaded.
-    // When: the page renders.
-    // Then: two <button> elements exist with the same className and text content
-    //       but from different source files (IdenticalButtonsA vs IdenticalButtonsB).
-    // Assert: buttons.length === 2 and both have text "Identical button".
+  test("identical buttons route has two visually identical buttons", async ({ page }) => {
+    await page.goto("/identical-buttons");
+    const buttons = page.locator("button");
+    await expect(buttons).toHaveCount(2);
+    const texts = await buttons.allTextContents();
+    expect(texts).toEqual(["Identical button", "Identical button"]);
+    const classNames = await buttons.evaluateAll((els) => els.map((el) => el.className));
+    expect(classNames[0]).toBe(classNames[1]);
   });
 
-  test.fixme("private fields route seeds secrets for adversarial tests", async ({ page }) => {
-    // Given: the /private-fields route is loaded.
-    // When: the component mounts (useEffect runs).
-    // Then: document.cookie contains session=VC_SECRET_COOKIE.
-    // And: localStorage has api_key=sk_test_VC_SECRET.
-    // And: a password input has value VC_SECRET_SHOULD_NOT_EXPORT.
-    // Assert: these secrets are present in the DOM/storage (for redaction testing).
+  test("private fields route seeds secrets for adversarial tests", async ({ page }) => {
+    await page.goto("/private-fields");
+    await expect(page.locator("form")).toBeVisible();
+    const cookie = await page.evaluate(() => document.cookie);
+    expect(cookie).toContain("session=VC_SECRET_COOKIE");
+    const apiKey = await page.evaluate(() => localStorage.getItem("api_key"));
+    expect(apiKey).toBe("sk_test_VC_SECRET");
+    const passwordValue = await page.locator('input[type="password"]').inputValue();
+    expect(passwordValue).toBe("VC_SECRET_SHOULD_NOT_EXPORT");
   });
 
-  test.fixme("same-origin iframe renders with accessible content", async ({ page }) => {
-    // Given: the /same-origin-iframe route is loaded.
-    // When: the iframe loads.
-    // Then: the iframe's contentDocument is accessible (not null).
-    // Assert: iframe content contains expected child elements.
+  test("same-origin iframe renders with accessible content", async ({ page }) => {
+    await page.goto("/same-origin-iframe");
+    const iframe = page.locator("iframe").first();
+    await expect(iframe).toBeVisible();
+    // Wait for the iframe document to load its seeded content.
+    await expect(
+      page.frameLocator("iframe").getByRole("button", { name: "Inside same-origin iframe" }),
+    ).toBeVisible();
+    // Same-origin: contentDocument is non-null and inspectable.
+    const contentAccessible = await iframe.evaluate(
+      (el) => (el as HTMLIFrameElement).contentDocument !== null,
+    );
+    expect(contentAccessible).toBe(true);
   });
 
-  test.fixme("cross-origin iframe renders but content is opaque", async ({ page }) => {
-    // Given: the /cross-origin-iframe route is loaded.
-    // When: the iframe loads.
-    // Then: the iframe's contentDocument is null (cross-origin).
-    // Assert: the iframe exists but its content cannot be inspected.
+  test("cross-origin iframe renders but content is opaque", async ({ page }) => {
+    await page.goto("/cross-origin-iframe");
+    const iframe = page.locator("iframe").first();
+    await expect(iframe).toBeVisible();
+    // The iframe's initial document is a same-origin about:blank; opacity only
+    // holds once the cross-origin navigation completes. Wait for the frame to
+    // reach example.com before asserting contentDocument is null.
+    await expect
+      .poll(async () => page.frames().some((f) => f.url().startsWith("https://example.com")))
+      .toBe(true);
+    // Cross-origin: contentDocument is null (opaque). The try/catch guards the
+    // rare SecurityException shape some engines emit on cross-origin access.
+    const isOpaque = await iframe.evaluate((el) => {
+      const frame = el as HTMLIFrameElement;
+      try {
+        return frame.contentDocument === null;
+      } catch {
+        return true;
+      }
+    });
+    expect(isOpaque).toBe(true);
   });
 
-  test.fixme("nav bar lists all 20 routes", async ({ page }) => {
-    // Given: any route is loaded.
-    // When: the nav bar renders.
-    // Then: 20 anchor links are present, one per route.
-    // Assert: nav a elements.length === 20.
+  test("nav bar lists all 20 routes", async ({ page }) => {
+    await page.goto("/");
+    const navLinks = page.locator("nav a");
+    await expect(navLinks).toHaveCount(20);
   });
 });

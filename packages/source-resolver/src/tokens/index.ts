@@ -18,6 +18,7 @@ export {
   TOKEN_CONFLICT_WARNING_CODE,
   type TokenConflict,
 } from "./conflict-detection.js";
+export { extractCssCustomProperties } from "./css-custom-property-extractor.js";
 export {
   createTokenProvenance,
   TOKEN_SOURCE_KINDS,

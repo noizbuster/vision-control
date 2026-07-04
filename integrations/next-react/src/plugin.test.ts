@@ -201,6 +201,54 @@ describe("plugin — production gate", () => {
     expect(wrapped.reactStrictMode).toBe(true);
   });
 
+  it("withVisionControlSourceMarkers registers turbopack rules in dev mode", () => {
+    const wrapped = withVisionControlSourceMarkers({ reactStrictMode: true }, {});
+    expect(wrapped.turbopack).toBeDefined();
+    const rules = (wrapped.turbopack as { rules?: Record<string, unknown> }).rules;
+    expect(rules).toBeDefined();
+    expect(rules?.["*.tsx"]).toBeDefined();
+    expect(rules?.["*.jsx"]).toBeDefined();
+  });
+
+  it("turbopack marker rules reference the loader with options", () => {
+    const wrapped = withVisionControlSourceMarkers({}, { workspaceRoot: "/ws" });
+    const rules = (wrapped.turbopack as { rules?: Record<string, unknown> }).rules;
+    const tsxRule = rules?.["*.tsx"] as {
+      loaders: Array<{ loader: string; options: Record<string, unknown> }>;
+    };
+    expect(tsxRule.loaders.length).toBe(1);
+    expect(tsxRule.loaders[0]?.loader).toContain("loader.js");
+    expect(tsxRule.loaders[0]?.options.workspaceRoot).toBe("/ws");
+  });
+
+  it("turbopack rules do not set `as` (avoids extension doubling)", () => {
+    const wrapped = withVisionControlSourceMarkers({}, {});
+    const rules = (wrapped.turbopack as { rules?: Record<string, unknown> }).rules;
+    const tsxRule = rules?.["*.tsx"] as { as?: string };
+    expect(tsxRule.as).toBeUndefined();
+  });
+
+  it("turbopack field is absent in production", () => {
+    const wrapped = withVisionControlSourceMarkers({ reactStrictMode: true }, { production: true });
+    expect(wrapped.turbopack).toBeUndefined();
+  });
+
+  it("preserves user turbopack resolveAlias + non-marker rules", () => {
+    const userTurbopack = {
+      resolveAlias: { "my-pkg": "./aliased" },
+      rules: { "*.svg": { loaders: ["@svgr/webpack"], as: "*.js" } },
+    };
+    const wrapped = withVisionControlSourceMarkers({ turbopack: userTurbopack }, {});
+    const turbo = wrapped.turbopack as {
+      resolveAlias?: Record<string, string>;
+      rules?: Record<string, unknown>;
+    };
+    expect(turbo.resolveAlias?.["my-pkg"]).toBe("./aliased");
+    expect(turbo.rules?.["*.svg"]).toBeDefined();
+    expect(turbo.rules?.["*.tsx"]).toBeDefined();
+    expect(turbo.rules?.["*.jsx"]).toBeDefined();
+  });
+
   it("webpack wrapper adds marker rule in dev context", () => {
     const wrapped = withVisionControlSourceMarkers({}, {});
     const config = wrapped.webpack?.({ module: { rules: [] } }, { dev: true }) as {

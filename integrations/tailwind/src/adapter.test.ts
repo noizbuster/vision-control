@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import { createTailwindTokenAdapter, TAILWIND_TOKEN_ADAPTER } from "./adapter.js";
 import { buildTokenRegistry } from "./tokens.js";
+import { createTailwindV4ThemeRegistry } from "./v4-seam.js";
 
 const identity = (): unknown => ({
   runtimeId: "r-1",
@@ -280,5 +281,176 @@ describe("createTailwindTokenAdapter — repeated instance ambiguity", () => {
       runtimeInstanceCount: 3,
     })[0];
     expect(top?.warnings.some((w) => w.includes("repeated instance"))).toBe(true);
+  });
+});
+
+// v4 @theme registry wiring + never-wrong-HIGH adversarial (task 12).
+
+const V4_CSS = `
+  @theme {
+    --color-brand: oklch(0.5 0.2 250);
+    --color-red-500: oklch(0.6 0.2 25);
+    --spacing-2: 0.5rem;
+    --font-sans: Inter, system-ui, sans-serif;
+    --text-lg: 1.125rem;
+  }
+`;
+
+describe("createTailwindTokenAdapter — v4 @theme registry (task 12)", () => {
+  it("resolves a v4 custom color token (bg-brand) to a token-bearing candidate", () => {
+    const v4 = createTailwindV4ThemeRegistry(V4_CSS);
+    const adapter = createTailwindTokenAdapter({ v4ThemeRegistry: v4 });
+    const candidates = adapter.resolve({
+      identity: identity() as never,
+      cssClasses: ["bg-brand"],
+      runtimeInstanceCount: 1,
+    });
+    expect(candidates.length).toBeGreaterThanOrEqual(1);
+    const top = candidates[0];
+    if (top === undefined) throw new Error("expected a candidate for bg-brand");
+    expect(top.staticClassName).toBe("bg-brand");
+  });
+
+  it("resolves a v4 spacing token (gap-2) via the v4 registry when v3 defaults miss", () => {
+    const v4 = createTailwindV4ThemeRegistry(V4_CSS);
+    const adapter = createTailwindTokenAdapter({
+      config: { theme: { spacing: { "4": "1rem" } } },
+      v4ThemeRegistry: v4,
+    });
+    const candidates = adapter.resolve({
+      identity: identity() as never,
+      cssClasses: ["gap-2"],
+      runtimeInstanceCount: 1,
+    });
+    expect(candidates.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("resolves an opacity-modified v4 color (bg-brand/50)", () => {
+    const v4 = createTailwindV4ThemeRegistry(V4_CSS);
+    const adapter = createTailwindTokenAdapter({ v4ThemeRegistry: v4 });
+    const candidates = adapter.resolve({
+      identity: identity() as never,
+      cssClasses: ["bg-brand/50"],
+      runtimeInstanceCount: 1,
+    });
+    expect(candidates.length).toBeGreaterThanOrEqual(1);
+    expect(candidates[0]?.staticClassName).toBe("bg-brand/50");
+  });
+
+  it("resolves a v4 fontSize token (text-lg) and a v4 color (text-red-500) via overload", () => {
+    const v4 = createTailwindV4ThemeRegistry(V4_CSS);
+    const adapter = createTailwindTokenAdapter({ v4ThemeRegistry: v4 });
+    const fontSize = adapter.resolve({
+      identity: identity() as never,
+      cssClasses: ["text-lg"],
+      runtimeInstanceCount: 1,
+    });
+    expect(fontSize.length).toBeGreaterThanOrEqual(1);
+    const color = adapter.resolve({
+      identity: identity() as never,
+      cssClasses: ["text-red-500"],
+      runtimeInstanceCount: 1,
+    });
+    expect(color.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("resolves gradient color stops (from-brand, via-brand, to-brand) via v4", () => {
+    const v4 = createTailwindV4ThemeRegistry(V4_CSS);
+    const adapter = createTailwindTokenAdapter({ v4ThemeRegistry: v4 });
+    for (const cls of ["from-brand", "via-brand", "to-brand"]) {
+      const candidates = adapter.resolve({
+        identity: identity() as never,
+        cssClasses: [cls],
+        runtimeInstanceCount: 1,
+      });
+      expect(candidates.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("a v4 class with a static origin reaches HIGH via ast-origin (never from registry alone)", () => {
+    const v4 = createTailwindV4ThemeRegistry(V4_CSS);
+    const source = new Map<string, string>([
+      ["src/C.tsx", 'export const C = () => <div className="bg-brand">x</div>;'],
+    ]);
+    const adapter = createTailwindTokenAdapter({ v4ThemeRegistry: v4, sourceFiles: source });
+    const top = adapter.resolve({
+      identity: identity() as never,
+      cssClasses: ["bg-brand"],
+      runtimeInstanceCount: 1,
+    })[0];
+    expect(top?.confidence).toBe("high");
+    expect(top?.evidence).toContain("ast-origin");
+  });
+});
+
+describe("createTailwindTokenAdapter — v3 unaffected by v4 wiring (regression)", () => {
+  it("a v3 workspace without a v4 registry resolves gap-2 exactly as before", () => {
+    const source = new Map<string, string>([
+      ["src/V3.tsx", 'export const V3 = () => <div className="gap-2">x</div>;'],
+    ]);
+    const adapter = createTailwindTokenAdapter({ sourceFiles: source });
+    const top = adapter.resolve({
+      identity: identity() as never,
+      cssClasses: ["gap-2"],
+      runtimeInstanceCount: 1,
+    })[0];
+    expect(top?.confidence).toBe("high");
+    expect(top?.evidence).toContain("ast-origin");
+    expect(top?.staticClassName).toBe("gap-2");
+  });
+
+  it("an unknown class is still not token-bearing with a v4 registry attached", () => {
+    const v4 = createTailwindV4ThemeRegistry(V4_CSS);
+    const adapter = createTailwindTokenAdapter({ v4ThemeRegistry: v4 });
+    const candidates = adapter.resolve({
+      identity: identity() as never,
+      cssClasses: ["not-a-utility"],
+      runtimeInstanceCount: 1,
+    });
+    expect(candidates).toEqual([]);
+  });
+});
+
+/**
+ * Adversarial never-wrong-HIGH: a registry-only v4 candidate (no source files)
+ * must stay MEDIUM. The inline `satisfiesHighEvidence` mirror makes the test
+ * non-vacuous — it confirms the evidence cannot reach HIGH even if the adapter
+ * lied. The resolver's `enforceNeverWrongHigh` is the structural backstop.
+ */
+const SOLO_STRONG_METHODS = new Set(["marker", "ast-origin"]);
+const satisfiesHighEvidenceMirror = (evidence: readonly string[], hasRange: boolean): boolean => {
+  const set = new Set(evidence);
+  if (set.size === 0) return false;
+  for (const m of SOLO_STRONG_METHODS) if (set.has(m)) return true;
+  if (set.has("fingerprint") && set.has("manifest")) return true;
+  if (set.has("source-map") && hasRange) return true;
+  return false;
+};
+
+describe("createTailwindTokenAdapter — adversarial: registry-only NEVER HIGH (task 12)", () => {
+  it("a v4 registry-only candidate stays MEDIUM (not HIGH) and carries text-search evidence", () => {
+    const v4 = createTailwindV4ThemeRegistry(V4_CSS);
+    const adapter = createTailwindTokenAdapter({ v4ThemeRegistry: v4 });
+    const top = adapter.resolve({
+      identity: identity() as never,
+      cssClasses: ["bg-brand"],
+      runtimeInstanceCount: 1,
+    })[0];
+    expect(top).toBeDefined();
+    if (top === undefined) return;
+    expect(top.confidence).not.toBe("high");
+    expect(["medium", "low"]).toContain(top.confidence);
+    // text-search alone never satisfies HIGH (no ast-origin/marker).
+    const ev = top.evidence ?? [];
+    expect(ev).not.toContain("ast-origin");
+    expect(ev).not.toContain("marker");
+    const hasRange = top.startLine !== undefined && top.endLine !== undefined;
+    expect(satisfiesHighEvidenceMirror(ev, hasRange)).toBe(false);
+  });
+
+  it("the adversarial assertion is non-vacuous: marker evidence WOULD satisfy HIGH", () => {
+    expect(satisfiesHighEvidenceMirror(["marker"], false)).toBe(true);
+    expect(satisfiesHighEvidenceMirror(["ast-origin"], false)).toBe(true);
+    expect(satisfiesHighEvidenceMirror(["text-search"], false)).toBe(false);
   });
 });

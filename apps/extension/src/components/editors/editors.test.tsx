@@ -1,8 +1,15 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { PseudoStyleTargetSchema } from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ClassEditor, EditorToolbar, StyleEditor, TextEditor } from "./index.js";
+import {
+  ClassEditor,
+  EditorToolbar,
+  PseudoElementEditor,
+  StyleEditor,
+  TextEditor,
+} from "./index.js";
 
 function makeSummary(): SelectionSummary {
   return {
@@ -336,5 +343,97 @@ describe("TextEditor", () => {
 
     expect(onCommand).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalledOnce();
+  });
+});
+
+describe("PseudoElementEditor", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("offers exactly the whitelisted pseudo targets (::before/::after + 4 states)", () => {
+    render(<PseudoElementEditor summary={makeSummary()} onCommand={vi.fn()} />);
+
+    const select = screen.getByRole("combobox", { name: /pseudo target/i }) as HTMLSelectElement;
+    const options = Array.from(select.options).map((o) => o.value);
+    expect(options).toEqual([...PseudoStyleTargetSchema.options]);
+  });
+
+  it("emits a pseudo-style-edit op for ::before on Apply", () => {
+    const onCommand = vi.fn();
+    render(<PseudoElementEditor summary={makeSummary()} onCommand={onCommand} />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: /pseudo target/i }), {
+      target: { value: "::before" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /^property/i }), {
+      target: { value: "content" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /^value/i }), {
+      target: { value: '"NEW"' },
+    });
+    screen.getByRole("button", { name: /apply/i }).click();
+
+    expect(onCommand).toHaveBeenCalledOnce();
+    const op = onCommand.mock.calls[0]?.[0];
+    expect(op.kind).toBe("pseudo-style-edit");
+    expect(op.pseudoTarget).toBe("::before");
+    expect(op.property).toBe("content");
+    expect(op.value).toBe('"NEW"');
+    expect(op.target.runtimeId).toBe("runtime-1");
+    expect(op.runtime).toBe(false);
+    expect(op.origin).toBe("property-panel");
+  });
+
+  it("does NOT emit when the property is empty", () => {
+    const onCommand = vi.fn();
+    render(<PseudoElementEditor summary={makeSummary()} onCommand={onCommand} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /^property/i }), {
+      target: { value: "  " },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /^value/i }), {
+      target: { value: "red" },
+    });
+    screen.getByRole("button", { name: /apply/i }).click();
+
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("emits a :hover state edit and the op parses against the change-ir schema", () => {
+    const onCommand = vi.fn();
+    render(<PseudoElementEditor summary={makeSummary()} onCommand={onCommand} />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: /pseudo target/i }), {
+      target: { value: ":hover" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /^property/i }), {
+      target: { value: "color" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /^value/i }), {
+      target: { value: "blue" },
+    });
+    screen.getByRole("button", { name: /apply/i }).click();
+
+    expect(onCommand).toHaveBeenCalledOnce();
+    const op = onCommand.mock.calls[0]?.[0];
+    expect(op.kind).toBe("pseudo-style-edit");
+    expect(op.pseudoTarget).toBe(":hover");
+    // Re-parse through the closed-kind schema: a malformed target would throw.
+    expect(() => PseudoStyleTargetSchema.parse(op.pseudoTarget)).not.toThrow();
+  });
+
+  it("commits on Enter from the value input", () => {
+    const onCommand = vi.fn();
+    render(<PseudoElementEditor summary={makeSummary()} onCommand={onCommand} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /^property/i }), {
+      target: { value: "color" },
+    });
+    const valueInput = screen.getByRole("textbox", { name: /^value/i });
+    fireEvent.change(valueInput, { target: { value: "red" } });
+    fireEvent.keyDown(valueInput, { key: "Enter", code: "Enter" });
+
+    expect(onCommand).toHaveBeenCalledOnce();
   });
 });

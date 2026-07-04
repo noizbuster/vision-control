@@ -17,8 +17,12 @@ package does NOT import source-resolver, to avoid a cyclic workspace edge).
   cites AST origins for HIGH confidence.
 - **Tailwind v4** — CSS-first `@theme { --*: ...; }` parser
   (`parseThemeTokens` / `createTailwindV4ThemeRegistry`) walks the consumer's
-  CSS entry with PostCSS and maps v4 namespaces to `TokenCategory`. v4 is now a
-  supported target (was a documented V2 seam; V1-shipped as of task 11).
+  CSS entry with PostCSS and maps v4 namespaces to `TokenCategory`. The adapter
+  (`createTailwindTokenAdapter({ v4ThemeRegistry })`) consults the v4 registry
+  as a fallback when the v3 config registry misses, so v4 custom tokens
+  (`bg-brand` → `--color-brand`) resolve. The daemon `source-pipeline.ts`
+  auto-detects v3 vs v4 (config file XOR `@theme` in CSS). A registry-only
+  candidate never reaches HIGH — `enforceNeverWrongHigh` caps it at MEDIUM.
 
 ## v4 `@theme` namespace mapping
 
@@ -55,15 +59,36 @@ The registry emits **data only** — value + category, never confidence/evidence
 never-wrong-HIGH is the resolver's job (a registry token is not HIGH evidence
 on its own).
 
-Out of scope here (tracked separately): v4 dynamic spacing scale
-(`--spacing` base multiplier synthesis) and adapter wiring
-(`v4ThemeRegistry?` option on `createTailwindTokenAdapter`) — task 12.
+### Adapter wiring (task 12)
+
+Pass a `v4ThemeRegistry` to `createTailwindTokenAdapter` so v4 CSS-first tokens
+resolve. The daemon `source-pipeline.ts` builds the registry automatically when
+it detects a v4 workspace (no `tailwind.config.*` + `@theme` in CSS).
+
+```ts
+import { createTailwindTokenAdapter, createTailwindV4ThemeRegistry } from "@vision-control/tailwind";
+
+const adapter = createTailwindTokenAdapter({
+  v4ThemeRegistry: createTailwindV4ThemeRegistry(css),
+  sourceFiles,
+});
+// bg-brand resolves to --color-brand; gap-2 resolves via v3 default scale.
+// A registry-only candidate (no AST origin) stays MEDIUM, never HIGH.
+```
+
+v4 utility renames handled: opacity modifier syntax (`bg-brand/50`), gradient
+color stops (`from-brand`/`via-brand`/`to-brand`), `text-*` overload
+(color vs fontSize via namespace priority).
+
+Out of scope: v4 dynamic spacing scale (`--spacing` base multiplier synthesis)
+— only explicit `@theme` declarations are parsed. Shadow/radius/leading
+namespaces are skipped (not in the narrow `TokenCategory` set).
 
 ## Public API
 
 | Export | Purpose |
 |---|---|
-| `createTailwindTokenAdapter`, `TAILWIND_TOKEN_ADAPTER` | v3 source adapter |
+| `createTailwindTokenAdapter`, `TAILWIND_TOKEN_ADAPTER` | v3/v4 source adapter (`v4ThemeRegistry?` option) |
 | `buildTokenRegistry`, `registerTailwindTokens` | v3 token registry |
 | `createTailwindV4ThemeRegistry`, `NOOP_V4_THEME_REGISTRY` | v4 `@theme` registry |
 | `parseThemeTokens`, `THEME_NAMESPACE_RULES` | v4 parser primitives |

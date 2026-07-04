@@ -21,6 +21,16 @@ export interface ParsedClassName {
   readonly value?: string;
   /** Arbitrary value content (inside `[]`), e.g. `12px`, `#1da1f2`. */
   readonly arbitrary?: string;
+  /**
+   * Opacity modifier tail when present (v4 + v3.3+ color-utility syntax
+   * `bg-red-500/50`). Structural extraction only: the tail after the last
+   * depth-0 `/` when it is numeric (`50`) or bracket-arbitrary (`[0.5]` →
+   * `0.5`). The `value` field RETAINS the full original including the
+   * `/opacity` suffix, so fraction utilities like `w-1/2` are unaffected
+   * (value stays `1/2`). Consumers strip opacity only for opacity-capable
+   * utilities (color utilities); spacing fraction utilities ignore it.
+   */
+  readonly opacity?: string;
   /** True for negative utilities (`-mt-2`). */
   readonly negative: boolean;
   /** Variant prefix chain in source order, e.g. `["md", "hover"]`. */
@@ -166,6 +176,33 @@ const MULTI_WORD_PREFIXES: readonly string[] = [
 ].sort((a, b) => b.length - a.length);
 
 /**
+ * Extract the opacity modifier tail from the final segment: the substring
+ * after the last `/` at bracket-depth 0, when it is numeric (`/50`) or a
+ * bracket-arbitrary value (`/[0.5]` → `0.5`). Returns `undefined` when no
+ * recognized opacity modifier is present. Does NOT mutate the input — the
+ * caller keeps the full value including `/opacity` so fraction utilities
+ * (`w-1/2`) are unaffected.
+ */
+const extractOpacityTail = (s: string): string | undefined => {
+  let depth = 0;
+  let slashIdx = -1;
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i];
+    if (ch === undefined) continue;
+    if (ch === "[") depth += 1;
+    else if (ch === "]") depth = Math.max(0, depth - 1);
+    else if (ch === "/" && depth === 0) slashIdx = i;
+  }
+  if (slashIdx < 0) return undefined;
+  const tail = s.slice(slashIdx + 1);
+  if (/^\d{1,3}$/.test(tail)) return tail;
+  if (tail.length > 2 && tail.startsWith("[") && tail.endsWith("]")) {
+    return tail.slice(1, -1);
+  }
+  return undefined;
+};
+
+/**
  * Parse the final (rightmost) segment. Order matters: arbitrary value first
  * (utility = text before `[`), then bare utility, then known multi-word prefix
  * (`translate-x-4`), then the generic first-dash split (`text-red-500` keeps
@@ -173,7 +210,7 @@ const MULTI_WORD_PREFIXES: readonly string[] = [
  */
 const parseUtilitySegment = (
   segment: string,
-): Pick<ParsedClassName, "utility" | "value" | "arbitrary" | "negative"> | null => {
+): Pick<ParsedClassName, "utility" | "value" | "arbitrary" | "opacity" | "negative"> | null => {
   let rest = segment;
   let negative = false;
   if (rest.startsWith("-")) {
@@ -182,37 +219,43 @@ const parseUtilitySegment = (
   }
   if (rest.length === 0) return null;
 
+  const opacity = extractOpacityTail(rest);
+  const withOpacity = <T extends Record<string, unknown>>(r: T): T =>
+    opacity !== undefined ? { ...r, opacity } : r;
+
   const arbStart = rest.indexOf("[");
-  if (arbStart > 0 && rest.endsWith("]")) {
+  // Skip arbitrary-value detection when the `[` is preceded by `/` — that
+  // bracket belongs to an opacity modifier (`bg-brand/[0.5]`), not the value.
+  if (arbStart > 0 && rest.endsWith("]") && rest[arbStart - 1] !== "/") {
     let utility = rest.slice(0, arbStart);
     // The utility-prefix dash that introduces the arbitrary value is not part
     // of the utility name (`bg-[#fff]` -> utility `bg`, not `bg-`).
     if (utility.endsWith("-")) utility = utility.slice(0, -1);
     const arbitrary = rest.slice(arbStart + 1, -1);
     if (utility.length === 0 || arbitrary.length === 0) return null;
-    return { utility, arbitrary, negative };
+    return withOpacity({ utility, arbitrary, negative });
   }
 
   if (BARE_UTILITIES.has(rest)) {
-    return { utility: rest, negative };
+    return withOpacity({ utility: rest, negative });
   }
 
   for (const prefix of MULTI_WORD_PREFIXES) {
     if (rest.startsWith(`${prefix}-`)) {
       const value = rest.slice(prefix.length + 1);
       if (value.length === 0) return null;
-      return { utility: prefix, value, negative };
+      return withOpacity({ utility: prefix, value, negative });
     }
   }
 
   const dashIdx = rest.indexOf("-");
   if (dashIdx <= 0) {
-    return { utility: rest, negative };
+    return withOpacity({ utility: rest, negative });
   }
   const utility = rest.slice(0, dashIdx);
   const value = rest.slice(dashIdx + 1);
   if (utility.length === 0 || value.length === 0) return null;
-  return { utility, value, negative };
+  return withOpacity({ utility, value, negative });
 };
 
 /**

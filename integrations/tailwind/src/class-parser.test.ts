@@ -137,6 +137,50 @@ describe("parseClassName — arbitrary values", () => {
   });
 });
 
+describe("parseClassName — opacity modifier (v4 / v3.3+ syntax)", () => {
+  it("extracts a numeric opacity modifier from a color utility (bg-red-500/50)", () => {
+    const parsed = parseClassName("bg-red-500/50");
+    expect(parsed?.utility).toBe("bg");
+    expect(parsed?.opacity).toBe("50");
+    // Value RETAINS the /opacity suffix (consumers strip it for color utilities).
+    expect(parsed?.value).toBe("red-500/50");
+  });
+
+  it("extracts a bracket-arbitrary opacity modifier (bg-red-500/[0.33])", () => {
+    const parsed = parseClassName("bg-red-500/[0.33]");
+    expect(parsed?.opacity).toBe("0.33");
+    expect(parsed?.value).toBe("red-500/[0.33]");
+  });
+
+  it("preserves opacity under a variant chain (md:hover:bg-brand/75)", () => {
+    const parsed = parseClassName("md:hover:bg-brand/75");
+    expect(parsed?.variants).toEqual(["md", "hover"]);
+    expect(parsed?.utility).toBe("bg");
+    expect(parsed?.opacity).toBe("75");
+  });
+
+  it("does NOT strip opacity from value — fraction utilities keep w-1/2 intact", () => {
+    const parsed = parseClassName("w-1/2");
+    expect(parsed?.utility).toBe("w");
+    expect(parsed?.value).toBe("1/2");
+    // The structural opacity field is "2" (the tail after the last depth-0 /),
+    // but consumers ignore it for non-opacity-capable utilities.
+    expect(parsed?.opacity).toBe("2");
+  });
+
+  it("ignores a slash inside brackets (bg-[url(/img.png)] has no opacity)", () => {
+    const parsed = parseClassName("bg-[url(/img.png)]");
+    expect(parsed?.utility).toBe("bg");
+    expect(parsed?.arbitrary).toBe("url(/img.png)");
+    expect(parsed?.opacity).toBeUndefined();
+  });
+
+  it("returns no opacity when there is no slash", () => {
+    const parsed = parseClassName("gap-2");
+    expect(parsed?.opacity).toBeUndefined();
+  });
+});
+
 describe("parseClassName — malformed / non-tailwind input", () => {
   it("returns null for an empty string", () => {
     expect(parseClassName("")).toBeNull();

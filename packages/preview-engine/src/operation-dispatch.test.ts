@@ -6,6 +6,7 @@
  */
 
 import type { Operation } from "@vision-control/change-ir";
+import { computeInverse } from "@vision-control/change-ir";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   childTexts,
@@ -378,6 +379,43 @@ describe("preview-engine operation dispatch", () => {
       manager.clearAll();
       expect(manager.stylesheet.ruleCount()).toBe(0);
       expect(manager.activeCount).toBe(0);
+    });
+
+    it("rollback removes the injected pseudoPreviewSelector rule (no preview leak)", () => {
+      const { manager, dom } = setup();
+      regDiv(dom, "rt-pseu0005");
+
+      const selector = '[data-vc-preview-id="rt-pseu0005"]::before';
+      const rollback = manager.applyOperation(
+        makePseudoStyleEdit("rt-pseu0005", "::before", "content", '"LEAK"'),
+      );
+      expect(manager.stylesheet.hasRule(selector)).toBe(true);
+      let style = document.querySelector("style[data-vc-preview-stylesheet]");
+      expect(style?.textContent ?? "").toContain(selector);
+
+      rollback();
+
+      expect(manager.stylesheet.hasRule(selector)).toBe(false);
+      style = document.querySelector("style[data-vc-preview-stylesheet]");
+      expect(style?.textContent ?? "").not.toContain(selector);
+    });
+
+    it("computeInverse round-trips: the inverse pseudo-style-edit re-dispatches and updates the rule to the previous value", () => {
+      const { manager, dom } = setup();
+      regDiv(dom, "rt-pseu0006");
+      const forward = makePseudoStyleEdit("rt-pseu0006", "::after", "color", "red", "blue");
+
+      manager.applyOperation(forward);
+      let style = document.querySelector("style[data-vc-preview-stylesheet]");
+      expect(style?.textContent ?? "").toContain("red");
+
+      const inverse = computeInverse(forward);
+      expect(inverse.kind).toBe("pseudo-style-edit");
+      manager.applyOperation(inverse);
+
+      style = document.querySelector("style[data-vc-preview-stylesheet]");
+      expect(style?.textContent ?? "").toContain("blue");
+      expect(style?.textContent ?? "").not.toContain("red");
     });
   });
 

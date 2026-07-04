@@ -124,6 +124,28 @@ export const buildPseudoElementEdit = (input: PseudoElementEdit): PseudoElementE
   PseudoElementEditSchema.parse(input);
 
 /**
+ * Daemon-facing pseudo-element edit descriptor: the validated edit, its preview
+ * selector, and the resolved source origin (null when no rule was located — the
+ * agent-required case). Node-only: the browser side produces `pseudo-style-edit`
+ * change-ir ops directly and never imports this (boundary checker enforces it).
+ */
+export interface PseudoElementEditRequest {
+  readonly edit: PseudoElementEdit;
+  readonly previewSelector: string;
+  readonly origin: SourceCandidate | null;
+}
+
+export const resolvePseudoElementEdit = (
+  input: PseudoElementEdit,
+  rule?: PseudoElementRule,
+): PseudoElementEditRequest => {
+  const edit = buildPseudoElementEdit(input);
+  const previewSelector = pseudoPreviewSelector(edit.runtimeId, edit.pseudoClass);
+  const origin = rule !== undefined ? resolvePseudoElementOrigin(rule) : null;
+  return { edit, previewSelector, origin };
+};
+
+/**
  * Build the preview CSS selector for a pseudo-element/state edit. The host
  * element is targeted by its preview-id attribute; the pseudo class appends.
  * E.g. `rt-001` + `::before` -> `[data-vc-preview-id="rt-001"]::before`.

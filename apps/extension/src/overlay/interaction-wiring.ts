@@ -46,6 +46,7 @@ import {
   createResizeController,
   type SelectedElementContext,
 } from "../components/interaction/ResizeController.js";
+import { createGridDragController, type GridDragController } from "./grid-drag-controller.js";
 import { createGroupMoveRouter, type GroupMoveRouter } from "./group-move-router.js";
 import type { OverlayRuntimeBus } from "./overlay-runtime.js";
 
@@ -75,6 +76,7 @@ export interface InteractionControllers {
   readonly resize: ReturnType<typeof createResizeController>;
   readonly reparent: ReparentController;
   readonly groupMove: GroupMoveRouter;
+  readonly gridDrag: GridDragController;
   readonly attach: () => void;
   readonly detach: () => void;
   readonly onSelectionChange: (context: SelectionContext | null) => void;
@@ -147,6 +149,13 @@ export function createInteractionControllers(
     groupMove.setGroup(message.payload as MultiSelectGroup);
   });
 
+  // Grid-drag router (plan task 4): routes a CSS-Grid drag to
+  // reorder.reorderGrid, which resolves the visual goal through resolveGridIntent
+  // (dom-order vs grid-area) and records a grid-reorder op. Defaults
+  // userChoice "unset" -> grid-area (never a silent DOM-order rewrite); the
+  // reading-order a11y warning is surfaced via the onDiagnostic callback below.
+  const gridDrag = createGridDragController({ reorder });
+
   const onSelectionChange = (context: SelectionContext | null): void => {
     reorder.setSelectedElement(context?.element ?? null);
     if (context === null) {
@@ -181,6 +190,7 @@ export function createInteractionControllers(
     resize,
     reparent,
     groupMove,
+    gridDrag,
     attach,
     detach,
     onSelectionChange,

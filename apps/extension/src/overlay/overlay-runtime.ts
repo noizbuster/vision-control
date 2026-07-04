@@ -31,6 +31,10 @@ import {
 import type { BusMessage, BusMessageHandler, BusRoute, MessageBus } from "../messaging/index.js";
 import { type BreakpointController, createBreakpointController } from "./breakpoint-controller.js";
 import {
+  createGridPlacementController,
+  type GridPlacementController,
+} from "./grid-placement-controller.js";
+import {
   buildSelectionContext,
   createInteractionControllers,
   type InteractionControllers,
@@ -125,8 +129,15 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     });
   }
 
+  // Grid-placement emission (plan task 4): on selection of a grid child,
+  // derive the track geometry + cell via inferGridCells and publish
+  // grid-placement so the useGridPlacement hook fills the InspectorPanel grid
+  // slot. Non-grid selections publish nothing (no crash).
+  const gridPlacement: GridPlacementController = createGridPlacementController({ bus });
+
   const notifySelection = (target: Element): void => {
     controllers?.onSelectionChange(buildSelectionContext(target));
+    gridPlacement.onSelection(target);
   };
 
   // Multi-select (PRD §9.1): shift+click toggles membership; a marquee drag in
@@ -257,6 +268,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     stop();
     controllers?.dispose();
     controllers = null;
+    gridPlacement.dispose();
     multiSelect.dispose();
     breakpoint.dispose();
     inspector.dispose();

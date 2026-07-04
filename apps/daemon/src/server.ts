@@ -25,7 +25,7 @@ import type { SessionRow } from "@vision-control/storage";
 import { runMigrations } from "@vision-control/storage";
 import type Database from "better-sqlite3";
 import { type WebSocket, WebSocketServer } from "ws";
-import type { SelectionStore } from "./business-handlers.js";
+import type { PageSessionStore, SelectionStore } from "./business-handlers.js";
 import { createDaemonMcpAdapters } from "./mcp-adapters.js";
 import type { SourcePipeline } from "./source-pipeline.js";
 
@@ -74,6 +74,12 @@ export interface DaemonServerOptions {
    * surfaces the element id from the most recent §25.1.4 `selection.changed`.
    */
   readonly selectionStore?: SelectionStore;
+  /**
+   * Per-session page-session state (plan task 7). When set, the context-compiler
+   * adapter derives the active breakpoint from the session's reported viewport
+   * label so the compiled agent context carries a `breakpoint` section.
+   */
+  readonly pageSessionStore?: PageSessionStore;
   /**
    * Server→client dispatch port for MCP coordination signals. When set, the
    * `vision_request_verification` / `vision_clear_preview` tools emit the
@@ -235,6 +241,9 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
             workspaceRoot: options.workspaceRoot,
             logger: options.logger,
           }
+        : {}),
+      ...(options.pageSessionStore !== undefined
+        ? { pageSessionStore: options.pageSessionStore }
         : {}),
       ...(options.redactionConfig !== undefined
         ? { redactionConfig: options.redactionConfig }

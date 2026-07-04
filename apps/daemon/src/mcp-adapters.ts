@@ -35,6 +35,8 @@ import type {
 import type { SourceRegistry } from "@vision-control/source-registry";
 import type { SourceResolver, TokenRegistry } from "@vision-control/source-resolver";
 import { createPlan } from "@vision-control/verification-engine";
+import { resolvePageSessionBreakpoint } from "./breakpoint-section.js";
+import type { PageSessionStore } from "./business-handlers.js";
 import { compileTokenRegistrySection } from "./token-registry-builder.js";
 
 export interface McpAdapterDeps {
@@ -51,6 +53,14 @@ export interface McpAdapterDeps {
    * warnings. An empty registry omits the section (no false success output).
    */
   readonly tokenRegistry?: TokenRegistry;
+  /**
+   * Per-session page-session state (plan task 7). When present and the active
+   * session has reported a viewport + active breakpoint, its `activeBreakpoint`
+   * label is derived into the compiled context's `breakpoint` section
+   * (VC-V1V2-10). When absent or the session has no breakpoint, the section is
+   * omitted (the daemon never invents a breakpoint from a pixel width).
+   */
+  readonly pageSessionStore?: PageSessionStore;
   readonly workspaceRoot?: string;
   readonly logger?: Logger;
   /**
@@ -273,12 +283,14 @@ export function createDaemonMcpAdapters(deps: McpAdapterDeps): DaemonMcpDepsServ
             })
           : [];
       const tokenSection = compileTokenRegistrySection(deps.tokenRegistry);
+      const breakpoint = resolvePageSessionBreakpoint(deps.pageSessionStore?.get(sessionId));
       const compiled = compileContext({
         goal: "Resolve the selected element's source and verify the pending changeset.",
         selection: minimalSelectionSummary(selection),
         changeset: { operations: [], id: "daemon", version: "2.0.0", revision: 0 } as never,
         sourceCandidates: candidates,
         warnings: tokenSection.warnings,
+        ...(breakpoint !== undefined ? { breakpoint } : {}),
         ...(tokenSection.tokenRegistry !== undefined
           ? {
               tokenRegistry: {

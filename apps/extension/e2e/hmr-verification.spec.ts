@@ -17,6 +17,14 @@ import {
  * changes, and verifies the verification-engine assertion functions produce
  * the correct pass/fail verdicts. The preview-clear anti-cheat is verified
  * through the browser's computed-style behavior.
+ *
+ * NOTE: These tests apply DOM-equivalent changes via `page.evaluate` to verify
+ * the assertion logic. The REAL Vite HMR demo loop (actual source-file write →
+ * Vite HMR socket → post-HMR DOM verification, PRD §42 steps 10-12) lives in
+ * `apps/playground-react-vite/e2e/hmr-demo.spec.ts`. That spec applies a real
+ * source patch through the codemod CLI (`applySuggestion` with `confirm: true`),
+ * waits for a real Vite HMR reload, and derives the verdict from the post-HMR
+ * DOM — not a simulated swap.
  */
 
 const expectedPatch: StyleEditOperation = {

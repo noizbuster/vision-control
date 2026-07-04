@@ -46,19 +46,41 @@ Four WXT contexts (one MessageBus each, filename-discovered):
 - **Panel messages carry `tabId`.** Dropped at the permission check otherwise.
 - **Cross-origin frames are opaque.** Never receive edit messages. `frame-discovery` marks them `routeable: false`.
 - **Loopback only.** `host_permissions` and content-script matches are `localhost` / `127.0.0.1` / `[::1]`. No `<all_urls>`. See [ADR-007](../../docs/adr/ADR-007-loopback-daemon.md), [ADR-016](../../docs/adr/ADR-016-firefox-support-level.md).
-- **InspectorPanel slots are additive.** V1V2 panels render only when their slot prop is passed. App.tsx passes none yet. The gap is intentional, not broken.
+- **InspectorPanel slots are additive.** V1V2 panels render only when their slot
+  prop carries data (the additive-slot contract). The **emission side is wired**
+  (v0.2.0): the content runtime publishes the messages the panel hooks already
+  subscribe to — `multi-select-group` (`overlay/multi-select-controller.ts`),
+  `grid-placement` (`overlay/grid-placement-controller.ts`), the daemon-fed
+  `component-props` response (`hooks/useComponentProps.ts`), and the
+  `activeBreakpoint` enrichment on the selection summary
+  (`overlay/breakpoint-controller.ts`). A panel renders on data arrival, never on
+  a hard-wired unconditional mount. The slot prop is the rendering gate; the bus
+  message is the wiring surface.
 - **Controllers are pure TS, not React.** They bind to DOM in the content context, outside React's tree.
 - **WXT entrypoints are filename-discovered.** No manual registration. `.wxt/` is generated; do not edit or commit it.
 - **Manifest permission changes need a written rationale** in the PR.
 
 ## ANTI-PATTERNS
 
-- Do not hard-wire V1V2 panels in App.tsx. The additive-slot contract lets features land behind ADR gates, not in a wiring rush.
+- Do not hard-wire a panel mount unconditionally in App.tsx. The additive-slot
+  contract is the rendering gate: a panel renders only when its slot prop carries
+  data. Wire the **emission side** — publish the bus message the panel hook
+  subscribes to (`overlay/*-controller.ts`), so the data arrives and the panel
+  mounts. Never short-circuit the slot by mounting a panel independent of data
+  arrival.
 - Do not import the daemon client from panel or content context. Panel talks to background; background talks to the daemon.
 - Do not add a second router. One `MessageRouter` in `background.ts`; the permission layer assumes it.
 - Do not turn interaction controllers into React components. They own pointer / DOM lifecycle outside React.
 - Do not edit anything under `.wxt/`. Regenerate with `pnpm nx run extension:build`.
-- Do not treat `test.fixme` stubs in `e2e/*.spec.ts` as green coverage. They are V1V2 placeholders; `pnpm playwright install chromium` then run them for real status.
+- Do not treat `test.fixme` stubs in `e2e/*.spec.ts` as green coverage. As of
+  v0.2.0 the PRD §31.5 specs (reorder, reparent, resize, undo-redo, edit) are
+  real browser-driven e2e; multi-select has 2 real content-runtime tests; the
+  remaining fixme stubs (group-move, css-grid, alignment, auto-layout) are
+  blocked by the panel-automation harness and carry an explicit
+  `// OUT: panel-context` rationale (see
+  [docs/known-limitations.md](../../docs/known-limitations.md)). Run
+  `pnpm playwright install chromium` then `pnpm nx run extension:e2e` for real
+  status.
 - Do not couple the panel directly to `@vision-control/daemon-client`. The permission layer enforces the split.
 
 ## Verification

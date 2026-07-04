@@ -95,10 +95,11 @@ accessibility repair, collaboration share bundles). What works:
 - **CLI** — `daemon`, `status`, `sessions`, `context`, `changes`, `verify`,
   `preview`, and `doctor`.
 
-Explicitly deferred to V1/V2: multi-select, group move, Auto Layout, CSS Grid
-reorder, Tailwind token-aware editing, CSS Modules mapping, Next.js/Vue/Svelte,
-collaboration, Firefox, direct codemod, and a mandatory `chrome.debugger`. See
-[Vision-Control-PRD.md](./Vision-Control-PRD.md) sections 7.2 and 7.3.
+Explicitly deferred past v0.2.0: Firefox parity beyond the manifest-validated
+matrix, remote real-time collaboration, automated accessibility repair beyond
+advisory suggestions, and a mandatory `chrome.debugger`. See
+[Vision-Control-PRD.md](./Vision-Control-PRD.md) sections 7.2 and 7.3 and
+[docs/known-limitations.md](./docs/known-limitations.md).
 
 For the full feature list and limitations, see
 [docs/feature-matrix.md](./docs/feature-matrix.md) and
@@ -185,7 +186,8 @@ conventions, the package generator, and the PR checklist.
 
 If you are an AI coding agent working in this repo, read
 [AGENTS.md](./AGENTS.md) first. It covers the hard guardrails: no source-mutating
-MCP tools, no production source markers, no V1 features beyond stubs.
+MCP tools, no production source markers, and the v0.2.0 scope boundaries (V1/V2
+features that shipped vs. what stays deferred behind ADR gates).
 
 ## Troubleshooting and docs
 

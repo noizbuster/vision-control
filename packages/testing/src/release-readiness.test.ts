@@ -25,7 +25,11 @@ import { describe, expect, it } from "vitest";
  *   - every packages/* project.json defines package+publish targets (Task 44),
  *   - every test.fixme in PRD §31.5 e2e specs carries an OUT rationale (Task 41),
  *   - the removed verification-plan constant is absent from all source (Task 33),
- *   - vanilla-css graduated from the V1 not-implemented stub list (Task 45).
+ *   - vanilla-css graduated from the V1 not-implemented stub list (Task 45),
+ *   - every wired V1 editing feature has a real (non-fixme) browser-driven e2e
+ *     OR a documented harness-blocker rationale (v0.2.0 honesty gate — a feature
+ *     cannot pass on stub rationale alone; the blocker must be traceable to
+ *     docs/known-limitations.md).
  *
  * Green here means "structurally releasable"; the command-level proof lives in
  * the evidence file.
@@ -310,6 +314,109 @@ describe("release readiness: e2e stub discipline (Task 41 / PRD §31.5)", () => 
 
 // Concatenation so this source holds no literal forbidden token (Task 33).
 const REMOVED_PLAN_TOKEN = "STUB_" + "VERIFICATION_" + "PLAN";
+
+/**
+ * Wired V1 editing features with dedicated extension browser-e2e specs (the W2
+ * plan wired their content-runtime emission). Each MUST carry at least one real
+ * (non-`test.fixme`) browser-driven test in its `@… browser` describe block, OR
+ * be registered in {@link HARNESS_BLOCKED_FEATURES} with a documented limitation.
+ * This stops the gate passing on stub rationale alone.
+ */
+const WIRED_V1_BROWSER_SPECS: readonly {
+  readonly feature: string;
+  readonly spec: string;
+}[] = [
+  { feature: "multi-select", spec: "multi-select.spec.ts" },
+  { feature: "group-move", spec: "group-move.spec.ts" },
+  { feature: "css-grid-edit", spec: "css-grid-edit.spec.ts" },
+  { feature: "alignment-distribution", spec: "alignment-distribution.spec.ts" },
+  { feature: "auto-layout", spec: "auto-layout.spec.ts" },
+];
+
+/**
+ * Features whose browser-driven e2e is blocked by the panel-automation harness
+ * limitation. The DevTools panel is not reachable as a Playwright page target
+ * (`--auto-open-devtools-for-tabs` exposes only the frontend, not the panel),
+ * and Move/panel modes have no keyboard shortcut. Each entry MUST be documented
+ * in `docs/known-limitations.md` (with its spec cited) or the gate fails — a
+ * blocker cannot be asserted without a written, traceable limitation.
+ */
+const HARNESS_BLOCKED_FEATURES = new Set([
+  "group-move",
+  "css-grid-edit",
+  "alignment-distribution",
+  "auto-layout",
+]);
+
+/**
+ * Count non-`test.fixme` `test(` calls inside a `@… browser` describe block.
+ * Tracks the innermost `test.describe(` name; a `test(` counts only while that
+ * name includes "browser". These specs are flat (one level of describe), so the
+ * innermost-name heuristic is exact.
+ */
+function countNonFixmeBrowserTests(source: string): number {
+  let currentDescribe = "";
+  let count = 0;
+  for (const line of source.split("\n")) {
+    const describeMatch = line.match(/test\.describe\(\s*["']([^"']*)["']/);
+    if (describeMatch && describeMatch[1] !== undefined) {
+      currentDescribe = describeMatch[1];
+      continue;
+    }
+    if (currentDescribe.includes("browser") && line.includes("test(")) {
+      // `test.fixme(` / `test.describe(` / `test.step(` do not contain the
+      // literal substring "test(" (the char after "test" is ".", not "(").
+      count++;
+    }
+  }
+  return count;
+}
+
+describe("release readiness: wired V1 feature browser-e2e honesty gate", () => {
+  it("every wired V1 editing feature has a real browser e2e OR a documented blocker", () => {
+    const e2eDir = path.join(repoRoot, "apps", "extension", "e2e");
+    const failures: string[] = [];
+    for (const { feature, spec } of WIRED_V1_BROWSER_SPECS) {
+      const specPath = path.join(e2eDir, spec);
+      if (!existsSync(specPath)) {
+        failures.push(`${feature}: spec ${spec} missing`);
+        continue;
+      }
+      const realCount = countNonFixmeBrowserTests(readFileSync(specPath, "utf8"));
+      if (realCount > 0) continue;
+      if (!HARNESS_BLOCKED_FEATURES.has(feature)) {
+        failures.push(
+          `${feature}: 0 real browser tests in ${spec} and no documented blocker — stub rationale alone is insufficient`,
+        );
+      }
+    }
+    expect(
+      failures,
+      `wired V1 features must have a real browser e2e or a documented blocker:\n${failures.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("every harness-blocked feature is documented in known-limitations.md", () => {
+    const limitations = readFileSync(path.join(repoRoot, "docs", "known-limitations.md"), "utf8");
+    expect(
+      limitations,
+      "known-limitations.md must document the panel-automation harness blocker",
+    ).toContain("panel-automation");
+    const failures: string[] = [];
+    for (const { feature, spec } of WIRED_V1_BROWSER_SPECS) {
+      if (!HARNESS_BLOCKED_FEATURES.has(feature)) continue;
+      if (!limitations.includes(spec)) {
+        failures.push(
+          `${feature}: blocker not traceable — ${spec} not cited in known-limitations.md`,
+        );
+      }
+    }
+    expect(
+      failures,
+      `blocked features must cite their spec in known-limitations.md:\n${failures.join("\n")}`,
+    ).toEqual([]);
+  });
+});
 
 describe("release readiness: removed plan token is absent (Task 33)", () => {
   it("no source file re-introduces the removed verification-plan constant", () => {

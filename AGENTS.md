@@ -74,11 +74,22 @@ These are hard guardrails. Violating them breaks the project contract.
   [docs/agents/security-privacy.md](./docs/agents/security-privacy.md).
 - **Do not require `chrome.debugger`.** The extension works without the debugger
   permission for the MVP scope. It is optional, not mandatory.
-- **Do not implement V1 or V2 features.** The MVP scope is fixed. Multi-select,
-  group move, Auto Layout, CSS Grid reorder, Tailwind token-aware editing, CSS
-  Modules mapping, Next.js, Vue, Svelte, collaboration, Firefox, direct codemod,
-  and mandatory `chrome.debugger` are all out of scope. See PRD section 7.2 and
-  7.3.
+- **Do not implement features still deferred past v0.2.0.** The V1/V2 scope
+  shipped in [v0.2.0](./docs/release-notes-v0.2.0.md) (multi-select, group move,
+  Auto Layout, CSS Grid reorder, Tailwind token-aware editing incl. v4 `@theme`,
+  CSS Modules mapping, Next.js incl. Turbopack, Vue, Svelte, component-props,
+  pseudo-element editing, breakpoints, direct codemod CLI) is **in scope** — see
+  the [feature matrix](./docs/feature-matrix.md). The following remain
+  **forbidden** until their ADR gate is satisfied:
+  - **Firefox browser-driven parity** beyond the manifest-validated matrix
+    (ADR-016). The Chromium (MV3) build is the primary target.
+  - **Remote real-time collaboration** — no relay, cloud sync, or transport
+    (ADR-018). Only local share bundles ship (ADR-015).
+  - **A source-mutating MCP tool.** The direct codemod is a local CLI/agent
+    action (`vision-control codemod`, ADR-014); it must never become an MCP tool.
+    See the read-only MCP bullet above and [docs/agents/mcp-policy.md](./docs/agents/mcp-policy.md).
+  - **Mandatory `chrome.debugger`.** It stays `optional_permissions`; the
+    extension works without it.
 - **Do not treat runtime preview mutation as a source change.** Visual edits
   live in the preview layer until an agent or human applies a real patch.
 - **Do not auto-convert normal-flow drag to absolute positioning.** This is PRD

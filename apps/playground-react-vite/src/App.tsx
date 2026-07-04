@@ -5,6 +5,7 @@ import { ConditionalClass } from "./fixtures/ConditionalClass.js";
 import { CrossOriginIframe } from "./fixtures/CrossOriginIframe.js";
 import { CssGridCase } from "./fixtures/CssGridCase.js";
 import { CssModulesCase } from "./fixtures/CssModulesCase.js";
+import { HmrDemo } from "./fixtures/HmrDemo.js";
 import { IdenticalButtons } from "./fixtures/IdenticalButtons.js";
 import { MvpBoard } from "./fixtures/MvpBoard.js";
 import { NestedLayout } from "./fixtures/NestedLayout.js";
@@ -55,6 +56,7 @@ const ROUTES: RouteDefinition[] = [
     label: "Responsive Breakpoints",
     component: ResponsiveBreakpoints,
   },
+  { path: "/hmr-demo", label: "HMR Demo", component: HmrDemo },
 ];
 
 function Nav(): ReactElement {

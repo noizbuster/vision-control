@@ -47,6 +47,7 @@ const ROUTES: readonly RouteSpec[] = [
   { path: "/css-modules", label: "CSS Modules", selector: "main" },
   { path: "/css-grid", label: "CSS Grid", selector: "main" },
   { path: "/responsive-breakpoints", label: "Responsive Breakpoints", selector: "main" },
+  { path: "/hmr-demo", label: "HMR Demo", selector: "main" },
 ];
 
 /**
@@ -69,7 +70,7 @@ function collectErrors(page: Page): () => readonly string[] {
 
 test.describe("@fixture-health", () => {
   test("all 20 fixture routes are defined", () => {
-    expect(ROUTES.length).toBe(20);
+    expect(ROUTES.length).toBe(21);
     const paths = ROUTES.map((r) => r.path);
     const unique = new Set(paths);
     expect(unique.size).toBe(paths.length);
@@ -153,6 +154,6 @@ test.describe("@fixture-health", () => {
   test("nav bar lists all 20 routes", async ({ page }) => {
     await page.goto("/");
     const navLinks = page.locator("nav a");
-    await expect(navLinks).toHaveCount(20);
+    await expect(navLinks).toHaveCount(21);
   });
 });

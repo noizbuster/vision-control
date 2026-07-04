@@ -41,14 +41,50 @@ v0.2.0 does **not** claim automated accessibility repair. A preview that "looks
 fixed" is not evidence; the verification assertion must run against the actual
 source after HMR.
 
-## V1: Turbopack marker injection (diagnostic-only)
+## V1: Panel-bound features (browser-driven e2e blocked by panel-automation harness)
 
-The Next.js integration injects dev-only source markers via a **webpack** loader.
-Turbopack does not expose an equivalent dev-only transform hook in this repo's
-supported Next.js version, so Turbopack dev runs produce a diagnostic indicating
-that source-marker resolution is unavailable. The webpack path (the default for
-`next dev` without `--turbo`) is fully supported. Production builds are always
-untouched regardless of bundler.
+The V1 panel-bound editing features — group move (reorder/reparent), CSS Grid
+reorder/span, alignment + distribution, and Auto Layout (Hug/Fill/Fixed) — are
+**fully wired into the content runtime and unit-tested end-to-end**, but their
+user-visible flows cannot be driven through a real Playwright browser e2e today.
+The blocking reasons are properties of the verification harness, not of the
+implementation:
+
+- The Playwright overlay harness loads the built extension's content runtime +
+  overlay only. It does **not** open the DevTools panel. Chromium's
+  `--auto-open-devtools-for-tabs` flag opens the DevTools frontend in a separate
+  App-section target that `context.pages()` does not expose, so the panel DOM is
+  not reachable from a Playwright page handle.
+- Interaction modes (Move, Resize) and panel commands (alignment, grid
+  placement, Auto Layout) are reachable **only** through the DevTools panel
+  toolbar (`editor.actions.setMode` / panel button `onClick`). There is no
+  content-side bus handler and no keyboard shortcut that switches the interaction
+  mode. So a drag in the page produces no reorder/group/grid effect without the
+  panel.
+- The operations these features emit (`group-reorder`, `group-reparent`,
+  `grid-reorder`, `grid-span`, alignment intents, `set-container-layout`) record
+  to the change journal, which lives in the DevTools panel context.
+
+Consequence: the browser-driven e2e specs for these features —
+`apps/extension/e2e/group-move.spec.ts`,
+`apps/extension/e2e/css-grid-edit.spec.ts`,
+`apps/extension/e2e/alignment-distribution.spec.ts`, and
+`apps/extension/e2e/auto-layout.spec.ts` — carry their scenarios as
+`test.fixme` with an explicit `// OUT: panel-context` rationale. The full
+classify → build-op → `computeInverse` chain for each feature IS exercised by
+the `@... unit` describe blocks in those same spec files, and the emission-side
+wiring is covered by extension unit/integration tests.
+
+This is a **verification follow-up**, not an implementation gap. Multi-select is
+the one V1 editing feature with partial browser e2e: shift+click and marquee
+produce observable content-runtime effects (a `vc-multi-` preview id and a
+`.vc-marquee-rect` overlay element) and have 2 real (non-fixme) browser tests in
+`apps/extension/e2e/multi-select.spec.ts`; its panel-bound scenarios (member/group
+outlines, cross-frame/closed-shadow diagnostics) are also `test.fixme`.
+
+A future task that either (a) drives the panel via the Chrome DevTools Protocol
+`Runtime.evaluate` against the panel target, or (b) adds a content-side keyboard
+shortcut for Move mode, would unblock these specs. Neither is in v0.2.0 scope.
 
 ## V1: Dynamic CSS-in-JS class resolution (agent-required)
 
@@ -64,17 +100,22 @@ v0.2.0 does **not** claim HIGH confidence for runtime-generated CSS-in-JS
 classes. An agent must resolve dynamic styles; the never-wrong-HIGH policy
 enforces this structurally.
 
-## V1: Tailwind v4 theme variable resolution (seam only)
+## V1: Tailwind v4 dynamic spacing scale
 
-The Tailwind adapter parses v3 configs. A v4-ready seam
-(`TailwindV4ThemeRegistry` interface + a no-op default implementation) exists so
-a future task can wire real v4 theme-variable resolution without an adapter
-rewrite. v4 `@theme` variable resolution is **not** implemented in v0.2.0.
+The Tailwind v4 `@theme` parser (plan tasks 11–12) parses **explicit** `@theme`
+custom-property declarations (`--color-*`, `--spacing-*`, `--font-*`,
+`--text-*`). v4's dynamic spacing scale — a single `--spacing` base multiplier
+from which the synthesised `--spacing-N` scale is derived (`gap-2` →
+`calc(var(--spacing) * 2)`) — is **not** synthesised by the parser. A workspace
+that declares only `@theme { --spacing: 0.25rem; }` (no explicit `--spacing-N`)
+gets an empty v4 spacing registry from the parser; standard utilities (`gap-2`)
+still resolve via the baked-in v3 default scale. The narrow `TokenCategory` set
+also means `--radius-*`, `--shadow-*`, `--leading-*`, and `--font-weight-*`
+namespaces are recognised-but-skipped (those tokens reach the unified registry
+via plain CSS custom-property extraction, not the v4 parser).
 
 ## Carry-over from v0.1.0
 
-- CSS class-token scanning is line-based; multi-line selectors ending in `,`
-  before the brace may under-capture.
 - This is a local development tool; no packages are published to a registry and
   the extension is not on a browser store.
 - Screenshots are opt-in only; default context exports exclude screenshots

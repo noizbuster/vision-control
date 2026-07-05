@@ -3,8 +3,9 @@ import type { BackgroundDefinition } from "wxt";
 import { defineBackground } from "wxt/utils/define-background";
 import { handleFrameHello } from "../src/background-frame-hello.js";
 import { createBackgroundTabLifecycle } from "../src/background-tab-lifecycle.js";
+import { refreshHostAccess } from "../src/host-access-refresh.js";
 import { isAllowedUrl, STORAGE_KEY } from "../src/host-allowlist.js";
-import { HostAllowlistCache, reconcileHostsWithPermissions } from "../src/host-allowlist-sync.js";
+import { HostAllowlistCache } from "../src/host-allowlist-sync.js";
 import {
   createBackgroundBus,
   createChromeRouterTransport,
@@ -58,6 +59,13 @@ const background: BackgroundDefinition = defineBackground(() => {
     discoverFrames: (tabId) => discoverFrames(tabId, createWebNavigationFrameProvider()),
   });
 
+  function refreshOpenTabHostAccess(context: string): void {
+    void refreshHostAccess({
+      hostAllowlist,
+      injectOpenTabs: tabLifecycle.injectOpenTabs,
+    }).catch(reportBackgroundError(context));
+  }
+
   void hostAllowlist
     .initialize()
     .then(() => tabLifecycle.injectOpenTabs())
@@ -66,21 +74,14 @@ const background: BackgroundDefinition = defineBackground(() => {
   if (typeof chrome !== "undefined") {
     chrome.storage.onChanged?.addListener((changes, area) => {
       if (area === "local" && STORAGE_KEY in changes) {
-        void hostAllowlist
-          .sync()
-          .then(() => tabLifecycle.injectOpenTabs())
-          .catch(reportBackgroundError("host allowlist sync failed"));
+        refreshOpenTabHostAccess("host allowlist sync failed");
       }
     });
     chrome.permissions?.onAdded?.addListener(() => {
-      void reconcileHostsWithPermissions(hostAllowlist)
-        .then(() => tabLifecycle.injectOpenTabs())
-        .catch(reportBackgroundError("host permission sync failed"));
+      refreshOpenTabHostAccess("host permission sync failed");
     });
     chrome.permissions?.onRemoved?.addListener(() => {
-      void reconcileHostsWithPermissions(hostAllowlist)
-        .then(() => tabLifecycle.injectOpenTabs())
-        .catch(reportBackgroundError("host permission reconciliation failed"));
+      refreshOpenTabHostAccess("host permission reconciliation failed");
     });
   }
 
@@ -130,6 +131,10 @@ const background: BackgroundDefinition = defineBackground(() => {
     reconnectManager = undefined;
   });
 
+  backgroundBus.on("host-access-changed", () => {
+    refreshOpenTabHostAccess("host access refresh failed");
+  });
+
   const forwardEditToContent = createEditForwarder({
     store,
     isUrlAllowed: (url) => isAllowedUrl(url, hostAllowlist.getHosts()),
@@ -172,6 +177,7 @@ const background: BackgroundDefinition = defineBackground(() => {
     if (port.name !== "vision-control-panel") {
       return;
     }
+    refreshOpenTabHostAccess("panel host access refresh failed");
     const tabId = port.sender?.tab?.id;
     if (tabId !== undefined) {
       store.setInspected(tabId, true);

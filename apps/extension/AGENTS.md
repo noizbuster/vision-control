@@ -17,7 +17,10 @@ Four WXT contexts (one MessageBus each, filename-discovered):
 - `entrypoints/devtools/main.ts` - registers the panel via `chrome.devtools.panels.create`.
 - `entrypoints/panel/main.tsx` - React panel: inspector, editors, journal, connection state.
 - `entrypoints/background.ts` - service worker. Owns `MessageRouter`, `TabSessionStore`, `ReconnectManager`. Only context that talks to the daemon.
-- `entrypoints/content.ts` - isolated world on loopback pages. Shadow-DOM overlay, picker, hit testing, keyboard nav.
+- `entrypoints/content.ts` - isolated world on loopback pages by static match;
+  non-loopback Site Access hosts are injected by the background service worker
+  after an explicit per-host grant. Shadow-DOM overlay, picker, hit testing,
+  keyboard nav.
 
 `src/` subdomains:
 
@@ -45,7 +48,13 @@ Four WXT contexts (one MessageBus each, filename-discovered):
 - **Panel routes through background, never the daemon.** `daemon:*` messages are rejected from any non-background route. See `context-permissions.ts`.
 - **Panel messages carry `tabId`.** Dropped at the permission check otherwise.
 - **Cross-origin frames are opaque.** Never receive edit messages. `frame-discovery` marks them `routeable: false`.
-- **Loopback only.** `host_permissions` and content-script matches are `localhost` / `127.0.0.1` / `[::1]`. No `<all_urls>`. See [ADR-007](../../docs/adr/ADR-007-loopback-daemon.md), [ADR-016](../../docs/adr/ADR-016-firefox-support-level.md).
+- **Loopback mandatory access only.** `host_permissions` and static content-script
+  matches are `localhost` / `127.0.0.1` / `[::1]`. No `<all_urls>`, no broad
+  mandatory host access, and no automatic wildcard allowlist. Extra local
+  development hosts use the panel's Site Access flow: the user grants an exact
+  per-host optional permission, then the background service worker dynamically
+  injects eligible tabs. See [ADR-007](../../docs/adr/ADR-007-loopback-daemon.md),
+  [ADR-016](../../docs/adr/ADR-016-firefox-support-level.md).
 - **InspectorPanel slots are additive.** V1V2 panels render only when their slot
   prop carries data (the additive-slot contract). The **emission side is wired**
   (v0.2.0): the content runtime publishes the messages the panel hooks already

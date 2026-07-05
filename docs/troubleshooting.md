@@ -67,9 +67,12 @@ package public API (`@vision-control/<name>`).
    `apps/extension/.output/chrome-mv3/`.
 2. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**,
    and select that directory.
-3. Open DevTools on a **loopback** page (`http://localhost:*` / `127.0.0.1`). The
-   host permissions are loopback-only; a page on any other origin cannot be
-   inspected.
+3. Open DevTools on a loopback page (`http://localhost:*` / `127.0.0.1`). The
+   panel appears there with no extra setup. For another local development host,
+   such as `http://subshell:10601/`, open the panel on a loopback page first and
+   grant that host from **Site Access**. The manifest keeps mandatory host
+   permissions loopback-only; non-loopback hosts require an explicit per-host
+   grant before inspection.
 4. If the panel is missing, check `chrome://extensions` for errors logged by the
    service worker or the panel page.
 

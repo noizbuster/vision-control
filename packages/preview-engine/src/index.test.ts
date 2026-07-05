@@ -51,6 +51,26 @@ function registerDiv(dom: PreviewDomAdapter, id: string, text?: string): HTMLEle
   return el;
 }
 
+function installCryptoWithoutRandomUUID(): () => void {
+  const originalCrypto = globalThis.crypto;
+  const cryptoWithoutRandomUuid = {
+    getRandomValues: (bytes: Uint8Array): Uint8Array => {
+      bytes.fill(17);
+      return bytes;
+    },
+  };
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    value: cryptoWithoutRandomUuid,
+  });
+  return () => {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: originalCrypto,
+    });
+  };
+}
+
 function regParentWithChildren(
   dom: PreviewDomAdapter,
   parentId: string,
@@ -86,6 +106,20 @@ describe("preview-engine integration", () => {
       expect(tx.state).toBe("applying");
       tx.apply(makeStyleEdit("rt-target001", "color", "red"));
       expect(tx.state).toBe("applied");
+    });
+
+    it("begins a transaction when crypto.randomUUID is unavailable", () => {
+      const restoreCrypto = installCryptoWithoutRandomUUID();
+      try {
+        const { manager, dom } = setup();
+        registerDiv(dom, "rt-target001");
+
+        const tx = manager.beginTransaction();
+
+        expect(tx.id).toMatch(/^[A-Za-z0-9_-]{8,128}$/);
+      } finally {
+        restoreCrypto();
+      }
     });
 
     it("rollback undoes ALL operations atomically", () => {

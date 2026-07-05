@@ -10,7 +10,7 @@
  * records intent; the preview engine renders the visual effect.
  */
 
-import type { Operation } from "@vision-control/change-ir";
+import { createOperationId, type Operation } from "@vision-control/change-ir";
 
 import {
   applyBreakpointClassEditPreview,
@@ -333,7 +333,7 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
   };
 
   const beginTransaction = (): PreviewTransaction => {
-    return createPreviewTransaction(crypto.randomUUID(), {
+    return createPreviewTransaction(createOperationId(), {
       dispatch: (operation: Operation): RollbackFn => {
         const result = dispatch(operation);
         const entry = trackEntry(result);

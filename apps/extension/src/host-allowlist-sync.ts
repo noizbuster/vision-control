@@ -2,22 +2,22 @@
  * Background-side host-allowlist synchronisation.
  *
  * The `HostAllowlistCache` is the single in-memory source of truth for granted
- * non-loopback hosts. It persists to `chrome.storage.local`, keeps a dynamic
- * content-script registration in sync (`chrome.scripting`), and exposes the
+ * non-loopback hosts. It persists to `chrome.storage.local` and exposes the
  * unified `isAllowedUrl` predicate the background uses to gate tab tracking.
+ *
+ * The actual content-script injection for granted hosts is handled by the
+ * background's `tabs.onUpdated` listener via `chrome.scripting.executeScript`
+ * (on-demand). This replaced an earlier `registerContentScripts` approach that
+ * silently failed to inject on real Chrome for non-loopback hosts.
  *
  * The panel-side permission request (`chrome.permissions.request`) must happen
  * from a user gesture in the panel context. On grant, the panel writes the host
- * to storage; the background picks it up via `storage.onChanged` (or the panel
- * calls `cache.addHost` directly when the background owns the call path).
+ * to storage; the background picks it up via `storage.onChanged`.
  */
 
 import {
-  CONTENT_SCRIPT_PATH,
-  DYNAMIC_SCRIPT_ID,
   hostToOriginPatterns,
   isAllowedUrl as isAllowedUrlPure,
-  isLoopbackHost,
   STORAGE_KEY,
 } from "./host-allowlist.js";
 
@@ -28,13 +28,6 @@ function getStorage(): ChromeStorageArea | undefined {
     return undefined;
   }
   return chrome.storage?.local;
-}
-
-function getScripting(): typeof chrome.scripting | undefined {
-  if (typeof chrome === "undefined") {
-    return undefined;
-  }
-  return chrome.scripting;
 }
 
 export async function readGrantedHosts(): Promise<string[]> {
@@ -58,47 +51,6 @@ export async function writeGrantedHosts(hosts: readonly string[]): Promise<void>
   await storage.set({ [STORAGE_KEY]: [...hosts] });
 }
 
-/**
- * Synchronise the dynamic content-script registration with the granted-host list.
- *
- * Non-loopback hosts are registered dynamically (id `vc-granted-hosts`) so the
- * SAME compiled content script injects on runtime-granted origins. Loopback
- * hosts are excluded — they are already covered by the static manifest
- * `content_scripts.matches` and must not be double-injected.
- *
- * If the granted list is empty, the dynamic script is unregistered (if present)
- * and no new registration is created.
- */
-export async function syncDynamicContentScript(grantedHosts: readonly string[]): Promise<void> {
-  const scripting = getScripting();
-  if (scripting === undefined) {
-    return;
-  }
-
-  await scripting.unregisterContentScripts({ ids: [DYNAMIC_SCRIPT_ID] }).catch(() => {
-    // Script may not be registered yet (first run or after revoke). Ignore.
-  });
-
-  const nonLoopback = grantedHosts.filter((host) => !isLoopbackHost(host));
-  const deduped = [...new Set(nonLoopback)];
-
-  if (deduped.length === 0) {
-    return;
-  }
-
-  const matches = deduped.flatMap((host) => [...hostToOriginPatterns(host)]);
-
-  await scripting.registerContentScripts([
-    {
-      id: DYNAMIC_SCRIPT_ID,
-      matches,
-      js: [CONTENT_SCRIPT_PATH],
-      world: "ISOLATED" as chrome.scripting.ExecutionWorld,
-      runAt: "document_idle",
-    },
-  ]);
-}
-
 export class HostAllowlistCache {
   private hosts: readonly string[] = [];
 
@@ -115,13 +67,12 @@ export class HostAllowlistCache {
   }
 
   /**
-   * Reads the granted-host list from storage and re-syncs the dynamic
-   * content-script registration. Called on startup and on storage/permission
-   * changes. Idempotent — safe to call repeatedly.
+   * Reads the granted-host list from storage and updates the in-memory cache.
+   * Called on startup and on storage/permission changes. Idempotent — safe to
+   * call repeatedly.
    */
   async sync(): Promise<void> {
     this.hosts = await readGrantedHosts();
-    await syncDynamicContentScript(this.hosts);
   }
 
   isAllowedUrl(url: string | undefined): boolean {
@@ -134,7 +85,6 @@ export class HostAllowlistCache {
     }
     this.hosts = [...this.hosts, host];
     await writeGrantedHosts(this.hosts);
-    await syncDynamicContentScript(this.hosts);
   }
 
   async removeHost(host: string): Promise<void> {
@@ -143,7 +93,6 @@ export class HostAllowlistCache {
     }
     this.hosts = this.hosts.filter((h) => h !== host);
     await writeGrantedHosts(this.hosts);
-    await syncDynamicContentScript(this.hosts);
   }
 }
 
@@ -167,6 +116,5 @@ export async function reconcileHostsWithPermissions(cache: HostAllowlistCache): 
   if (filtered.length !== current.length) {
     await writeGrantedHosts(filtered);
     cache.setHosts(filtered);
-    await syncDynamicContentScript(filtered);
   }
 }

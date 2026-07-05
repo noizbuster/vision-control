@@ -2,6 +2,7 @@ import { DaemonClient, parsePairingUrl } from "@vision-control/daemon-client";
 import type { BackgroundDefinition } from "wxt";
 import { defineBackground } from "wxt/utils/define-background";
 import { buildAllowHostPageUrl } from "../src/allow-host-page.js";
+import { injectContentScriptIfNeeded, TabInjectionRegistry } from "../src/content-injection.js";
 import { STORAGE_KEY } from "../src/host-allowlist.js";
 import { HostAllowlistCache, reconcileHostsWithPermissions } from "../src/host-allowlist-sync.js";
 import {
@@ -29,6 +30,7 @@ function broadcastToPanel(message: BusMessage): void {
 
 const background: BackgroundDefinition = defineBackground(() => {
   const hostAllowlist = new HostAllowlistCache();
+  const injectionRegistry = new TabInjectionRegistry();
   void hostAllowlist.initialize();
 
   if (typeof chrome !== "undefined") {
@@ -167,6 +169,13 @@ const background: BackgroundDefinition = defineBackground(() => {
   });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // On new navigation, clear injection state so the new page re-injects if
+    // it's a granted host. Content scripts are destroyed on navigation, so the
+    // marker must be cleared regardless of the new URL.
+    if (changeInfo.status === "loading") {
+      injectionRegistry.clear(tabId);
+    }
+
     if (!hostAllowlist.isAllowedUrl(tab.url)) {
       return;
     }
@@ -175,6 +184,9 @@ const background: BackgroundDefinition = defineBackground(() => {
       return;
     }
     if (changeInfo.status === "complete") {
+      // On-demand injection for granted non-loopback hosts only. Loopback hosts
+      // are covered by the static manifest content_scripts matches.
+      injectContentScriptIfNeeded(tabId, tab.url, hostAllowlist.getHosts(), injectionRegistry);
       store.ensure(tabId);
       void discoverFrames(tabId, createWebNavigationFrameProvider()).then((frames) => {
         store.updateFrameTree(tabId, [...frames]);
@@ -183,6 +195,7 @@ const background: BackgroundDefinition = defineBackground(() => {
   });
 
   chrome.tabs.onRemoved.addListener((tabId) => {
+    injectionRegistry.clear(tabId);
     store.remove(tabId);
   });
 

@@ -16,6 +16,7 @@
  * controller rely on).
  */
 
+import { createOperationId } from "@vision-control/change-ir";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
 import { createMultiSelectGroup, evaluateGroupConstraints } from "@vision-control/editor-core";
 import {
@@ -72,7 +73,7 @@ export function createMultiSelectController(
   const ensurePreviewId = (element: Element): string => {
     const existing = element.getAttribute(PREVIEW_ID_ATTR);
     if (existing !== null) return existing;
-    const id = `vc-multi-${crypto.randomUUID()}`;
+    const id = `vc-multi-${createOperationId()}`;
     element.setAttribute(PREVIEW_ID_ATTR, id);
     return id;
   };
@@ -112,7 +113,7 @@ export function createMultiSelectController(
   const publish = (entries: readonly Entry[]): void => {
     if (entries.length < 2) return;
     const result = createMultiSelectGroup({
-      id: createMultiSelectGroupId(`vc-group-${crypto.randomUUID()}`),
+      id: createMultiSelectGroupId(`vc-group-${createOperationId()}`),
       members: entries.map((entry) => entry.member),
       memberRects: entries.map((entry) => toRect(entry.element)),
       parentChains: entries.map((entry) => buildParentChain(entry.element)),

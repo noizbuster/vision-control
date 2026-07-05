@@ -20,6 +20,7 @@
  * the shared element-identity key by the preview engine and reorder controller.
  */
 
+import { createOperationId } from "@vision-control/change-ir";
 import type { ElementRef } from "@vision-control/element-identity";
 import {
   type GridChildPlacementInput,
@@ -153,7 +154,7 @@ export function createGridPlacementController(
   const ensurePreviewId = (element: Element): string => {
     const existing = element.getAttribute(PREVIEW_ID_ATTR);
     if (existing !== null) return existing;
-    const id = `vc-grid-${crypto.randomUUID()}`;
+    const id = `vc-grid-${createOperationId()}`;
     element.setAttribute(PREVIEW_ID_ATTR, id);
     return id;
   };

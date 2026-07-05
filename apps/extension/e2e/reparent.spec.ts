@@ -10,6 +10,7 @@ import {
   overlayElementInfo,
   pageElementRect,
   serveFixture,
+  setInteractionMode,
 } from "./fixtures/extension-test.ts";
 
 /**
@@ -106,6 +107,18 @@ const NESTED_FIXTURE = fixtureHtml(`
   </main>
 `);
 
+const MOVE_REPARENT_FIXTURE = fixtureHtml(`
+  <main id="canvas" style="width:720px;min-height:360px">
+    <section id="source" style="display:flex;gap:24px;align-items:flex-start;width:520px;min-height:180px;padding:16px;border:1px solid #999">
+      <div id="card" style="width:96px;height:48px;background:#f2f2f2;border:1px solid #333">Card</div>
+      <div id="slot-shell" style="width:260px;height:140px;padding:16px;border:1px dashed #666">
+        <section id="nested-target" style="display:grid;width:180px;min-height:96px;border:2px solid #0a7"></section>
+      </div>
+    </section>
+    <section id="outside" style="margin-top:32px;width:180px;height:64px;border:1px solid #aaa">Outside</section>
+  </main>
+`);
+
 test.describe("@reparent browser", () => {
   extTest(
     "real DOM tag names validate a valid reparent (p from section to header)",
@@ -171,6 +184,30 @@ test.describe("@reparent browser", () => {
 
     const outline = await overlayElementInfo(page, ".vc-select-outline");
     extExpect(outline).not.toBeNull();
-    extExpect(Math.abs(outline!.x - paraRect.x)).toBeLessThanOrEqual(3);
+    if (outline === null) throw new Error("selection outline was not rendered");
+    extExpect(Math.abs(outline.x - paraRect.x)).toBeLessThanOrEqual(3);
   });
+
+  extTest(
+    "Move reparent into a nested container persists after another click",
+    async ({ page }) => {
+      await serveFixture(page, MOVE_REPARENT_FIXTURE);
+      const cardRect = await pageElementRect(page, "#card");
+      await page.mouse.click(cardRect.x + 10, cardRect.y + 10);
+      await page.waitForTimeout(400);
+      await setInteractionMode(page, "Move");
+
+      const targetRect = await pageElementRect(page, "#nested-target");
+      await page.mouse.move(cardRect.x + cardRect.width / 2, cardRect.y + cardRect.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(targetRect.x + 40, targetRect.y + 40, { steps: 8 });
+      await page.mouse.up();
+
+      await extExpect(page.locator("#nested-target > #card")).toHaveCount(1);
+
+      const outsideRect = await pageElementRect(page, "#outside");
+      await page.mouse.click(outsideRect.x + 10, outsideRect.y + 10);
+      await extExpect(page.locator("#nested-target > #card")).toHaveCount(1);
+    },
+  );
 });

@@ -33,7 +33,7 @@ import {
   isPanelInteractionMode,
   sendInteractionModeToRouteableFrames,
 } from "./interaction-mode-routing.js";
-import type { FrameInfo } from "./messaging/index.js";
+import type { BusMessage, FrameInfo } from "./messaging/index.js";
 import {
   createClearPreviewMessage,
   createDaemonConnectMessage,
@@ -92,7 +92,7 @@ export function App(): ReactElement {
   recordRemoteRef.current = journal.recordRemote;
   useEffect(() => {
     if (bus === undefined) return;
-    return bus.on("inspector-edit", (message) => {
+    const recordRemoteOperation = (message: BusMessage): void => {
       const payload = message.payload;
       if (
         typeof payload !== "object" ||
@@ -103,7 +103,13 @@ export function App(): ReactElement {
         return;
       }
       recordRemoteRef.current(payload as Operation);
-    });
+    };
+    const unsubscribeInspectorEdit = bus.on("inspector-edit", recordRemoteOperation);
+    const unsubscribeInteractionOperation = bus.on("interaction-operation", recordRemoteOperation);
+    return () => {
+      unsubscribeInspectorEdit();
+      unsubscribeInteractionOperation();
+    };
   }, [bus]);
   useJournalPersistence({
     journal: journal.journal,

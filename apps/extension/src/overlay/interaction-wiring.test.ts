@@ -338,6 +338,64 @@ describe("interaction wiring", () => {
     const operations = controllers.getRecordedOperations();
     const reparentOp = operations.find((op) => op.kind === "reparent-element");
     expect(reparentOp, "cross-container pointer drag should record reparent-element").toBeDefined();
+    expect(child.parentElement, "committed reparent preview should remain in the drop target").toBe(
+      target,
+    );
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(child.parentElement, "clicking elsewhere must not roll back the reparent").toBe(target);
+    assertNoPositionElement(operations);
+  });
+
+  it("allows Move to drop into a container nested inside the source parent", () => {
+    const source = document.createElement("section");
+    const child = document.createElement("div");
+    const wrapper = document.createElement("div");
+    const nestedTarget = document.createElement("section");
+    child.textContent = "child";
+    nestedTarget.style.display = "grid";
+    wrapper.appendChild(nestedTarget);
+    source.append(child, wrapper);
+    document.body.appendChild(source);
+    setRect(source, 0, 0, 360, 180);
+    setRect(child, 10, 20, 70, 40);
+    setRect(wrapper, 160, 10, 180, 140);
+    setRect(nestedTarget, 180, 30, 120, 80);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(child));
+
+    child.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        clientX: 20,
+        clientY: 30,
+        pointerId: 12,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    document.dispatchEvent(
+      new PointerEvent("pointermove", {
+        clientX: 220,
+        clientY: 60,
+        pointerId: 12,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    document.dispatchEvent(
+      new PointerEvent("pointerup", {
+        clientX: 220,
+        clientY: 60,
+        pointerId: 12,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+
+    const operations = controllers.getRecordedOperations();
+    const reparentOp = operations.find((op) => op.kind === "reparent-element");
+    expect(reparentOp, "nested container drop should record reparent-element").toBeDefined();
+    expect(child.parentElement).toBe(nestedTarget);
     assertNoPositionElement(operations);
   });
 

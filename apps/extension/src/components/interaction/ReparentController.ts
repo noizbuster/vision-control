@@ -132,6 +132,10 @@ export function createReparentController(options: ReparentControllerOptions): Re
     previewRollback = null;
   };
 
+  const commitPreview = (): void => {
+    previewRollback = null;
+  };
+
   const applyPreview = (operation: ReparentElementOperation): void => {
     clearPreview();
     if (previewEngine !== null) {
@@ -205,7 +209,7 @@ export function createReparentController(options: ReparentControllerOptions): Re
 
     if (result.status === "committed") {
       journal?.record(result.operation);
-      clearPreview();
+      commitPreview();
     }
 
     state = {

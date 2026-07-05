@@ -31,6 +31,26 @@ interface PendingDrag {
 }
 
 const REPARENT_DRAG_THRESHOLD_PX = 4;
+const SOURCE_TREE_CONTAINER_TAGS = new Set([
+  "article",
+  "aside",
+  "dd",
+  "details",
+  "dl",
+  "dt",
+  "fieldset",
+  "footer",
+  "form",
+  "header",
+  "li",
+  "main",
+  "nav",
+  "ol",
+  "section",
+  "td",
+  "th",
+  "ul",
+]);
 
 export function createReparentDragController(
   options: ReparentDragControllerOptions,
@@ -148,6 +168,7 @@ function candidateFor(element: Element, dragged: Element): CandidateContainer {
       display: style.display,
       flexDirection: style.flexDirection,
       position: style.position,
+      tagName: element.tagName.toLowerCase(),
     }),
     flexDirection: style.flexDirection,
     rect: rectFor(element),
@@ -165,12 +186,7 @@ function findCandidateContainer(
   y: number,
 ): CandidateContainer | null {
   for (const element of elementsAtPoint(doc, x, y)) {
-    if (
-      element === dragged ||
-      dragged.contains(element) ||
-      sourceParent.contains(element) ||
-      element.contains(sourceParent)
-    ) {
+    if (!isCandidateElement(element, dragged, sourceParent)) {
       continue;
     }
     if (!validateReparent(element.tagName.toLowerCase(), dragged.tagName.toLowerCase()).ok) {
@@ -179,6 +195,28 @@ function findCandidateContainer(
     return candidateFor(element, dragged);
   }
   return null;
+}
+
+function isCandidateElement(element: Element, dragged: Element, sourceParent: Element): boolean {
+  if (element === dragged || dragged.contains(element)) return false;
+  if (element === sourceParent || element.contains(sourceParent)) return false;
+  if (sourceParent.contains(element) && !isContainerLike(element)) return false;
+  return true;
+}
+
+function isContainerLike(element: Element): boolean {
+  if (element.children.length > 0) return true;
+  const tagName = element.tagName.toLowerCase();
+  if (SOURCE_TREE_CONTAINER_TAGS.has(tagName)) return true;
+  const view = element.ownerDocument.defaultView ?? window;
+  const style = view.getComputedStyle(element);
+  const role = classifyLayoutRole({
+    display: style.display,
+    flexDirection: style.flexDirection,
+    position: style.position,
+    tagName,
+  });
+  return role === "flex-container" || role === "grid-container";
 }
 
 function elementsAtPoint(doc: Document, x: number, y: number): readonly Element[] {

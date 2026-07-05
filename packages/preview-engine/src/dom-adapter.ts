@@ -57,7 +57,7 @@ export function createBrowserPreviewDomAdapter(): PreviewDomAdapter {
   const elements = new Map<string, Element>();
 
   const resolveElement = (runtimeId: string): Element | null => {
-    return elements.get(runtimeId) ?? null;
+    return elements.get(runtimeId) ?? document.querySelector(buildPreviewSelector(runtimeId));
   };
 
   const registerElement = (runtimeId: string, element: Element): void => {

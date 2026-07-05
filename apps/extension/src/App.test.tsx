@@ -1,9 +1,16 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import type { Operation } from "@vision-control/change-ir";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
 import { createMultiSelectGroupId } from "@vision-control/element-identity";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ComponentPropEntry, FrameInfo, GridPlacementMessage } from "./messaging/index.js";
+import type {
+  BusMessage,
+  BusMessageHandler,
+  ComponentPropEntry,
+  FrameInfo,
+  GridPlacementMessage,
+} from "./messaging/index.js";
 
 const { slotState } = vi.hoisted(() => ({
   slotState: {
@@ -148,6 +155,37 @@ function makeGroup(memberCount = 2): MultiSelectGroup {
     commonParent: null,
     boundingRect: { x: 0, y: 0, width: 200, height: 100 },
   };
+}
+
+function makeReparentOperation(): Operation {
+  return {
+    id: "op-reparent01",
+    timestamp: 1_700_000_000_000,
+    runtime: false,
+    origin: "canvas-drag",
+    confidence: 1,
+    kind: "reparent-element",
+    element: { runtimeId: "child-1" },
+    sourceParent: { runtimeId: "source-1" },
+    sourceIndex: 0,
+    targetParent: { runtimeId: "target-1" },
+    targetIndex: 0,
+  };
+}
+
+interface MockedBusOn {
+  readonly mock: {
+    readonly calls: ReadonlyArray<readonly [string, BusMessageHandler]>;
+  };
+}
+
+function deliverPanelMessage(messageType: string, message: BusMessage): void {
+  const calls = (slotState.bus.on as unknown as MockedBusOn).mock.calls;
+  const call = calls.find(([registeredType]) => registeredType === messageType);
+  expect(call, `${messageType} handler should be registered`).toBeDefined();
+  if (call === undefined) return;
+  const [, handler] = call;
+  handler(message, { route: "content" });
 }
 
 function resetSlotState(): void {
@@ -375,5 +413,25 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.queryByText("Component Props")).toBeNull();
+  });
+
+  it("records content interaction operations in the change journal", async () => {
+    const operation = makeReparentOperation();
+    render(<App />);
+
+    deliverPanelMessage("interaction-operation", {
+      protocolVersion: "1.0.0",
+      messageId: "interaction-operation-op-reparent01",
+      messageType: "interaction-operation",
+      targetRoute: "panel",
+      sourceRoute: "content",
+      payload: operation,
+      timestamp: 1_700_000_000_000,
+    });
+
+    await waitFor(() => expect(screen.getByText("Reparent")).toBeDefined());
+    expect(screen.queryByTestId("change-journal-empty")).toBeNull();
+    expect(screen.getByTestId("journal-summary").textContent).toContain("source-1[0]");
+    expect(screen.getByTestId("journal-summary").textContent).toContain("target-1[0]");
   });
 });

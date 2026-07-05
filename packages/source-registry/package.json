@@ -16,6 +16,7 @@
     "dist"
   ],
   "dependencies": {
+    "@vision-control/change-ir": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

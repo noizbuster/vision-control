@@ -1,3 +1,5 @@
+import { createOperationId } from "@vision-control/change-ir";
+
 /**
  * Runtime-id assignment for DOM elements (PRD 14.2).
  *
@@ -44,17 +46,13 @@ export interface RuntimeAssignment {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Mint a unique runtime id from the host. Prefers Web Crypto `randomUUID`
- * (available in Node 19+ and every modern browser); falls back to a counter
- * when the host lacks it (e.g. some test sandboxes). Runtime ids only need to
- * be unique per DOM instance for the lifetime of the page — they are NOT
- * security primitives.
+ * Mint a unique runtime id from the host. Runtime ids only need to be unique per
+ * DOM instance for the lifetime of the page — they are NOT security primitives.
+ * The shared operation-id helper preserves Web Crypto UUIDs on insecure local
+ * development hosts where `randomUUID` is unavailable but `getRandomValues`
+ * still exists.
  */
-const mintRuntimeId = (): string => {
-  const crypto = globalThis.crypto;
-  if (typeof crypto?.randomUUID === "function") return crypto.randomUUID();
-  return defaultCounter()();
-};
+const mintRuntimeId = (): string => createOperationId();
 
 /**
  * Assign a distinct runtime id to every element under `root` that carries a
@@ -68,7 +66,7 @@ const mintRuntimeId = (): string => {
  *
  * Mutates the DOM: sets `data-vc-runtime-id` on each assigned element. Pass
  * `options.counter` to override id generation (deterministic tests); when
- * omitted, the host's Web Crypto `randomUUID` is used with a counter fallback.
+ * omitted, the shared operation-id generator is used.
  */
 export const assignRuntimeIds = (
   root: AttributedElement,
@@ -93,12 +91,3 @@ export const assignRuntimeIds = (
 
 /** True when `value` is a v4-style UUID string. */
 export const isUuid = (value: string): boolean => UUID_RE.test(value);
-
-/** Default fallback counter when Web Crypto is unavailable. */
-const defaultCounter = (): (() => string) => {
-  let n = 0;
-  return () => {
-    n += 1;
-    return `r-${n.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  };
-};

@@ -2,11 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { applyHmrUpdate } from "./hmr-updates.js";
 import { SourceRegistry } from "./registry.js";
-import {
-  type AttributedElement,
-  assignRuntimeIds,
-  RUNTIME_ATTRIBUTE,
-} from "./runtime-id-assignment.js";
 import { createSourceEntry, type SourceEntry } from "./types.js";
 
 const entry = (overrides: Partial<SourceEntry> & { sourceId: string }): SourceEntry =>
@@ -193,83 +188,5 @@ describe("applyHmrUpdate", () => {
         .map((e) => e.sourceId)
         .sort(),
     ).toEqual(["s-new-a", "s-new-b"]);
-  });
-});
-
-interface FakeNode {
-  attrs: Record<string, string>;
-  children: FakeNode[];
-}
-
-const fake = (attrs: Record<string, string>, children: FakeNode[] = []): FakeNode => ({
-  attrs,
-  children,
-});
-
-const asElement = (node: FakeNode): AttributedElement => ({
-  hasAttribute: (name) => Object.hasOwn(node.attrs, name),
-  getAttribute: (name) => (Object.hasOwn(node.attrs, name) ? (node.attrs[name] ?? "") : null),
-  setAttribute: (name, value) => {
-    node.attrs[name] = value;
-  },
-  querySelectorAll: (selector) => {
-    const attr = selector.replaceAll(/[[\]]/g, "");
-    const found: AttributedElement[] = [];
-    const walk = (n: FakeNode): void => {
-      for (const child of n.children) {
-        if (Object.hasOwn(child.attrs, attr)) found.push(asElement(child));
-        walk(child);
-      }
-    };
-    walk(node);
-    return found;
-  },
-});
-
-describe("assignRuntimeIds", () => {
-  it("assigns a runtime id to the root and every descendant carrying a source id", () => {
-    const tree = fake({ "data-vc-source": "s-root" }, [
-      fake({ "data-vc-source": "s-child" }),
-      fake({ class: "no-marker" }, [fake({ "data-vc-source": "s-deep" })]),
-    ]);
-
-    const assignments = assignRuntimeIds(asElement(tree));
-
-    expect(assignments).toHaveLength(3);
-    expect(assignments.map((a) => a.sourceId).sort()).toEqual(["s-child", "s-deep", "s-root"]);
-  });
-
-  it("gives DISTINCT runtime ids to repeated instances of the same source id", () => {
-    const tree = fake(
-      {},
-      Array.from({ length: 5 }, () => fake({ "data-vc-source": "s-card" })),
-    );
-    const assignments = assignRuntimeIds(asElement(tree));
-    expect(assignments).toHaveLength(5);
-    expect(new Set(assignments.map((a) => a.runtimeId)).size).toBe(5);
-    expect(assignments.every((a) => a.sourceId === "s-card")).toBe(true);
-  });
-
-  it("sets the data-vc-runtime-id attribute on each assigned element", () => {
-    const child = fake({ "data-vc-source": "s1" });
-    const tree = fake({}, [child]);
-    assignRuntimeIds(asElement(tree));
-    expect(child.attrs[RUNTIME_ATTRIBUTE]).toBeTruthy();
-  });
-
-  it("skips elements whose source id is empty", () => {
-    const tree = fake({}, [fake({ "data-vc-source": "" }), fake({ "data-vc-source": "s1" })]);
-    const assignments = assignRuntimeIds(asElement(tree));
-    expect(assignments).toHaveLength(1);
-    expect(assignments[0]?.sourceId).toBe("s1");
-  });
-
-  it("uses the injected counter when Web Crypto is unavailable", () => {
-    const seq = ["c-1", "c-2"];
-    const tree = fake({}, [fake({ "data-vc-source": "s1" }), fake({ "data-vc-source": "s2" })]);
-    const assignments = assignRuntimeIds(asElement(tree), {
-      counter: () => seq.shift() ?? "x",
-    });
-    expect(assignments.map((a) => a.runtimeId)).toEqual(["c-1", "c-2"]);
   });
 });

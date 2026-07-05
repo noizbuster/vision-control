@@ -1088,6 +1088,9 @@ importers:
 
   packages/source-registry:
     dependencies:
+      '@vision-control/change-ir':
+        specifier: workspace:*
+        version: link:../change-ir
       zod:
         specifier: 'catalog:'
         version: 4.4.3

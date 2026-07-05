@@ -198,7 +198,7 @@ export function App(): ReactElement {
               </ul>
             )}
           </section>
-          <HostAllowlistPanel bus={bus} />
+          <HostAllowlistPanel />
           <InspectorPanel
             summary={summary}
             onSelectElement={selectElement}

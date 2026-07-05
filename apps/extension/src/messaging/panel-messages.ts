@@ -279,27 +279,3 @@ export function createDaemonDisconnectMessage(): BusMessage {
     timestamp: Date.now(),
   };
 }
-
-/**
- * Panel → background signal asking the background to open the dedicated
- * `allow-host.html` extension page in a new tab. `chrome.permissions.request`
- * cannot run from the DevTools panel context (it silently fails), so the panel
- * delegates the tab-open to the background and the allow-host page owns the
- * permission prompt in a real extension-page user-gesture context. The
- * `host` field is the user's raw input (port/scheme/path allowed) — the
- * allow-host page re-normalises via {@link normalizeHostInput}.
- */
-export interface OpenAllowHostPayload {
-  readonly host: string;
-}
-
-export function createOpenAllowHostMessage(host: string): BusMessage {
-  return {
-    protocolVersion: "1.0.0",
-    messageId: `open-allow-host-${Date.now()}`,
-    messageType: "open-allow-host",
-    targetRoute: "background",
-    payload: { host } satisfies OpenAllowHostPayload,
-    timestamp: Date.now(),
-  };
-}

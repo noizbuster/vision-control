@@ -149,12 +149,21 @@ const background: BackgroundDefinition = defineBackground(() => {
     },
   });
 
-  backgroundBus.on("editor-command", (message) => {
-    forwardEditToContent(message);
+  backgroundBus.on("editor-command", (message, sender) => {
+    // Fall back to the sender context's tabId (the bus transport derives it
+    // from chrome.runtime.MessageSender.tab.id) so an edit is never silently
+    // dropped when the message envelope omits tabId.
+    const tabId = message.tabId ?? sender?.tabId;
+    if (tabId !== undefined) {
+      forwardEditToContent({ ...message, tabId });
+    }
   });
 
-  backgroundBus.on("clear-preview", (message) => {
-    forwardEditToContent(message);
+  backgroundBus.on("clear-preview", (message, sender) => {
+    const tabId = message.tabId ?? sender?.tabId;
+    if (tabId !== undefined) {
+      forwardEditToContent({ ...message, tabId });
+    }
   });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {

@@ -226,4 +226,74 @@ describe("panel -> background -> content -> DOM end-to-end", () => {
     expect(target.classList.contains("temp")).toBe(false);
     expect(document.head.querySelector("style[data-vc-preview-stylesheet]")).toBeNull();
   });
+
+  it("recovers tabId from the sender context when the panel message omits it", () => {
+    // Mirrors the background.ts editor-command handler: the panel forgets to
+    // stamp tabId on the envelope, but the runtime sender context (derived from
+    // chrome.runtime.MessageSender.tab.id by the bus transport) still carries
+    // it. The resolved message must reach the content and mutate the DOM.
+    const store = new TabSessionStore({ generateSessionId: () => "sess-fallback" });
+    store.ensure(42);
+    store.updateFrameTree(42, [
+      {
+        frameId: 0,
+        url: "http://localhost:3000/",
+        origin: "http://localhost:3000",
+        routeable: true,
+      },
+    ]);
+    const forward = createEditForwarder({
+      store,
+      sendToFrame: (_tabId, _frameId, message) => bus.deliver(message),
+    });
+
+    const target = document.createElement("div");
+    target.id = "e2e-fallback-target";
+    target.className = "original";
+    document.body.appendChild(target);
+    vi.spyOn(target as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      width: 40,
+      height: 20,
+      top: 0,
+      left: 0,
+      right: 40,
+      bottom: 20,
+      toJSON: () => ({}),
+    } as DOMRect);
+    target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    const runtimeId = target.getAttribute("data-vc-preview-id");
+    if (runtimeId === null) throw new Error("selection did not assign a preview id");
+
+    const op: Operation = {
+      id: "op-e2e-fallback-001",
+      timestamp: BASE_TIME,
+      runtime: false,
+      origin: "property-panel",
+      confidence: 1,
+      kind: "class-add",
+      target: { runtimeId },
+      className: "recovered",
+    };
+
+    // Panel envelope has NO tabId; sender context carries the inspected tab.
+    const panelMessage: BusMessage = {
+      protocolVersion: "1.0.0",
+      messageId: "mid-e2e-fallback-001",
+      messageType: "editor-command",
+      targetRoute: "background",
+      payload: op,
+      timestamp: 1,
+    };
+    expect("tabId" in panelMessage).toBe(false);
+    const senderTabId = 42;
+    const resolvedTabId = panelMessage.tabId ?? senderTabId;
+    forward({ ...panelMessage, tabId: resolvedTabId });
+
+    expect(
+      target.classList.contains("recovered"),
+      "sender-context fallback must route the edit to the content DOM",
+    ).toBe(true);
+  });
 });

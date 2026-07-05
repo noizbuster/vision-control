@@ -20,7 +20,7 @@
  * free-position factory; this wiring never introduces a position-element path.
  */
 
-import type { Operation } from "@vision-control/change-ir";
+import { createOperationId, type Operation } from "@vision-control/change-ir";
 import {
   appendEntry,
   createJournal,
@@ -90,7 +90,7 @@ export function createInteractionControllers(
 ): InteractionControllers {
   const { overlayElement, overlayContainer, previewManager, bus } = options;
 
-  const changeSetId = crypto.randomUUID();
+  const changeSetId = createOperationId();
   let journal: Journal = createJournal();
   let sequence = 0;
   const recorded: Operation[] = [];
@@ -100,9 +100,9 @@ export function createInteractionControllers(
     journal = appendEntry(
       journal,
       createJournalEntry({
-        id: crypto.randomUUID(),
+        id: createOperationId(),
         changeSetId,
-        transactionId: crypto.randomUUID(),
+        transactionId: createOperationId(),
         sequence: sequence,
         operation,
       }),
@@ -222,7 +222,7 @@ export function buildSelectionContext(element: Element): SelectionContext {
 }
 
 function assignPreviewId(element: Element): string {
-  const id = `vc-interaction-${crypto.randomUUID()}`;
+  const id = `vc-interaction-${createOperationId()}`;
   element.setAttribute(PREVIEW_ID_ATTR, id);
   return id;
 }

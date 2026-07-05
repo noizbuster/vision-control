@@ -127,6 +127,26 @@ function flushRaf(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
+function installCryptoWithoutRandomUUID(): () => void {
+  const originalCrypto = globalThis.crypto;
+  const cryptoWithoutRandomUuid = {
+    getRandomValues: (bytes: Uint8Array): Uint8Array => {
+      bytes.fill(11);
+      return bytes;
+    },
+  };
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    value: cryptoWithoutRandomUuid,
+  });
+  return () => {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: originalCrypto,
+    });
+  };
+}
+
 function readOutlineStyle(shadowRoot: ShadowRoot, className: string): CSSStyleDeclaration {
   const el = shadowRoot.querySelector(className);
   if (el === null) {
@@ -206,6 +226,26 @@ describe("overlay runtime", () => {
     expect((summaries[0]?.payload as { identity: { tagName: string } }).identity.tagName).toBe(
       "button",
     );
+  });
+
+  it("starts and selects on a host where crypto.randomUUID is unavailable", () => {
+    const restoreCrypto = installCryptoWithoutRandomUUID();
+    try {
+      const bus = createFakeBus();
+      runtime = createOverlayRuntime({ document, bus });
+      runtime.start();
+
+      const button = document.createElement("button");
+      button.id = "insecure-context";
+      document.body.appendChild(button);
+      setRect(button, { x: 10, y: 20, width: 100, height: 40 });
+
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+      expect(selectionSummaryMessages(bus)).toHaveLength(1);
+    } finally {
+      restoreCrypto();
+    }
   });
 
   it("keeps the selection outline attached to the element after scroll (AC-001)", () => {

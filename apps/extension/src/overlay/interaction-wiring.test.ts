@@ -107,6 +107,26 @@ function flushRaf(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
+function installCryptoWithoutRandomUUID(): () => void {
+  const originalCrypto = globalThis.crypto;
+  const cryptoWithoutRandomUuid = {
+    getRandomValues: (bytes: Uint8Array): Uint8Array => {
+      bytes.fill(7);
+      return bytes;
+    },
+  };
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    value: cryptoWithoutRandomUuid,
+  });
+  return () => {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: originalCrypto,
+    });
+  };
+}
+
 function interactionOperationMessages(
   bus: ReturnType<typeof createFakeBus>,
 ): readonly BusMessage[] {
@@ -343,5 +363,46 @@ describe("interaction wiring", () => {
     );
 
     expect(controllers.getRecordedOperations()).toHaveLength(0);
+  });
+});
+
+describe("interaction wiring without crypto.randomUUID", () => {
+  let overlay: ReturnType<typeof createOverlayFixture> | null = null;
+  let controllers: InteractionControllers | null = null;
+
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    document.documentElement.innerHTML = "<head></head><body></body>";
+    installObserverMocks();
+  });
+
+  afterEach(() => {
+    controllers?.dispose();
+    overlay?.root.unmount();
+  });
+
+  it("starts and records runtime IDs when randomUUID is unavailable", () => {
+    const restoreCrypto = installCryptoWithoutRandomUUID();
+    try {
+      const bus = createFakeBus();
+      const previewManager = createPreviewManager({ dom: createBrowserPreviewDomAdapter() });
+      overlay = createOverlayFixture(document);
+
+      controllers = createInteractionControllers({
+        overlayElement: overlay.overlayElement,
+        overlayContainer: overlay.overlayContainer,
+        previewManager,
+        bus,
+      });
+
+      const target = document.createElement("div");
+      document.body.appendChild(target);
+      const context = buildSelectionContext(target);
+
+      expect(context.elementRef.runtimeId.startsWith("vc-interaction-")).toBe(true);
+      expect(controllers.getJournal().entries).toHaveLength(0);
+    } finally {
+      restoreCrypto();
+    }
   });
 });

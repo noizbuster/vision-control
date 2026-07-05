@@ -1,8 +1,61 @@
 import { describe, expect, it } from "vitest";
 
+import { createOperationId, OPERATION_ID_PATTERN } from "./operation-base.js";
 import { OperationSchema } from "./operations/index.js";
 
 const el = (runtimeId: string) => ({ runtimeId });
+
+type TestCrypto = {
+  readonly randomUUID?: () => string;
+  readonly getRandomValues?: (bytes: Uint8Array) => Uint8Array;
+};
+
+function withCrypto<T>(cryptoValue: TestCrypto | undefined, action: () => T): T {
+  const originalCrypto = globalThis.crypto;
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    value: cryptoValue,
+  });
+  try {
+    return action();
+  } finally {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: originalCrypto,
+    });
+  }
+}
+
+describe("createOperationId", () => {
+  it("uses native randomUUID when available", () => {
+    const id = withCrypto({ randomUUID: () => "native-id-0001" }, () => createOperationId());
+
+    expect(id).toBe("native-id-0001");
+  });
+
+  it("uses getRandomValues when randomUUID is unavailable", () => {
+    const id = withCrypto(
+      {
+        getRandomValues: (bytes) => {
+          for (let i = 0; i < bytes.length; i += 1) {
+            bytes[i] = i;
+          }
+          return bytes;
+        },
+      },
+      () => createOperationId(),
+    );
+
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(OPERATION_ID_PATTERN.test(id)).toBe(true);
+  });
+
+  it("still creates an operation-compatible id without crypto", () => {
+    const id = withCrypto(undefined, () => createOperationId());
+
+    expect(OPERATION_ID_PATTERN.test(id)).toBe(true);
+  });
+});
 
 describe("PRD §12.4 OperationBase fields", () => {
   describe("origin and confidence defaults", () => {

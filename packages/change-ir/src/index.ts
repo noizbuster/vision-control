@@ -34,6 +34,7 @@ export {
 export {
   type BreakpointContext,
   BreakpointContextSchema,
+  createOperationId,
   OPERATION_ID_PATTERN,
   type OperationBase,
   OperationBaseSchema,

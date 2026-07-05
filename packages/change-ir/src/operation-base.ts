@@ -9,6 +9,55 @@ import { ElementRefSchema } from "./element-ref.js";
  */
 export const OPERATION_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
 
+let fallbackIdCounter = 0;
+
+function hasRandomUuid(value: unknown): value is { readonly randomUUID: () => string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "randomUUID" in value &&
+    typeof value.randomUUID === "function"
+  );
+}
+
+function hasGetRandomValues(
+  value: unknown,
+): value is { readonly getRandomValues: (bytes: Uint8Array) => Uint8Array } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "getRandomValues" in value &&
+    typeof value.getRandomValues === "function"
+  );
+}
+
+function uuidFromBytes(bytes: Uint8Array): string {
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return [
+    hex.slice(0, 4).join(""),
+    hex.slice(4, 6).join(""),
+    hex.slice(6, 8).join(""),
+    hex.slice(8, 10).join(""),
+    hex.slice(10, 16).join(""),
+  ].join("-");
+}
+
+/**
+ * Create an operation-compatible id in both secure and insecure browser contexts.
+ * `crypto.randomUUID()` is secure-context gated, while `getRandomValues()` remains
+ * available to plain-HTTP inspected pages such as custom local dev hostnames.
+ */
+export function createOperationId(): string {
+  const cryptoApi: unknown = globalThis.crypto;
+  if (hasRandomUuid(cryptoApi)) return cryptoApi.randomUUID();
+  if (hasGetRandomValues(cryptoApi))
+    return uuidFromBytes(cryptoApi.getRandomValues(new Uint8Array(16)));
+  fallbackIdCounter = (fallbackIdCounter + 1) % Number.MAX_SAFE_INTEGER;
+  return `op-${Date.now().toString(36)}-${fallbackIdCounter.toString(36)}`;
+}
+
 /**
  * Identifies a responsive breakpoint an operation is scoped to (PRD §12.4).
  * A breakpoint identifier string (e.g. `"md"`, `"sm"`, `"(min-width: 768px)"`).

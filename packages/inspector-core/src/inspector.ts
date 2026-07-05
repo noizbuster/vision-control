@@ -6,6 +6,7 @@
  * module is the only place that wires overlay-ui and inspector-core together.
  */
 
+import { createOperationId } from "@vision-control/change-ir";
 import {
   computeFingerprint,
   createRuntimeId,
@@ -229,7 +230,7 @@ export function createInspector(options: InspectorOptions): Inspector {
   function getRuntimeId(element: Element): string {
     const existing = runtimeIds.get(element);
     if (existing !== undefined) return existing;
-    const id = createRuntimeId(`runtime-${crypto.randomUUID()}`);
+    const id = createRuntimeId(`runtime-${createOperationId()}`);
     runtimeIds.set(element, id);
     return id;
   }

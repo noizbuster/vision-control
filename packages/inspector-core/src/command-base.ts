@@ -6,13 +6,17 @@
  * pushing a single file past the 250-LOC ceiling (the established split
  * pattern; see Task 4 catalog / Task 5 message-sender extractions).
  */
-import type { ElementRef, OperationOrigin } from "@vision-control/change-ir";
+import {
+  createOperationId,
+  type ElementRef,
+  type OperationOrigin,
+} from "@vision-control/change-ir";
 
 /** Options shared by every command factory. */
 export interface CommandBaseOptions {
   /** Epoch timestamp; defaults to `Date.now()`. */
   readonly timestamp?: number;
-  /** Operation id; defaults to `crypto.randomUUID()`. */
+  /** Operation id; defaults to an operation-compatible generated id. */
   readonly id?: string;
   /**
    * Operation origin (PRD §12.4). Defaults to `"property-panel"`; canvas
@@ -33,7 +37,7 @@ export interface CommandBaseFields {
 
 /** Generate a fresh operation id (UUID, satisfies OPERATION_ID_PATTERN). */
 export function newOperationId(): string {
-  return crypto.randomUUID();
+  return createOperationId();
 }
 
 /**

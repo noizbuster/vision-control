@@ -130,6 +130,26 @@ function createFakeBus(): { readonly bus: InspectorBus; readonly messages: unkno
   };
 }
 
+function installCryptoWithoutRandomUUID(): () => void {
+  const originalCrypto = globalThis.crypto;
+  const cryptoWithoutRandomUuid = {
+    getRandomValues: (bytes: Uint8Array): Uint8Array => {
+      bytes.fill(13);
+      return bytes;
+    },
+  };
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    value: cryptoWithoutRandomUuid,
+  });
+  return () => {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: originalCrypto,
+    });
+  };
+}
+
 describe("inspector", () => {
   it("selects an element and notifies the bus", () => {
     const overlay = createFakeOverlay();
@@ -153,6 +173,29 @@ describe("inspector", () => {
     expect(selectionMessage).toBeDefined();
 
     inspector.dispose();
+  });
+
+  it("selects an element when crypto.randomUUID is unavailable", () => {
+    const restoreCrypto = installCryptoWithoutRandomUUID();
+    const overlay = createFakeOverlay();
+    const { bus, messages } = createFakeBus();
+    const inspector = createInspector({
+      overlayRoot: overlay.root,
+      overlayElement: overlay.element,
+      domAdapter: fakeDomAdapter(),
+      bus,
+    });
+    try {
+      const target = document.createElement("button");
+      document.body.appendChild(target);
+
+      inspector.select(target);
+
+      expect(messages.some((m) => (m as { type: string }).type === "selection")).toBe(true);
+    } finally {
+      inspector.dispose();
+      restoreCrypto();
+    }
   });
 
   it("deselects and clears the overlay on Escape", () => {

@@ -1,11 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { STORAGE_KEY } from "./host-allowlist.js";
-import { HostAllowlistCache, readGrantedHosts, writeGrantedHosts } from "./host-allowlist-sync.js";
+import {
+  HostAllowlistCache,
+  readGrantedHosts,
+  reconcileHostsWithPermissions,
+  writeGrantedHosts,
+} from "./host-allowlist-sync.js";
 
 interface StorageMock {
   get: ReturnType<typeof vi.fn>;
   set: ReturnType<typeof vi.fn>;
+}
+
+interface PermissionsMock {
+  getAll: ReturnType<typeof vi.fn>;
 }
 
 function createStorageMock(initial: Record<string, unknown> = {}): StorageMock & {
@@ -30,12 +39,19 @@ function createStorageMock(initial: Record<string, unknown> = {}): StorageMock &
   };
 }
 
-function installChrome(storage: StorageMock): void {
+function createPermissionsMock(origins: readonly string[]): PermissionsMock {
+  return {
+    getAll: vi.fn(async () => ({ origins: [...origins] })),
+  };
+}
+
+function installChrome(storage: StorageMock, permissions?: PermissionsMock): void {
   Object.defineProperty(globalThis, "chrome", {
     writable: true,
     configurable: true,
     value: {
       storage: { local: storage },
+      permissions,
     },
   });
 }
@@ -118,6 +134,17 @@ describe("HostAllowlistCache", () => {
     expect(cache.getHosts()).toEqual([]);
   });
 
+  it("initialize imports Chrome-granted hosts when storage is stale", async () => {
+    const storage = createStorageMock({});
+    const permissions = createPermissionsMock(["http://subshell/*"]);
+    installChrome(storage, permissions);
+
+    const cache = new HostAllowlistCache();
+    await cache.initialize();
+
+    expect(cache.getHosts()).toEqual(["subshell"]);
+  });
+
   it("isAllowedUrl delegates to the unified predicate with the cached hosts", () => {
     const cache = new HostAllowlistCache();
     cache.setHosts(["subshell"]);
@@ -178,5 +205,23 @@ describe("HostAllowlistCache", () => {
     const cache = new HostAllowlistCache();
     await cache.sync();
     expect(cache.getHosts()).toEqual(["new-host"]);
+  });
+});
+
+describe("reconcileHostsWithPermissions", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("imports Chrome-granted non-loopback hosts when storage is stale", async () => {
+    const storage = createStorageMock({});
+    const permissions = createPermissionsMock(["http://localhost/*", "http://subshell/*"]);
+    installChrome(storage, permissions);
+    const cache = new HostAllowlistCache();
+
+    await reconcileHostsWithPermissions(cache);
+
+    expect(cache.getHosts()).toEqual(["subshell"]);
+    expect(storage.set).toHaveBeenCalledWith({ [STORAGE_KEY]: ["subshell"] });
   });
 });

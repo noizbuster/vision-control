@@ -97,11 +97,13 @@ export function isLoopbackUrl(url: string | undefined): boolean {
   if (url === undefined) {
     return false;
   }
-  return (
-    url.startsWith("http://localhost") ||
-    url.startsWith("http://127.0.0.1") ||
-    url.startsWith("http://[::1]")
-  );
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === "http:" && isLoopbackHost(parsed.hostname);
 }
 
 /**

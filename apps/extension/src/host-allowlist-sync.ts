@@ -12,12 +12,16 @@
  *
  * The panel-side permission request (`chrome.permissions.request`) must happen
  * from a user gesture in the panel context. On grant, the panel writes the host
- * to storage; the background picks it up via `storage.onChanged`.
+ * to storage; the background picks it up via `storage.onChanged`. If the user
+ * grants Site Access through Chrome's native extension UI, reconciliation imports
+ * those concrete host grants into storage so the same injection path still works.
  */
 
 import {
   hostToOriginPatterns,
   isAllowedUrl as isAllowedUrlPure,
+  isLoopbackHost,
+  normalizeHostInput,
   STORAGE_KEY,
 } from "./host-allowlist.js";
 
@@ -64,6 +68,7 @@ export class HostAllowlistCache {
 
   async initialize(): Promise<void> {
     await this.sync();
+    await reconcileHostsWithPermissions(this);
   }
 
   /**
@@ -98,9 +103,9 @@ export class HostAllowlistCache {
 
 /**
  * Reconciles the cached host list with the actual Chrome permissions. Drops
- * hosts whose origins are no longer in `chrome.permissions.getAll()` — this
- * fires when the user revokes a host via Chrome's Site Access UI rather than
- * the panel.
+ * hosts whose origins are no longer in `chrome.permissions.getAll()` and imports
+ * concrete non-loopback hosts that were granted through Chrome's native Site
+ * Access UI rather than the panel.
  */
 export async function reconcileHostsWithPermissions(cache: HostAllowlistCache): Promise<void> {
   if (typeof chrome === "undefined" || chrome.permissions?.getAll === undefined) {
@@ -113,8 +118,48 @@ export async function reconcileHostsWithPermissions(cache: HostAllowlistCache): 
     const patterns = hostToOriginPatterns(host);
     return patterns.some((p) => grantedOrigins.has(p));
   });
-  if (filtered.length !== current.length) {
-    await writeGrantedHosts(filtered);
-    cache.setHosts(filtered);
+  const next = [...filtered];
+  for (const host of hostsFromGrantedOrigins(grantedOrigins)) {
+    if (!next.includes(host)) {
+      next.push(host);
+    }
   }
+  if (!sameHosts(next, current)) {
+    await writeGrantedHosts(next);
+    cache.setHosts(next);
+  }
+}
+
+function hostsFromGrantedOrigins(origins: ReadonlySet<string>): readonly string[] {
+  const hosts: string[] = [];
+  for (const origin of origins) {
+    const host = hostFromGrantedOrigin(origin);
+    if (host !== null && !hosts.includes(host)) {
+      hosts.push(host);
+    }
+  }
+  return hosts;
+}
+
+function hostFromGrantedOrigin(origin: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return null;
+  }
+  if (parsed.hostname.includes("*")) {
+    return null;
+  }
+  if (isLoopbackHost(parsed.hostname)) {
+    return null;
+  }
+  return normalizeHostInput(parsed.hostname);
+}
+
+function sameHosts(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((host, index) => right[index] === host);
 }

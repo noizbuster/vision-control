@@ -40,7 +40,7 @@ WXT discovers entrypoints under [`entrypoints/`](./entrypoints/):
 - `devtools/index.html` + `main.ts` — DevTools page that registers the **Vision Control** panel via `chrome.devtools.panels.create`.
 - `panel/index.html` + `main.tsx` — The DevTools panel UI (React): inspector, editors, connection state.
 - `background.ts` — Service worker: message router with per-tab/per-frame isolation, tab session store (`chrome.storage.session`), and the daemon reconnect manager (`@vision-control/daemon-client`).
-- `content.ts` — Isolated-world content script for loopback pages: shadow-DOM overlay, element picker, hit testing, keyboard navigation.
+- `content.ts` — Isolated-world content script for loopback pages: shadow-DOM overlay, element picker, hit testing, keyboard navigation. Non-loopback Site Access hosts are injected on demand by the background service worker after an explicit per-host grant.
 
 ## Scripts
 
@@ -64,7 +64,8 @@ The built `manifest.json` is intentionally scoped:
 - `optional_permissions`: `debugger` only — it is **not** mandatory (PRD guardrail).
   The extension works without it for the MVP.
 - `host_permissions`: loopback only (`http://localhost/*`, `http://127.0.0.1/*`, `http://[::1]/*`).
-  No `"<all_urls>"`. The panel can only inspect loopback pages.
+  No `"<all_urls>"` and no broad mandatory host access.
+- `optional_host_permissions`: Chromium MV3 carries `http://*/*` and `https://*/*` only as an allowed-to-ask envelope for the panel's **Site Access** flow. The panel still requests exact per-host origins, such as `http://subshell/*` and `https://subshell/*`, from a user gesture.
 
 ## Loading the extension
 

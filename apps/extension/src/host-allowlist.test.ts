@@ -122,6 +122,15 @@ describe("isLoopbackUrl", () => {
     expect(isLoopbackUrl("http://subshell:10601/")).toBe(false);
   });
 
+  it("does not treat hostnames with loopback prefixes as loopback", () => {
+    expect(isLoopbackUrl("http://localhost.evil.test/")).toBe(false);
+    expect(isLoopbackUrl("http://127.0.0.1.evil.test/")).toBe(false);
+  });
+
+  it("returns false for non-http loopback-like URLs", () => {
+    expect(isLoopbackUrl("https://localhost:3000/")).toBe(false);
+  });
+
   it("returns false for undefined", () => {
     expect(isLoopbackUrl(undefined)).toBe(false);
   });

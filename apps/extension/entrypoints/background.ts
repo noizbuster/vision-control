@@ -1,7 +1,9 @@
 import { DaemonClient, parsePairingUrl } from "@vision-control/daemon-client";
 import type { BackgroundDefinition } from "wxt";
 import { defineBackground } from "wxt/utils/define-background";
-import { STORAGE_KEY } from "../src/host-allowlist.js";
+import { handleFrameHello } from "../src/background-frame-hello.js";
+import { createBackgroundTabLifecycle } from "../src/background-tab-lifecycle.js";
+import { isAllowedUrl, STORAGE_KEY } from "../src/host-allowlist.js";
 import { HostAllowlistCache, reconcileHostsWithPermissions } from "../src/host-allowlist-sync.js";
 import {
   createBackgroundBus,
@@ -26,23 +28,14 @@ function broadcastToPanel(message: BusMessage): void {
   });
 }
 
+function reportBackgroundError(context: string): (err: unknown) => void {
+  return (err) => {
+    console.error(`[vc] ${context}`, err);
+  };
+}
+
 const background: BackgroundDefinition = defineBackground(() => {
   const hostAllowlist = new HostAllowlistCache();
-  void hostAllowlist.initialize();
-
-  if (typeof chrome !== "undefined") {
-    chrome.storage.onChanged?.addListener((changes, area) => {
-      if (area === "local" && STORAGE_KEY in changes) {
-        void hostAllowlist.sync();
-      }
-    });
-    chrome.permissions?.onAdded?.addListener(() => {
-      void hostAllowlist.sync();
-    });
-    chrome.permissions?.onRemoved?.addListener(() => {
-      void reconcileHostsWithPermissions(hostAllowlist);
-    });
-  }
 
   const store = new TabSessionStore({
     storage: chrome.storage?.session,
@@ -59,6 +52,38 @@ const background: BackgroundDefinition = defineBackground(() => {
 
   void store.restore();
 
+  const tabLifecycle = createBackgroundTabLifecycle({
+    store,
+    getGrantedHosts: () => hostAllowlist.getHosts(),
+    discoverFrames: (tabId) => discoverFrames(tabId, createWebNavigationFrameProvider()),
+  });
+
+  void hostAllowlist
+    .initialize()
+    .then(() => tabLifecycle.injectOpenTabs())
+    .catch(reportBackgroundError("host allowlist initialization failed"));
+
+  if (typeof chrome !== "undefined") {
+    chrome.storage.onChanged?.addListener((changes, area) => {
+      if (area === "local" && STORAGE_KEY in changes) {
+        void hostAllowlist
+          .sync()
+          .then(() => tabLifecycle.injectOpenTabs())
+          .catch(reportBackgroundError("host allowlist sync failed"));
+      }
+    });
+    chrome.permissions?.onAdded?.addListener(() => {
+      void reconcileHostsWithPermissions(hostAllowlist)
+        .then(() => tabLifecycle.injectOpenTabs())
+        .catch(reportBackgroundError("host permission sync failed"));
+    });
+    chrome.permissions?.onRemoved?.addListener(() => {
+      void reconcileHostsWithPermissions(hostAllowlist)
+        .then(() => tabLifecycle.injectOpenTabs())
+        .catch(reportBackgroundError("host permission reconciliation failed"));
+    });
+  }
+
   const router = new MessageRouter({
     transport: createChromeRouterTransport(),
     tabSessionStore: store,
@@ -74,29 +99,10 @@ const background: BackgroundDefinition = defineBackground(() => {
   }
 
   backgroundBus.on("frame-hello", (message, sender) => {
-    const tabId = sender.tabId ?? message.tabId;
-    if (tabId === undefined || sender.frameId === undefined) {
-      return;
-    }
-    const session = store.ensure(tabId);
-    const existing = session.frameTree.find((frame) => frame.frameId === sender.frameId);
-    if (existing !== undefined) {
-      return;
-    }
-    const payload = message.payload as
-      | { readonly origin?: string; readonly url?: string }
-      | undefined;
-    const origin = payload?.origin ?? "";
-    const url = payload?.url ?? "";
-    const topFrame = session.frameTree.find((frame) => frame.frameId === 0);
-    const topOrigin = topFrame?.origin ?? origin;
-    const frame = {
-      frameId: sender.frameId,
-      url,
-      origin,
-      routeable: origin.length > 0 && origin === topOrigin,
-    };
-    store.updateFrameTree(tabId, [...session.frameTree, frame]);
+    handleFrameHello(message, sender, {
+      store,
+      isUrlAllowed: (url) => isAllowedUrl(url, hostAllowlist.getHosts()),
+    });
   });
 
   backgroundBus.on("daemon-connect", (message) => {
@@ -126,6 +132,7 @@ const background: BackgroundDefinition = defineBackground(() => {
 
   const forwardEditToContent = createEditForwarder({
     store,
+    isUrlAllowed: (url) => isAllowedUrl(url, hostAllowlist.getHosts()),
     sendToFrame: (tabId, frameId, message) => {
       if (typeof chrome === "undefined" || chrome.tabs?.sendMessage === undefined) {
         return;
@@ -154,26 +161,11 @@ const background: BackgroundDefinition = defineBackground(() => {
   });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // On new navigation, clear injection state so the new page re-injects if
-    // it's a granted host. Content scripts are destroyed on navigation, so the
-    // marker must be cleared regardless of the new URL.
-    if (changeInfo.status === "loading") {
-    }
-
-    if (changeInfo.status === "loading") {
-      store.resetForReload(tabId);
-      return;
-    }
-    if (changeInfo.status === "complete") {
-      store.ensure(tabId);
-      void discoverFrames(tabId, createWebNavigationFrameProvider()).then((frames) => {
-        store.updateFrameTree(tabId, [...frames]);
-      });
-    }
+    tabLifecycle.handleUpdated(tabId, changeInfo, tab);
   });
 
   chrome.tabs.onRemoved.addListener((tabId) => {
-    store.remove(tabId);
+    tabLifecycle.handleRemoved(tabId);
   });
 
   chrome.runtime.onConnect.addListener((port) => {

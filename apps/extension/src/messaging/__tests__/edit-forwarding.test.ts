@@ -111,6 +111,25 @@ describe("createEditForwarder", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("drops the message when the routeable frame URL is no longer allowed", () => {
+    // Given: stale session state still contains a previously granted host.
+    const store = new TabSessionStore({ generateSessionId: () => "sess-fwd-revoked" });
+    store.ensure(11);
+    store.updateFrameTree(11, [frame(0, "http://subshell:10601", true)]);
+    const sent: BusMessage[] = [];
+    const forward = createEditForwarder({
+      store,
+      isUrlAllowed: () => false,
+      sendToFrame: async (_t, _f, m) => sent.push(m),
+    });
+
+    // When: the panel tries to forward an edit after Site Access revocation.
+    forward(makeMessage("editor-command", { tabId: 11 }));
+
+    // Then: the stale frame is not treated as an authorized content target.
+    expect(sent).toHaveLength(0);
+  });
+
   it("falls back to the first routeable frame when frameId 0 is absent", () => {
     const store = new TabSessionStore({ generateSessionId: () => "sess-fwd-6" });
     store.ensure(5);

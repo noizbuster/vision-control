@@ -1,4 +1,8 @@
-import type { GroupReorderOperation, GroupReparentOperation } from "@vision-control/change-ir";
+import {
+  createOperationId,
+  type GroupReorderOperation,
+  type GroupReparentOperation,
+} from "@vision-control/change-ir";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
 import type { ElementRef } from "@vision-control/element-identity";
 
@@ -27,13 +31,13 @@ export type GroupMoveOperation = GroupReorderOperation | GroupReparentOperation;
 
 export interface GroupMoveReducerOptions {
   /**
-   * Operation id allocator. Default uses Web Crypto `randomUUID()`. Tests inject
-   * a deterministic allocator for stable ids (flaky-class guard).
+   * Operation id allocator. Tests inject a deterministic allocator for stable
+   * ids (flaky-class guard).
    */
   readonly generateId?: () => string;
 }
 
-const defaultGenerateId = (): string => globalThis.crypto.randomUUID();
+const defaultGenerateId = (): string => createOperationId();
 
 const newId = (options: GroupMoveReducerOptions): string =>
   (options.generateId ?? defaultGenerateId)();

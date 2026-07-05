@@ -1,9 +1,11 @@
+import { createOperationId } from "@vision-control/change-ir";
 import type { ConstraintViolation, MultiSelectGroup } from "@vision-control/editor-core";
 import { createMultiSelectGroup } from "@vision-control/editor-core";
-import type {
-  ElementRef,
-  MultiSelectGroupId,
-  MultiSelectMember,
+import {
+  createMultiSelectGroupId,
+  type ElementRef,
+  type MultiSelectGroupId,
+  type MultiSelectMember,
 } from "@vision-control/element-identity";
 import type { Rect } from "@vision-control/geometry";
 
@@ -67,9 +69,8 @@ export type MultiSelectEvent =
 
 export interface MultiSelectReducerOptions {
   /**
-   * Group id allocator. Default uses Web Crypto `randomUUID()` (available in
-   * Node 19+ and browsers, keeping this package isomorphic). Tests inject a
-   * deterministic allocator for stable ids (flaky-class guard).
+   * Group id allocator. Tests inject a deterministic allocator for stable ids
+   * (flaky-class guard).
    */
   readonly generateGroupId?: () => MultiSelectGroupId;
 }
@@ -80,7 +81,7 @@ export interface MultiSelectTransitionResult {
 }
 
 const defaultGenerateGroupId = (): MultiSelectGroupId =>
-  globalThis.crypto.randomUUID() as MultiSelectGroupId;
+  createMultiSelectGroupId(createOperationId());
 
 /**
  * Rebuild the group from the parallel member/rect/chain triples. Sub-two

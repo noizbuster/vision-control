@@ -5,7 +5,7 @@ import { wireContentEditHandlers } from "../src/overlay/content-edit-wiring.js";
 import { createOverlayRuntime, isRouteableFrame } from "../src/overlay/overlay-runtime.js";
 
 const contentScript: ContentScriptDefinition = defineContentScript({
-  matches: ["http://localhost/*", "http://127.0.0.1/*", "http://[::1]/*"],
+  matches: ["http://*/*", "https://*/*"],
   world: "ISOLATED",
 
   main() {

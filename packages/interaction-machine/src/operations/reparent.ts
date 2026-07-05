@@ -1,4 +1,4 @@
-import type { ReparentElementOperation } from "@vision-control/change-ir";
+import { createOperationId, type ReparentElementOperation } from "@vision-control/change-ir";
 import type { ElementRef } from "@vision-control/element-identity";
 import type { Rect } from "@vision-control/geometry";
 import {
@@ -212,8 +212,6 @@ export const evaluateDropTarget = (
   };
 };
 
-const newOperationId = (): string => globalThis.crypto.randomUUID();
-
 /**
  * End the reparent gesture. If the current target is valid and the source
  * patch is not `unsafe`, produces a `reparent-element` operation; otherwise
@@ -242,7 +240,7 @@ export const endReparent = (session: ReparentSession): ReparentResult => {
   }
 
   const operation: ReparentElementOperation = {
-    id: newOperationId(),
+    id: createOperationId(),
     timestamp: Date.now(),
     runtime: false,
     origin: "canvas-drag",

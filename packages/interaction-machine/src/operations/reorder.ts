@@ -1,4 +1,4 @@
-import type { ReorderChildOperation } from "@vision-control/change-ir";
+import { createOperationId, type ReorderChildOperation } from "@vision-control/change-ir";
 import type { ElementRef } from "@vision-control/element-identity";
 import type { Point } from "@vision-control/geometry";
 import {
@@ -91,10 +91,8 @@ export interface ReorderResult {
   readonly state: ReorderState;
 }
 
-const newId = (): string => globalThis.crypto.randomUUID();
-
 const buildOperation = (target: ReorderTarget, toIndex: number): ReorderChildOperation => ({
-  id: newId(),
+  id: createOperationId(),
   kind: "reorder-child",
   runtime: false,
   timestamp: Date.now(),

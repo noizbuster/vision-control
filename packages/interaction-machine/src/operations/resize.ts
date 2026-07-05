@@ -1,4 +1,9 @@
-import type { ElementRef, ResizeElementOperation, ResizeProperty } from "@vision-control/change-ir";
+import {
+  createOperationId,
+  type ElementRef,
+  type ResizeElementOperation,
+  type ResizeProperty,
+} from "@vision-control/change-ir";
 import type { Point, Rect } from "@vision-control/geometry";
 import type { ResizeHandle } from "../events.js";
 import type { PointerId } from "../pointer-ownership.js";
@@ -130,10 +135,8 @@ const computePreviewValue = (
   return Number.isFinite(next) ? next : target.fromValue;
 };
 
-const newOperationId = (): string => crypto.randomUUID();
-
 const buildOperation = (target: ResizeTarget, preview: ResizePreview): ResizeElementOperation => ({
-  id: newOperationId(),
+  id: createOperationId(),
   timestamp: Date.now(),
   runtime: false,
   origin: "canvas-drag",

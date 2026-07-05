@@ -8,6 +8,16 @@ import {
   STORAGE_KEY,
 } from "../host-allowlist.js";
 import { requestHostPermission, revokeHostPermission } from "../host-permissions.js";
+import { createHostAccessChangedMessage } from "../messaging/panel-messages.js";
+
+function notifyHostAccessChanged(): void {
+  if (typeof chrome === "undefined" || chrome.runtime?.sendMessage === undefined) {
+    return;
+  }
+  void chrome.runtime.sendMessage(createHostAccessChangedMessage()).catch(() => {
+    // no-excuse-ok: catch - storage/permission listeners still handle this if the worker is restarting.
+  });
+}
 
 export function HostAllowlistPanel(): ReactElement {
   const { hosts } = useGrantedHosts();
@@ -38,6 +48,7 @@ export function HostAllowlistPanel(): ReactElement {
     const updated = [...hosts, normalized];
     try {
       await chrome.storage.local.set({ [STORAGE_KEY]: updated });
+      notifyHostAccessChanged();
       setInput("");
     } catch {
       setError("Granted but failed to persist. Please retry.");
@@ -57,6 +68,7 @@ export function HostAllowlistPanel(): ReactElement {
     const updated = hosts.filter((h) => h !== host);
     try {
       await chrome.storage.local.set({ [STORAGE_KEY]: updated });
+      notifyHostAccessChanged();
     } catch {
       setError(`Revoked but failed to persist. Please retry.`);
     }

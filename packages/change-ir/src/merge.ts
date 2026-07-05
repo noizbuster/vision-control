@@ -1,5 +1,6 @@
 import { CHANGE_IR_SCHEMA_VERSION, type ChangeSet } from "./changeset.js";
 import { DEFAULT_VERIFICATION_PLAN } from "./context.js";
+import { createOperationId } from "./operation-base.js";
 import type { Operation } from "./operations/index.js";
 import { DEFAULT_PRIVACY_REPORT } from "./privacy.js";
 
@@ -181,7 +182,7 @@ export const mergeChangeSets = (a: ChangeSet, b: ChangeSet): MergeResult => {
     ok: true,
     changeSet: {
       schemaVersion: CHANGE_IR_SCHEMA_VERSION,
-      id: crypto.randomUUID(),
+      id: createOperationId(),
       workspaceId: a.workspaceId,
       sessionId: a.sessionId,
       page: a.page,

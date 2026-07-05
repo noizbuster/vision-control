@@ -11,7 +11,7 @@ import {
   ViewportContextSchema,
 } from "./context.js";
 import { ElementRefSchema } from "./element-ref.js";
-import { OPERATION_ID_PATTERN } from "./operation-base.js";
+import { createOperationId, OPERATION_ID_PATTERN } from "./operation-base.js";
 import { type Operation, OperationSchema } from "./operations/index.js";
 import { DEFAULT_PRIVACY_REPORT, type PrivacyReport, PrivacyReportSchema } from "./privacy.js";
 
@@ -72,8 +72,9 @@ export interface CreateChangeSetOptions {
 
 /**
  * Create an empty, uncommitted ChangeSet. `id` and `now` default to a fresh
- * UUID and `Date.now()`; pass them explicitly for deterministic tests. Page and
- * viewport default to sentinels (`<unknown>` / 0x0); pass them for real context.
+ * operation-compatible id and `Date.now()`; pass them explicitly for
+ * deterministic tests. Page and viewport default to sentinels (`<unknown>` /
+ * 0x0); pass them for real context.
  * The verification plan and privacy report default to empty stubs the engines
  * overwrite when they run.
  */
@@ -81,7 +82,7 @@ export const createChangeSet = (options: CreateChangeSetOptions): ChangeSet => {
   const now = options.now ?? Date.now();
   return {
     schemaVersion: CHANGE_IR_SCHEMA_VERSION,
-    id: options.id ?? crypto.randomUUID(),
+    id: options.id ?? createOperationId(),
     workspaceId: options.workspaceId,
     sessionId: options.sessionId,
     page: options.page ?? DEFAULT_PAGE_CONTEXT,
@@ -185,7 +186,7 @@ export const withPrivacyReport = (cs: ChangeSet, report: PrivacyReport): ChangeS
   updatedAt: Date.now(),
 });
 
-const newOperationId = (): string => crypto.randomUUID();
+const newOperationId = (): string => createOperationId();
 
 /**
  * Compute the operation that undoes `op`.

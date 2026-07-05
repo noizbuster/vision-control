@@ -29,6 +29,7 @@ export {
   createDaemonDisconnectMessage,
   createEditorCommandMessage,
   createGridPlacementMessage,
+  createInspectorEditMessage,
   createInteractionOperationMessage,
   createMultiSelectGroupMessage,
   createOpenAllowHostMessage,

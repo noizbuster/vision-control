@@ -45,6 +45,7 @@ import {
   createMultiSelectController,
   type MultiSelectController,
 } from "./multi-select-controller.js";
+import { createPropertyInspector, type PropertyInspector } from "./property-inspector.js";
 
 /**
  * Narrow bus seam the runtime depends on. {@link MessageBus} satisfies this
@@ -136,6 +137,13 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     });
   }
 
+  const propertyInspector: PropertyInspector = createPropertyInspector({
+    document: doc,
+    shadowRoot: overlayRoot.shadowRoot,
+    previewManager,
+    bus,
+  });
+
   // Grid-placement emission (plan task 4): on selection of a grid child,
   // derive the track geometry + cell via inferGridCells and publish
   // grid-placement so the useGridPlacement hook fills the InspectorPanel grid
@@ -147,6 +155,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     previewDom.registerElement(context.elementRef.runtimeId, target);
     controllers?.onSelectionChange(context);
     gridPlacement.onSelection(target);
+    propertyInspector.showFor(target, { runtimeId: context.elementRef.runtimeId });
   };
 
   // Multi-select (PRD §9.1): shift+click toggles membership; a marquee drag in
@@ -275,6 +284,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
 
   const dispose = (): void => {
     stop();
+    propertyInspector.dispose();
     controllers?.dispose();
     controllers = null;
     gridPlacement.dispose();

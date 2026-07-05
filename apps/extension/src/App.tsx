@@ -1,6 +1,7 @@
+import type { Operation } from "@vision-control/change-ir";
 import type { AlignmentCommandKind } from "@vision-control/layout-engine";
 import type { ReactElement, ReactNode } from "react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { type PropEditCommand, PropsPanel } from "./components/editors/PropsPanel.js";
 import { HostAllowlistPanel } from "./components/HostAllowlistPanel.js";
@@ -74,6 +75,23 @@ export function App(): ReactElement {
     bus.send("background", createClearPreviewMessage(tabId ?? undefined));
   }, [bus, tabId]);
   const journal = useJournal({ connectionState, dispatchOperation, dispatchClear });
+  const recordRemoteRef = useRef(journal.recordRemote);
+  recordRemoteRef.current = journal.recordRemote;
+  useEffect(() => {
+    if (bus === undefined) return;
+    return bus.on("inspector-edit", (message) => {
+      const payload = message.payload;
+      if (
+        typeof payload !== "object" ||
+        payload === null ||
+        typeof (payload as { kind?: unknown }).kind !== "string" ||
+        typeof (payload as { id?: unknown }).id !== "string"
+      ) {
+        return;
+      }
+      recordRemoteRef.current(payload as Operation);
+    });
+  }, [bus]);
   useJournalPersistence({
     journal: journal.journal,
     client: null,

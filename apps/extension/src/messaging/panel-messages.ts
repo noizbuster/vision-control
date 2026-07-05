@@ -109,6 +109,25 @@ export function createInteractionOperationMessage(operation: Operation): BusMess
 }
 
 /**
+ * Content -> panel signal carrying an operation emitted by the on-page floating
+ * property inspector. The content script applies the op to the DOM directly via
+ * its preview manager (instant, same-context) BEFORE sending this message, so
+ * the panel records it into the journal as already-committed WITHOUT dispatching
+ * it back to content (which would double-apply). Undo/redo still flow through
+ * the normal `editor-command` path (panel -> background -> content).
+ */
+export function createInspectorEditMessage(operation: Operation): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `inspector-edit-${Date.now()}`,
+    messageType: "inspector-edit",
+    targetRoute: "panel",
+    payload: operation,
+    timestamp: Date.now(),
+  };
+}
+
+/**
  * Panel-bound payload describing the inferred grid placement of the currently
  * selected grid child. Emitted by the content-side overlay runtime (the
  * counterpart to {@link createSelectionSummaryMessage}) and consumed by the

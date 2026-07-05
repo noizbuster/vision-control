@@ -32,6 +32,7 @@ export interface UseJournalResult {
   readonly pendingCount: number;
   readonly isConnected: boolean;
   readonly record: (operation: Operation) => JournalEntry;
+  readonly recordRemote: (operation: Operation) => JournalEntry;
   readonly commitEntry: (entryId: string) => void;
   readonly undo: () => void;
   readonly redo: () => void;
@@ -99,6 +100,27 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
     setJournal((current) => markEntryCommitted(current, entryId));
   }, []);
 
+  const recordRemote = useCallback(
+    (operation: Operation): JournalEntry => {
+      const id = newId();
+      const transactionId = newId();
+      const seq = sequence;
+      setSequence((n) => n + 1);
+      const built = createJournalEntry({
+        id,
+        changeSetId,
+        transactionId,
+        sequence: seq,
+        actor: "human",
+        operation,
+        status: "committed",
+      });
+      setJournal((current) => appendEntry(current, built));
+      return built;
+    },
+    [changeSetId, sequence],
+  );
+
   const undo = useCallback((): void => {
     setJournal((current) => {
       if (!canUndoJournal(current)) return current;
@@ -156,6 +178,7 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
     pendingCount,
     isConnected: connectionState === "connected",
     record,
+    recordRemote,
     commitEntry,
     undo,
     redo,

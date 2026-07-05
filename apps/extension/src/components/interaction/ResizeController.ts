@@ -1,4 +1,4 @@
-import type { ResizeElementOperation } from "@vision-control/change-ir";
+import { createOperationId, type ResizeElementOperation } from "@vision-control/change-ir";
 import type { ElementRef } from "@vision-control/element-identity";
 import type { Point, Rect } from "@vision-control/geometry";
 import {
@@ -143,7 +143,7 @@ export function createResizeController(options: ResizeControllerOptions): {
   });
 
   const buildPreviewOperation = (target: ResizeTarget, value: number): ResizeElementOperation => ({
-    id: crypto.randomUUID(),
+    id: createOperationId(),
     timestamp: Date.now(),
     runtime: true,
     origin: "canvas-drag",

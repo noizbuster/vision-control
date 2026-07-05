@@ -1,9 +1,10 @@
-import type {
-  GridReorderOperation,
-  GridSpanOperation,
-  GroupReorderOperation,
-  Operation,
-  ReorderChildOperation,
+import {
+  createOperationId,
+  type GridReorderOperation,
+  type GridSpanOperation,
+  type GroupReorderOperation,
+  type Operation,
+  type ReorderChildOperation,
 } from "@vision-control/change-ir";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
 import type { ElementRef } from "@vision-control/element-identity";
@@ -246,7 +247,7 @@ export class ReorderController {
     }
 
     const operation: GridReorderOperation = {
-      id: globalThis.crypto.randomUUID(),
+      id: createOperationId(),
       kind: "grid-reorder",
       runtime: false,
       timestamp: Date.now(),
@@ -276,7 +277,7 @@ export class ReorderController {
       return null;
     }
     const operation: GridSpanOperation = {
-      id: globalThis.crypto.randomUUID(),
+      id: createOperationId(),
       kind: "grid-span",
       runtime: false,
       timestamp: Date.now(),
@@ -344,7 +345,7 @@ export class ReorderController {
     if (existing !== null && existing.length > 0) {
       return existing;
     }
-    const runtimeId = `vc-reorder-${crypto.randomUUID()}`;
+    const runtimeId = `vc-reorder-${createOperationId()}`;
     element.setAttribute(PREVIEW_ID_ATTR, runtimeId);
     return runtimeId;
   }
@@ -610,7 +611,7 @@ export class ReorderController {
     }
 
     const operation = this.buildPreviewOperation(toIndex);
-    operation.id = globalThis.crypto.randomUUID();
+    operation.id = createOperationId();
     this.previewRollback = this.previewManager.applyOperation(operation);
     this.recordOperation(operation);
 

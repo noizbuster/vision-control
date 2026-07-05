@@ -12,6 +12,7 @@ import { ChangeJournal } from "./components/journal/ChangeJournal.js";
 import { PairingPanel } from "./components/PairingPanel.js";
 import { useComponentProps } from "./hooks/useComponentProps.js";
 import { useConnectionState } from "./hooks/useConnectionState.js";
+import type { EditorMode } from "./hooks/useEditor.js";
 import { useEditor } from "./hooks/useEditor.js";
 import { useFrameTree } from "./hooks/useFrameTree.js";
 import { useGridPlacement } from "./hooks/useGridPlacement.js";
@@ -28,6 +29,10 @@ import {
   buildGridReorderOperation,
   buildGridSpanOperation,
 } from "./inspector-slot-commands.js";
+import {
+  isPanelInteractionMode,
+  sendInteractionModeToRouteableFrames,
+} from "./interaction-mode-routing.js";
 import type { FrameInfo } from "./messaging/index.js";
 import {
   createClearPreviewMessage,
@@ -63,6 +68,14 @@ export function App(): ReactElement {
   const { state: gridPlacementState } = useGridPlacement(bus);
   const { componentProps } = useComponentProps(bus, summary);
   const editor = useEditor();
+  const routedInteractionMode = isPanelInteractionMode(editor.state.mode)
+    ? editor.state.mode
+    : null;
+  const routeableFrameKey = frames
+    .filter((frame) => frame.routeable)
+    .map((frame) => frame.frameId)
+    .join(",");
+  const lastInteractionRouteRef = useRef<string | null>(null);
   const dispatchOperation = useCallback(
     (operation: Parameters<typeof createEditorCommandMessage>[0]): void => {
       if (bus === undefined) return;
@@ -97,6 +110,13 @@ export function App(): ReactElement {
     client: null,
     onRestore: journal.replaceJournal,
   });
+  useEffect(() => {
+    if (bus === undefined || tabId === undefined || tabId === null) return;
+    const routeKey = `${tabId}:${routedInteractionMode ?? "none"}:${routeableFrameKey}`;
+    if (lastInteractionRouteRef.current === routeKey) return;
+    lastInteractionRouteRef.current = routeKey;
+    sendInteractionModeToRouteableFrames(bus, tabId, frames, routedInteractionMode);
+  }, [bus, frames, routeableFrameKey, routedInteractionMode, tabId]);
 
   const handleEditorCommand = (command: Parameters<typeof createEditorCommandMessage>[0]): void => {
     editor.actions.addPendingOperation(command);
@@ -124,6 +144,10 @@ export function App(): ReactElement {
 
   const handlePropCommand = (command: PropEditCommand): void => {
     handleEditorCommand(command);
+  };
+
+  const handleEditorModeChange = (mode: EditorMode): void => {
+    editor.actions.setMode(mode);
   };
 
   const handleConnect = (pairingUrl: string): void => {
@@ -203,7 +227,7 @@ export function App(): ReactElement {
             summary={summary}
             onSelectElement={selectElement}
             editorMode={editor.state.mode}
-            onChangeEditorMode={editor.actions.setMode}
+            onChangeEditorMode={handleEditorModeChange}
             onEditorCommand={handleEditorCommand}
             onValidationError={editor.actions.setValidationError}
             multiSelectGroup={multiSelectGroup}

@@ -61,6 +61,18 @@ function createContentBus(): {
   return { bus, deliver };
 }
 
+function enableInspect(deliver: (message: BusMessage) => void): void {
+  deliver({
+    protocolVersion: "1.0.0",
+    messageId: `test-interaction-mode-${Date.now()}`,
+    messageType: "interaction-mode",
+    sourceRoute: "background",
+    targetRoute: "content",
+    payload: { mode: "Inspect" },
+    timestamp: Date.now(),
+  });
+}
+
 const BASE_TIME = 1_700_000_000_000;
 
 describe("panel -> background -> content -> DOM end-to-end", () => {
@@ -79,6 +91,7 @@ describe("panel -> background -> content -> DOM end-to-end", () => {
     bus = createContentBus();
     runtime = createOverlayRuntime({ document, bus: bus.bus });
     runtime.start();
+    enableInspect(bus.deliver);
     wireContentEditHandlers(bus.bus, runtime);
   });
 

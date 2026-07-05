@@ -293,6 +293,105 @@ describe("interaction wiring", () => {
     assertNoPositionElement(operations);
   });
 
+  it("records reparent-element when a selected element is dragged into another container", () => {
+    const source = document.createElement("section");
+    const target = document.createElement("section");
+    const child = document.createElement("div");
+    child.textContent = "child";
+    source.appendChild(child);
+    document.body.append(source, target);
+    setRect(source, 0, 0, 120, 120);
+    setRect(target, 200, 0, 160, 160);
+    setRect(child, 10, 10, 60, 30);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(child));
+
+    child.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        clientX: 20,
+        clientY: 20,
+        pointerId: 9,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    document.dispatchEvent(
+      new PointerEvent("pointermove", {
+        clientX: 240,
+        clientY: 50,
+        pointerId: 9,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    document.dispatchEvent(
+      new PointerEvent("pointerup", {
+        clientX: 240,
+        clientY: 50,
+        pointerId: 9,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+
+    const operations = controllers.getRecordedOperations();
+    const reparentOp = operations.find((op) => op.kind === "reparent-element");
+    expect(reparentOp, "cross-container pointer drag should record reparent-element").toBeDefined();
+    assertNoPositionElement(operations);
+  });
+
+  it("keeps same-parent pointer drags on the reorder path instead of reparent", () => {
+    const parent = document.createElement("div");
+    parent.style.display = "flex";
+    parent.style.flexDirection = "row";
+    const first = document.createElement("div");
+    first.textContent = "first";
+    const second = document.createElement("div");
+    second.textContent = "second";
+    parent.append(first, second);
+    document.body.appendChild(parent);
+    setRect(parent, 0, 0, 180, 60);
+    setRect(first, 0, 0, 60, 40);
+    setRect(second, 70, 0, 60, 40);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(first));
+
+    first.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        clientX: 10,
+        clientY: 20,
+        pointerId: 10,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    document.dispatchEvent(
+      new PointerEvent("pointermove", {
+        clientX: 100,
+        clientY: 20,
+        pointerId: 10,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    document.dispatchEvent(
+      new PointerEvent("pointerup", {
+        clientX: 100,
+        clientY: 20,
+        pointerId: 10,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+
+    const operations = controllers.getRecordedOperations();
+    expect(operations.some((op) => op.kind === "reorder-child")).toBe(true);
+    expect(operations.some((op) => op.kind === "reparent-element")).toBe(false);
+    assertNoPositionElement(operations);
+  });
+
   it("never emits position-element for a normal-flow drag (PRD constraint 2 / D41)", () => {
     const parent = document.createElement("div");
     parent.style.display = "flex";

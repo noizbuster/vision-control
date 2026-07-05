@@ -31,6 +31,7 @@ export {
   createGridPlacementMessage,
   createHostAccessChangedMessage,
   createInspectorEditMessage,
+  createInteractionModeMessage,
   createInteractionOperationMessage,
   createMultiSelectGroupMessage,
   createRequestComponentPropsMessage,
@@ -39,6 +40,7 @@ export {
   createSessionUpdateMessage,
   type DaemonConnectPayload,
   type GridPlacementMessage,
+  type InteractionModePayload,
   type PropFlowWarningEntry,
   type RequestComponentPropsPayload,
 } from "./panel-messages.js";

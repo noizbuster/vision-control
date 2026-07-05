@@ -7,6 +7,7 @@ import type {
   GridReorderCandidateSet,
   GridSpanCandidate,
 } from "@vision-control/layout-engine";
+import type { InteractionMode } from "@vision-control/overlay-ui";
 // Type-only imports from source-resolver (platform:node) are boundary-safe: they
 // are erased at compile time and pull zero runtime code into the browser bundle.
 // The symmetric `browser-imports-node` checker (task 1) skips type-only imports.
@@ -45,6 +46,27 @@ export function createSelectElementMessage(selector: string): BusMessage {
     messageType: "select-element",
     targetRoute: "background",
     payload: { selector },
+    timestamp: Date.now(),
+  };
+}
+
+export interface InteractionModePayload {
+  readonly mode: InteractionMode | null;
+}
+
+export function createInteractionModeMessage(
+  mode: InteractionMode | null,
+  tabId: number,
+  frameId: number,
+): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `interaction-mode-${Date.now()}`,
+    messageType: "interaction-mode",
+    targetRoute: "content",
+    tabId,
+    frameId,
+    payload: { mode },
     timestamp: Date.now(),
   };
 }

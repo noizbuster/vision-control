@@ -100,6 +100,9 @@ export function InspectorPanel({
   if (summary === null && multiSelectGroup === null) {
     return (
       <div className="inspector-panel">
+        <Section title="Mode">
+          <EditorToolbar activeMode={editorMode} onChangeMode={onChangeEditorMode} />
+        </Section>
         <p className="inspector-panel__empty">Select an element to inspect.</p>
       </div>
     );

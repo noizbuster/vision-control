@@ -95,6 +95,10 @@ function createFakeBus(): OverlayRuntimeBus & {
   return { send, on, emit };
 }
 
+function enableInspect(bus: ReturnType<typeof createFakeBus>): void {
+  bus.emit("interaction-mode", { mode: "Inspect" });
+}
+
 const BASE_TIME = 1_700_000_000_000;
 
 function styleEdit(id: string, runtimeId: string, value: string): Operation {
@@ -152,6 +156,7 @@ describe("content edit wiring (panel -> content apply path)", () => {
     bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    enableInspect(bus);
     wiring = wireContentEditHandlers(bus, runtime);
   });
 

@@ -108,6 +108,10 @@ function multiSelectGroupMessages(bus: ReturnType<typeof createFakeBus>): readon
     .map((entry) => entry.message);
 }
 
+function enableInspect(bus: ReturnType<typeof createFakeBus>): void {
+  bus.emit("interaction-mode", { mode: "Inspect" });
+}
+
 function click(target: Element, shift = false): void {
   target.dispatchEvent(
     new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: shift }),
@@ -185,6 +189,7 @@ describe("multi-select emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const button = document.createElement("button");
     button.id = "solo";
@@ -200,6 +205,7 @@ describe("multi-select emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const a = document.createElement("button");
     const b = document.createElement("button");
@@ -227,6 +233,7 @@ describe("multi-select emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const a = document.createElement("button");
     const b = document.createElement("button");
@@ -259,6 +266,7 @@ describe("multi-select emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const a = document.createElement("button");
     const b = document.createElement("button");
@@ -288,6 +296,7 @@ describe("multi-select emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const a = document.createElement("button");
     document.body.appendChild(a);
@@ -309,6 +318,7 @@ describe("multi-select emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const light = document.createElement("button");
     document.body.appendChild(light);
@@ -351,6 +361,7 @@ describe("multi-select emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const a = document.createElement("button");
     const b = document.createElement("button");

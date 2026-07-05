@@ -55,12 +55,13 @@ implementation:
   `--auto-open-devtools-for-tabs` flag opens the DevTools frontend in a separate
   App-section target that `context.pages()` does not expose, so the panel DOM is
   not reachable from a Playwright page handle.
-- Interaction modes (Move, Resize) and panel commands (alignment, grid
-  placement, Auto Layout) are reachable **only** through the DevTools panel
-  toolbar (`editor.actions.setMode` / panel button `onClick`). There is no
-  content-side bus handler and no keyboard shortcut that switches the interaction
-  mode. So a drag in the page produces no reorder/group/grid effect without the
-  panel.
+- Interaction modes (Inspect, Move, Resize, Text, Layout) are routed through the
+  extension bus by the DevTools panel toolbar. The browser e2e harness can seed
+  that content-side mode message for overlay-only assertions, but it still cannot
+  inspect or click panel controls.
+- Panel commands (alignment, grid placement, Auto Layout) are reachable through
+  DevTools panel controls. The overlay harness does not open the panel, so those
+  command flows remain outside browser-driven e2e coverage.
 - The operations these features emit (`group-reorder`, `group-reparent`,
   `grid-reorder`, `grid-span`, alignment intents, `set-container-layout`) record
   to the change journal, which lives in the DevTools panel context.
@@ -82,9 +83,9 @@ produce observable content-runtime effects (a `vc-multi-` preview id and a
 `apps/extension/e2e/multi-select.spec.ts`; its panel-bound scenarios (member/group
 outlines, cross-frame/closed-shadow diagnostics) are also `test.fixme`.
 
-A future task that either (a) drives the panel via the Chrome DevTools Protocol
-`Runtime.evaluate` against the panel target, or (b) adds a content-side keyboard
-shortcut for Move mode, would unblock these specs. Neither is in v0.2.0 scope.
+A future task that drives the panel via the Chrome DevTools Protocol
+`Runtime.evaluate` against the panel target would unblock these specs. That is
+not in v0.2.0 scope.
 
 ## V1: Dynamic CSS-in-JS class resolution (agent-required)
 

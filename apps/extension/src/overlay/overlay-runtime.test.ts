@@ -180,6 +180,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const host = document.querySelector("[data-vc-overlay-host]") as HTMLElement;
     const shadowRoot = host.shadowRoot as ShadowRoot;
@@ -204,6 +205,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const host = document.querySelector("[data-vc-overlay-host]") as HTMLElement;
     const shadowRoot = host.shadowRoot as ShadowRoot;
@@ -228,12 +230,41 @@ describe("overlay runtime", () => {
     );
   });
 
+  it("keeps page clicks pass-through until Inspect mode is explicitly enabled", () => {
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus });
+    runtime.start();
+
+    const button = document.createElement("button");
+    button.id = "normal-page-button";
+    document.body.appendChild(button);
+    setRect(button, { x: 10, y: 20, width: 100, height: 40 });
+    const onClick = vi.fn();
+    button.addEventListener("click", onClick);
+
+    const pageClick = new MouseEvent("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(pageClick);
+
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(pageClick.defaultPrevented).toBe(false);
+    expect(selectionSummaryMessages(bus)).toHaveLength(0);
+
+    bus.emit("interaction-mode", { mode: "Inspect" });
+    const inspectClick = new MouseEvent("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(inspectClick);
+
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(inspectClick.defaultPrevented).toBe(true);
+    expect(selectionSummaryMessages(bus)).toHaveLength(1);
+  });
+
   it("starts and selects on a host where crypto.randomUUID is unavailable", () => {
     const restoreCrypto = installCryptoWithoutRandomUUID();
     try {
       const bus = createFakeBus();
       runtime = createOverlayRuntime({ document, bus });
       runtime.start();
+      bus.emit("interaction-mode", { mode: "Inspect" });
 
       const button = document.createElement("button");
       button.id = "insecure-context";
@@ -252,6 +283,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const host = document.querySelector("[data-vc-overlay-host]") as HTMLElement;
     const shadowRoot = host.shadowRoot as ShadowRoot;
@@ -291,6 +323,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const host = document.createElement("div");
     host.id = "closed-host";
@@ -309,6 +342,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const host = document.querySelector("[data-vc-overlay-host]") as HTMLElement;
     const shadowRoot = host.shadowRoot as ShadowRoot;
@@ -323,6 +357,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const button = document.createElement("button");
     document.body.appendChild(button);
@@ -342,6 +377,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const button = document.createElement("button");
     button.id = "bp-btn";
@@ -360,6 +396,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const button = document.createElement("button");
     button.id = "bp-resize";
@@ -386,6 +423,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus, screens: ["sm", "md", "lg"] });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const button = document.createElement("button");
     button.id = "bp-screens";
@@ -405,6 +443,7 @@ describe("overlay runtime", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });
     runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
 
     const button = document.createElement("button");
     button.id = "bp-bus";

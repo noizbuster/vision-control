@@ -23,7 +23,36 @@ const BOARD_HTML = fixtureHtml(`
   <div style="height:2000px"></div>
 `);
 
+type OverlayRect = NonNullable<Awaited<ReturnType<typeof overlayElementInfo>>>;
+
+function requireOverlayRect(rect: OverlayRect | null, label: string): OverlayRect {
+  if (rect === null) {
+    throw new Error(`${label} was not rendered`);
+  }
+  return rect;
+}
+
+function isVisibleOverlayRect(rect: OverlayRect | null): boolean {
+  return rect !== null && rect.width > 0 && rect.height > 0;
+}
+
 test.describe("@select-element browser", () => {
+  test("page clicks pass through until Inspect mode is enabled", async ({ page }) => {
+    await serveFixture(page, BOARD_HTML, { interactionMode: null });
+    await page.locator("#btn").evaluate((button) => {
+      button.addEventListener("click", () => {
+        button.setAttribute("data-clicked", "true");
+      });
+    });
+    const btnRect = await pageElementRect(page, "#btn");
+
+    await page.mouse.click(btnRect.x + 5, btnRect.y + 5);
+    await page.waitForTimeout(300);
+
+    await expect(page.locator("#btn")).toHaveAttribute("data-clicked", "true");
+    expect(isVisibleOverlayRect(await overlayElementInfo(page, ".vc-select-outline"))).toBe(false);
+  });
+
   test("hover shows an outline at the element's bounding rect", async ({ page }) => {
     await serveFixture(page, BOARD_HTML);
     const btnRect = await pageElementRect(page, "#btn");
@@ -31,11 +60,13 @@ test.describe("@select-element browser", () => {
     await page.mouse.move(btnRect.x + 5, btnRect.y + 5);
     await page.waitForTimeout(800);
 
-    const hover = await overlayElementInfo(page, ".vc-hover-outline");
-    expect(hover).not.toBeNull();
-    expect(Math.abs(hover!.x - btnRect.x)).toBeLessThanOrEqual(2);
-    expect(Math.abs(hover!.y - btnRect.y)).toBeLessThanOrEqual(2);
-    expect(Math.abs(hover!.width - btnRect.width)).toBeLessThanOrEqual(2);
+    const hover = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-hover-outline"),
+      "hover outline",
+    );
+    expect(Math.abs(hover.x - btnRect.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(hover.y - btnRect.y)).toBeLessThanOrEqual(2);
+    expect(Math.abs(hover.width - btnRect.width)).toBeLessThanOrEqual(2);
   });
 
   test("click selects the element and the selection outline appears", async ({ page }) => {
@@ -45,10 +76,12 @@ test.describe("@select-element browser", () => {
     await page.mouse.click(btnRect.x + 5, btnRect.y + 5);
     await page.waitForTimeout(800);
 
-    const select = await overlayElementInfo(page, ".vc-select-outline");
-    expect(select).not.toBeNull();
-    expect(Math.abs(select!.x - btnRect.x)).toBeLessThanOrEqual(2);
-    expect(Math.abs(select!.width - btnRect.width)).toBeLessThanOrEqual(2);
+    const select = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-select-outline"),
+      "selection outline",
+    );
+    expect(Math.abs(select.x - btnRect.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(select.width - btnRect.width)).toBeLessThanOrEqual(2);
   });
 
   test("outline follows the element after scroll", async ({ page }) => {
@@ -58,16 +91,20 @@ test.describe("@select-element browser", () => {
     await page.mouse.click(cardRect.x + 5, cardRect.y + 5);
     await page.waitForTimeout(600);
 
-    const beforeScroll = await overlayElementInfo(page, ".vc-select-outline");
-    expect(beforeScroll).not.toBeNull();
+    const beforeScroll = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-select-outline"),
+      "selection outline before scroll",
+    );
 
     await page.evaluate(() => window.scrollTo(0, 200));
     await page.waitForTimeout(800);
 
-    const afterScroll = await overlayElementInfo(page, ".vc-select-outline");
-    expect(afterScroll).not.toBeNull();
-    expect(afterScroll!.y).toBeLessThan(beforeScroll!.y);
-    expect(Math.abs(afterScroll!.y - (beforeScroll!.y - 200))).toBeLessThanOrEqual(5);
+    const afterScroll = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-select-outline"),
+      "selection outline after scroll",
+    );
+    expect(afterScroll.y).toBeLessThan(beforeScroll.y);
+    expect(Math.abs(afterScroll.y - (beforeScroll.y - 200))).toBeLessThanOrEqual(5);
   });
 
   test("outline follows the element after window resize", async ({ page }) => {
@@ -81,9 +118,11 @@ test.describe("@select-element browser", () => {
     await page.waitForTimeout(800);
 
     const newBtnRect = await pageElementRect(page, "#btn");
-    const select = await overlayElementInfo(page, ".vc-select-outline");
-    expect(select).not.toBeNull();
-    expect(Math.abs(select!.width - newBtnRect.width)).toBeLessThanOrEqual(5);
+    const select = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-select-outline"),
+      "selection outline",
+    );
+    expect(Math.abs(select.width - newBtnRect.width)).toBeLessThanOrEqual(5);
   });
 
   test("selection works inside a same-origin iframe", async ({ page }) => {

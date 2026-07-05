@@ -1,9 +1,9 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
 import { createMultiSelectGroupId } from "@vision-control/element-identity";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ComponentPropEntry, GridPlacementMessage } from "./messaging/index.js";
+import type { ComponentPropEntry, FrameInfo, GridPlacementMessage } from "./messaging/index.js";
 
 const { slotState } = vi.hoisted(() => ({
   slotState: {
@@ -11,11 +11,22 @@ const { slotState } = vi.hoisted(() => ({
     group: null as MultiSelectGroup | null,
     gridPlacement: null as GridPlacementMessage | null,
     componentProps: [] as readonly ComponentPropEntry[],
+    frames: [] as readonly FrameInfo[],
+    bus: {
+      send: vi.fn(),
+      on: vi.fn(() => () => {}),
+    },
   },
 }));
 
+vi.mock("./hooks/usePanelBus.js", () => ({
+  usePanelBus: () => slotState.bus,
+}));
 vi.mock("./hooks/useSelectionSummary.js", () => ({
   useSelectionSummary: () => ({ summary: slotState.summary, selectElement: () => {} }),
+}));
+vi.mock("./hooks/useFrameTree.js", () => ({
+  useFrameTree: () => slotState.frames,
 }));
 vi.mock("./hooks/useMultiSelect.js", () => ({
   useMultiSelect: () => ({ group: slotState.group }),
@@ -144,6 +155,9 @@ function resetSlotState(): void {
   slotState.group = null;
   slotState.gridPlacement = null;
   slotState.componentProps = [];
+  slotState.frames = [];
+  slotState.bus.send.mockClear();
+  slotState.bus.on.mockClear();
 }
 
 describe("App", () => {
@@ -174,6 +188,88 @@ describe("App", () => {
     expect(screen.queryByText("Multi-Select Group")).toBeNull();
     expect(screen.queryByText("Auto Layout")).toBeNull();
     expect(screen.queryByText("Alignment")).toBeNull();
+  });
+
+  it("sends Inspect mode to every routeable content frame from the empty inspector state", async () => {
+    slotState.frames = [
+      {
+        frameId: 0,
+        url: "http://localhost:3000/",
+        origin: "http://localhost:3000",
+        routeable: true,
+      },
+      {
+        frameId: 1,
+        url: "https://cross.example/",
+        origin: "https://cross.example",
+        routeable: false,
+      },
+      {
+        frameId: 2,
+        url: "http://localhost:3000/frame",
+        origin: "http://localhost:3000",
+        routeable: true,
+      },
+    ];
+
+    render(<App />);
+    slotState.bus.send.mockClear();
+    screen.getByRole("button", { name: "Inspect" }).click();
+
+    await waitFor(() => expect(slotState.bus.send).toHaveBeenCalledTimes(2));
+    expect(slotState.bus.send.mock.calls[0]?.[0]).toBe("content");
+    expect(slotState.bus.send.mock.calls[1]?.[0]).toBe("content");
+    const first = slotState.bus.send.mock.calls[0]?.[1];
+    const second = slotState.bus.send.mock.calls[1]?.[1];
+    expect(first).toMatchObject({
+      messageType: "interaction-mode",
+      targetRoute: "content",
+      tabId: 42,
+      frameId: 0,
+      payload: { mode: "Inspect" },
+    });
+    expect(second).toMatchObject({
+      messageType: "interaction-mode",
+      targetRoute: "content",
+      tabId: 42,
+      frameId: 2,
+      payload: { mode: "Inspect" },
+    });
+  });
+
+  it("replays the current Inspect mode to routeable frames discovered after activation", async () => {
+    const { rerender } = render(<App />);
+    slotState.bus.send.mockClear();
+
+    screen.getByRole("button", { name: "Inspect" }).click();
+    await waitFor(() => expect(slotState.bus.send).toHaveBeenCalledTimes(1));
+    slotState.bus.send.mockClear();
+
+    slotState.frames = [
+      {
+        frameId: 3,
+        url: "http://localhost:3000/later",
+        origin: "http://localhost:3000",
+        routeable: true,
+      },
+      {
+        frameId: 4,
+        url: "https://cross.example/later",
+        origin: "https://cross.example",
+        routeable: false,
+      },
+    ];
+    rerender(<App />);
+
+    await waitFor(() => expect(slotState.bus.send).toHaveBeenCalledTimes(1));
+    expect(slotState.bus.send.mock.calls[0]?.[0]).toBe("content");
+    expect(slotState.bus.send.mock.calls[0]?.[1]).toMatchObject({
+      messageType: "interaction-mode",
+      targetRoute: "content",
+      tabId: 42,
+      frameId: 3,
+      payload: { mode: "Inspect" },
+    });
   });
 
   it("renders the Multi-Select Group section when a multi-element selection exists", () => {

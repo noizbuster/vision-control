@@ -100,6 +100,7 @@ function installGetComputedStyleStub(
 
 function createFakeBus(): OverlayRuntimeBus & {
   readonly sent: ReadonlyArray<{ readonly route: BusRoute; readonly message: BusMessage }>;
+  readonly emit: (messageType: string, payload: unknown) => void;
 } {
   const sent: Array<{ readonly route: BusRoute; readonly message: BusMessage }> = [];
   const handlers = new Map<string, Set<BusMessageHandler>>();
@@ -121,8 +122,26 @@ function createFakeBus(): OverlayRuntimeBus & {
       set?.delete(handler);
     };
   };
+  const emit = (messageType: string, payload: unknown): void => {
+    const message = {
+      protocolVersion: "1.0.0",
+      messageId: `test-${messageType}-${sent.length}`,
+      messageType,
+      sourceRoute: "background",
+      targetRoute: "content",
+      payload,
+      timestamp: Date.now(),
+    } as BusMessage;
+    for (const handler of handlers.get(messageType) ?? []) {
+      handler(message, { route: "background" });
+    }
+  };
 
-  return { send, on, sent };
+  return { send, on, sent, emit };
+}
+
+function enableInspect(bus: ReturnType<typeof createFakeBus>): void {
+  bus.emit("interaction-mode", { mode: "Inspect" });
 }
 
 function gridPlacementMessages(bus: ReturnType<typeof createFakeBus>): readonly BusMessage[] {
@@ -156,6 +175,7 @@ describe("grid-placement emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const grid = document.createElement("div");
     const card = document.createElement("div");
@@ -200,6 +220,7 @@ describe("grid-placement emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const flex = document.createElement("div");
     const item = document.createElement("div");
@@ -231,6 +252,7 @@ describe("grid-placement emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const grid = document.createElement("div");
     const a = document.createElement("div");
@@ -273,6 +295,7 @@ describe("grid-placement emission (overlay runtime)", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
+    enableInspect(bus);
 
     const grid = document.createElement("section");
     const card = document.createElement("article");

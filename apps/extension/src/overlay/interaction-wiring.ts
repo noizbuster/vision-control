@@ -49,12 +49,17 @@ import {
 import { createGridDragController, type GridDragController } from "./grid-drag-controller.js";
 import { createGroupMoveRouter, type GroupMoveRouter } from "./group-move-router.js";
 import type { OverlayRuntimeBus } from "./overlay-runtime.js";
+import {
+  createReparentDragController,
+  type ReparentDragController,
+} from "./reparent-drag-controller.js";
 
 export interface InteractionWiringOptions {
   readonly overlayElement: OverlayElement;
   readonly overlayContainer: HTMLElement;
   readonly previewManager: PreviewManager;
   readonly bus: InteractionBus;
+  readonly document?: Document;
   readonly onDiagnostic?: (diagnostic: ReorderDiagnostic) => void;
   readonly onReparentStateChange?: ReparentControllerCallbacks["onStateChange"];
 }
@@ -78,6 +83,7 @@ export interface InteractionControllers {
   readonly groupMove: GroupMoveRouter;
   readonly gridDrag: GridDragController;
   readonly attach: () => void;
+  readonly detachMove: () => void;
   readonly detach: () => void;
   readonly onSelectionChange: (context: SelectionContext | null) => void;
   readonly getJournal: () => Journal;
@@ -94,6 +100,7 @@ export function createInteractionControllers(
   let journal: Journal = createJournal();
   let sequence = 0;
   const recorded: Operation[] = [];
+  let selectedContext: SelectionContext | null = null;
 
   const recordOperation = (operation: Operation): void => {
     recorded.push(operation);
@@ -155,8 +162,15 @@ export function createInteractionControllers(
   // userChoice "unset" -> grid-area (never a silent DOM-order rewrite); the
   // reading-order a11y warning is surfaced via the onDiagnostic callback below.
   const gridDrag = createGridDragController({ reorder });
+  const reparentDrag: ReparentDragController = createReparentDragController({
+    document: options.document ?? document,
+    reorder,
+    reparent,
+    getSelectionContext: () => selectedContext,
+  });
 
   const onSelectionChange = (context: SelectionContext | null): void => {
+    selectedContext = context;
     reorder.setSelectedElement(context?.element ?? null);
     if (context === null) {
       resize.detach();
@@ -171,11 +185,17 @@ export function createInteractionControllers(
   };
 
   const attach = (): void => {
+    reparentDrag.attach();
     reorder.attach();
   };
 
-  const detach = (): void => {
+  const detachMove = (): void => {
+    reparentDrag.detach();
     reorder.detach();
+  };
+
+  const detach = (): void => {
+    detachMove();
     resize.detach();
   };
 
@@ -192,6 +212,7 @@ export function createInteractionControllers(
     groupMove,
     gridDrag,
     attach,
+    detachMove,
     detach,
     onSelectionChange,
     getJournal: () => journal,

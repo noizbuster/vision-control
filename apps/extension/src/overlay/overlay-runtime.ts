@@ -28,8 +28,13 @@ import {
   createPreviewManager,
   type PreviewManager,
 } from "@vision-control/preview-engine";
-
-import type { BusMessage, BusMessageHandler, BusRoute, MessageBus } from "../messaging/index.js";
+import type {
+  BusMessage,
+  BusMessageHandler,
+  BusRoute,
+  InteractionModePayload,
+  MessageBus,
+} from "../messaging/index.js";
 import { type BreakpointController, createBreakpointController } from "./breakpoint-controller.js";
 import {
   createGridPlacementController,
@@ -81,8 +86,8 @@ export interface OverlayRuntime {
   readonly getInspector: () => Inspector;
   readonly getInteractionControllers: () => InteractionControllers | null;
   /** Switch the active PRD §8.3 interaction mode (gates controller behavior). */
-  readonly setInteractionMode: (mode: InteractionMode) => void;
-  readonly getInteractionMode: () => InteractionMode;
+  readonly setInteractionMode: (mode: InteractionMode | null) => void;
+  readonly getInteractionMode: () => InteractionMode | null;
   /**
    * Apply a panel-driven operation to the page DOM. The content script is the
    * single DOM applier; the panel never mutates the DOM directly.
@@ -134,6 +139,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
       overlayContainer,
       previewManager,
       bus,
+      document: doc,
     });
   }
 
@@ -181,19 +187,40 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   // breadcrumb instead of reordering. Resize keeps the resize handles that
   // attach on selection.
   const keyboard = inspector.getKeyboardController();
-  let interactionMode: InteractionMode = "Inspect";
+  let interactionMode: InteractionMode | null = null;
+  let inspectListenersAttached = false;
 
-  const setInteractionMode = (mode: InteractionMode): void => {
+  const setInspectListeners = (active: boolean): void => {
+    if (active === inspectListenersAttached) return;
+    inspectListenersAttached = active;
+    if (active) {
+      doc.addEventListener("mousemove", onMouseMoveCapture, true);
+      doc.addEventListener("click", onClickCapture, true);
+      marquee.attach();
+      inspector.setInspectMode(true);
+      return;
+    }
+    cancelHoverRaf();
+    doc.removeEventListener("mousemove", onMouseMoveCapture, true);
+    doc.removeEventListener("click", onClickCapture, true);
+    marquee.detach();
+    inspector.setInspectMode(false);
+  };
+
+  const setInteractionMode = (mode: InteractionMode | null): void => {
     interactionMode = mode;
-    keyboard.setMode(mode);
+    keyboard.setMode(mode ?? "Inspect");
+    setInspectListeners(mode === "Inspect");
     if (mode === "Move") {
       controllers?.attach();
-    } else if (mode !== "Resize") {
+    } else if (mode === "Resize") {
+      controllers?.detachMove();
+    } else {
       controllers?.detach();
     }
   };
 
-  const getInteractionMode = (): InteractionMode => interactionMode;
+  const getInteractionMode = (): InteractionMode | null => interactionMode;
 
   // RAF throttle on the hover path (PRD §28.1: 60fps target, <8ms update).
   let hoverRafId: number | null = null;
@@ -258,28 +285,30 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     notifySelection(target);
   };
 
+  const onInteractionMode: BusMessageHandler = (message) => {
+    const payload = message.payload;
+    if (!isInteractionModePayload(payload)) return;
+    setInteractionMode(payload.mode);
+  };
+
   let selectElementUnsub: (() => void) | null = null;
+  let interactionModeUnsub: (() => void) | null = null;
 
   const start = (): void => {
-    doc.addEventListener("mousemove", onMouseMoveCapture, true);
-    doc.addEventListener("click", onClickCapture, true);
     breakpoint.attach();
-    marquee.attach();
-    inspector.setInspectMode(true);
-    keyboard.setMode(interactionMode);
+    setInteractionMode(interactionMode);
     selectElementUnsub = bus.on("select-element", onSelectElement);
+    interactionModeUnsub = bus.on("interaction-mode", onInteractionMode);
   };
 
   const stop = (): void => {
     controllers?.detach();
-    cancelHoverRaf();
-    doc.removeEventListener("mousemove", onMouseMoveCapture, true);
-    doc.removeEventListener("click", onClickCapture, true);
+    setInspectListeners(false);
     breakpoint.detach();
-    marquee.detach();
-    inspector.setInspectMode(false);
     selectElementUnsub?.();
     selectElementUnsub = null;
+    interactionModeUnsub?.();
+    interactionModeUnsub = null;
   };
 
   const dispose = (): void => {
@@ -340,6 +369,26 @@ export function isRouteableFrame(win: Window): boolean {
 export function isInsideClosedShadowRoot(element: Element): boolean {
   const root = element.getRootNode();
   return root instanceof ShadowRoot && root.mode === "closed";
+}
+
+function isRuntimeInteractionMode(mode: unknown): mode is InteractionMode | null {
+  return (
+    mode === null ||
+    mode === "Inspect" ||
+    mode === "Move" ||
+    mode === "Resize" ||
+    mode === "Text" ||
+    mode === "Layout"
+  );
+}
+
+function isInteractionModePayload(payload: unknown): payload is InteractionModePayload {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    "mode" in payload &&
+    isRuntimeInteractionMode(payload.mode)
+  );
 }
 
 /** Re-exported for content-script wiring; avoids a second import surface. */

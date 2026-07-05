@@ -484,7 +484,10 @@ describe("mcp-server redaction", () => {
   });
 
   it("redacts high-entropy tokens from strings", () => {
-    const token = "REDACTED_TEST_TOKEN";
+    // Synthetic high-entropy token. Deliberately NOT a real provider prefix
+    // (no sk_live_/ghp_/AKIA) so it exercises the catch-all entropy path and
+    // stays clear of secret-scanner patterns.
+    const token = "vctesttoken_51234567890abcdef1234567890abcdef";
     const result = textResult({ token });
     const text = extractText(result);
     expect(text).not.toContain(token);

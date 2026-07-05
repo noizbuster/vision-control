@@ -12,7 +12,11 @@
 import type { Operation } from "@vision-control/change-ir";
 import { describe, expect, it } from "vitest";
 
-import { createClearPreviewMessage, createEditorCommandMessage } from "../panel-messages.js";
+import {
+  createClearPreviewMessage,
+  createEditorCommandMessage,
+  createHostAccessChangedMessage,
+} from "../panel-messages.js";
 
 const BASE_TIME = 1_700_000_000_000;
 
@@ -62,6 +66,16 @@ describe("createClearPreviewMessage", () => {
   it("omits tabId entirely when the panel does not pass it", () => {
     const message = createClearPreviewMessage();
     expect(message.messageType).toBe("clear-preview");
+    expect(message.tabId).toBeUndefined();
+    expect("tabId" in message).toBe(false);
+  });
+});
+
+describe("createHostAccessChangedMessage", () => {
+  it("targets the background without tab-specific routing", () => {
+    const message = createHostAccessChangedMessage();
+    expect(message.messageType).toBe("host-access-changed");
+    expect(message.targetRoute).toBe("background");
     expect(message.tabId).toBeUndefined();
     expect("tabId" in message).toBe(false);
   });

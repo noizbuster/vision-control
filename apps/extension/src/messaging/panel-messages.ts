@@ -18,6 +18,15 @@ import type {
 
 import type { BusMessage, ConnectionState, TabSession } from "./types.js";
 
+export {
+  createDaemonConnectMessage,
+  createDaemonDisconnectMessage,
+  createHostAccessChangedMessage,
+  createRequestComponentPropsMessage,
+  type DaemonConnectPayload,
+  type RequestComponentPropsPayload,
+} from "./panel-background-control-messages.js";
+
 export function createSelectionSummaryMessage(summary: SelectionSummary): BusMessage {
   return {
     protocolVersion: "1.0.0",
@@ -217,65 +226,6 @@ export function createComponentPropsMessage(payload: ComponentPropsPayload): Bus
     messageType: "component-props",
     targetRoute: "panel",
     payload,
-    timestamp: Date.now(),
-  };
-}
-
-/**
- * Selection identity the panel sends to the background to request daemon-side
- * prop discovery. The background forwards this to the daemon source-resolver
- * (the `discoverProps`/`propFlowWarnings` functions are platform:node and must
- * not run in the browser — symmetric `browser-imports-node` rule from task 1).
- */
-export interface RequestComponentPropsPayload {
-  readonly elementId: string;
-  readonly tagName: string;
-  readonly sourceId?: string;
-  readonly componentName?: string;
-  readonly ownershipContext?: OwnershipContext;
-  readonly boundary?: BoundaryKind;
-}
-
-export function createRequestComponentPropsMessage(
-  payload: RequestComponentPropsPayload,
-): BusMessage {
-  return {
-    protocolVersion: "1.0.0",
-    messageId: `request-component-props-${Date.now()}`,
-    messageType: "request-component-props",
-    targetRoute: "background",
-    payload,
-    timestamp: Date.now(),
-  };
-}
-
-/**
- * Panel → background signal carrying the daemon pairing URL. The background
- * re-parses this with {@link parsePairingUrl} and drives the ReconnectManager;
- * the panel never talks to the daemon directly.
- */
-export interface DaemonConnectPayload {
-  readonly pairingUrl: string;
-}
-
-export function createDaemonConnectMessage(pairingUrl: string): BusMessage {
-  return {
-    protocolVersion: "1.0.0",
-    messageId: `daemon-connect-${Date.now()}`,
-    messageType: "daemon-connect",
-    targetRoute: "background",
-    payload: { pairingUrl } satisfies DaemonConnectPayload,
-    timestamp: Date.now(),
-  };
-}
-
-export function createDaemonDisconnectMessage(): BusMessage {
-  return {
-    protocolVersion: "1.0.0",
-    messageId: `daemon-disconnect-${Date.now()}`,
-    messageType: "daemon-disconnect",
-    targetRoute: "background",
-    payload: {},
     timestamp: Date.now(),
   };
 }

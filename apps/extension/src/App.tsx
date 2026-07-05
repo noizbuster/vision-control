@@ -180,7 +180,7 @@ export function App(): ReactElement {
               </ul>
             )}
           </section>
-          <HostAllowlistPanel />
+          <HostAllowlistPanel bus={bus} />
           <InspectorPanel
             summary={summary}
             onSelectElement={selectElement}

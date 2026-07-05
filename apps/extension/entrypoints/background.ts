@@ -1,6 +1,7 @@
 import { DaemonClient, parsePairingUrl } from "@vision-control/daemon-client";
 import type { BackgroundDefinition } from "wxt";
 import { defineBackground } from "wxt/utils/define-background";
+import { buildAllowHostPageUrl } from "../src/allow-host-page.js";
 import { STORAGE_KEY } from "../src/host-allowlist.js";
 import { HostAllowlistCache, reconcileHostsWithPermissions } from "../src/host-allowlist-sync.js";
 import {
@@ -122,6 +123,18 @@ const background: BackgroundDefinition = defineBackground(() => {
   backgroundBus.on("daemon-disconnect", () => {
     reconnectManager?.disconnect();
     reconnectManager = undefined;
+  });
+
+  backgroundBus.on("open-allow-host", (message) => {
+    if (typeof chrome === "undefined" || chrome.tabs?.create === undefined) {
+      return;
+    }
+    const payload = message.payload as { readonly host?: string } | undefined;
+    const host = payload?.host;
+    if (typeof host !== "string" || host.length === 0) {
+      return;
+    }
+    void chrome.tabs.create({ url: chrome.runtime.getURL(buildAllowHostPageUrl(host)) });
   });
 
   const forwardEditToContent = createEditForwarder({

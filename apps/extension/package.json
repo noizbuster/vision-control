@@ -26,6 +26,7 @@
     "@vision-control/overlay-ui": "workspace:*",
     "@vision-control/preview-engine": "workspace:*",
     "@vision-control/protocol": "workspace:*",
+    "@vision-control/security": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
@@ -37,7 +38,6 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vision-control/context-compiler": "workspace:*",
-    "@vision-control/security": "workspace:*",
     "@vision-control/source-registry": "workspace:*",
     "@vision-control/source-resolver": "workspace:*",
     "@vision-control/testing": "workspace:*",

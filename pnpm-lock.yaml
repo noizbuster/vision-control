@@ -240,6 +240,9 @@ importers:
       '@vision-control/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@vision-control/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -271,9 +274,6 @@ importers:
       '@vision-control/context-compiler':
         specifier: workspace:*
         version: link:../../packages/context-compiler
-      '@vision-control/security':
-        specifier: workspace:*
-        version: link:../../packages/security
       '@vision-control/source-registry':
         specifier: workspace:*
         version: link:../../packages/source-registry

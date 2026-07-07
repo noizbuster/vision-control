@@ -216,7 +216,9 @@ describe("App", () => {
   it("renders without crashing and shows the inspected tab URL", () => {
     render(<App />);
     expect(screen.getByText("Vision Control")).toBeDefined();
-    expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/");
+    return waitFor(() =>
+      expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
+    );
   });
 
   it("reflects the dark theme class when the system prefers dark", () => {
@@ -455,5 +457,40 @@ describe("App", () => {
     expect(screen.queryByTestId("change-journal-empty")).toBeNull();
     expect(screen.getByTestId("journal-summary").textContent).toContain("source-1[0]");
     expect(screen.getByTestId("journal-summary").textContent).toContain("target-1[0]");
+  });
+
+  it("copies an agent handoff prompt with URL, selection context, and journal entries", async () => {
+    const operation = makeReparentOperation();
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    slotState.summary = makeSummary("flex");
+    render(<App />);
+
+    deliverPanelMessage("interaction-operation", {
+      protocolVersion: "1.0.0",
+      messageId: "interaction-operation-op-reparent01",
+      messageType: "interaction-operation",
+      targetRoute: "panel",
+      sourceRoute: "content",
+      payload: operation,
+      timestamp: 1_700_000_000_000,
+    });
+    await waitFor(() => expect(screen.getByText("Reparent")).toBeDefined());
+
+    screen.getByRole("button", { name: "Copy agent prompt" }).click();
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const copiedPrompt = writeText.mock.calls[0]?.[0];
+    expect(copiedPrompt).toContain("URL: http://localhost:3000/");
+    expect(copiedPrompt).toContain("- Selector: #container");
+    expect(copiedPrompt).toContain('"kind": "reparent-element"');
+    await waitFor(() =>
+      expect(screen.getByTestId("agent-prompt-copy-status").textContent).toBe(
+        "Agent prompt copied",
+      ),
+    );
   });
 });

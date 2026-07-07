@@ -1,13 +1,14 @@
 import type { Operation } from "@vision-control/change-ir";
 import type { AlignmentCommandKind } from "@vision-control/layout-engine";
 import type { ReactElement, ReactNode } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { type PropEditCommand, PropsPanel } from "./components/editors/PropsPanel.js";
 import { HostAllowlistPanel } from "./components/HostAllowlistPanel.js";
 import { AlignmentPanel } from "./components/inspector/AlignmentPanel.js";
 import { AutoLayoutPanel } from "./components/inspector/AutoLayoutPanel.js";
 import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
+import { buildAgentPrompt } from "./components/journal/agent-prompt.js";
 import { ChangeJournal } from "./components/journal/ChangeJournal.js";
 import { PairingPanel } from "./components/PairingPanel.js";
 import { useComponentProps } from "./hooks/useComponentProps.js";
@@ -88,6 +89,18 @@ export function App(): ReactElement {
     bus.send("background", createClearPreviewMessage(tabId ?? undefined));
   }, [bus, tabId]);
   const journal = useJournal({ connectionState, dispatchOperation, dispatchClear });
+  const [agentPromptCopyState, setAgentPromptCopyState] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
+  const agentPrompt = useMemo(
+    () =>
+      buildAgentPrompt({
+        inspectedUrl: url ?? null,
+        selection: summary,
+        entries: journal.entries,
+      }),
+    [url, summary, journal.entries],
+  );
   const recordRemoteRef = useRef(journal.recordRemote);
   recordRemoteRef.current = journal.recordRemote;
   useEffect(() => {
@@ -116,6 +129,9 @@ export function App(): ReactElement {
     client: null,
     onRestore: journal.replaceJournal,
   });
+  useEffect(() => {
+    setAgentPromptCopyState("idle");
+  }, [agentPrompt]);
   useEffect(() => {
     if (bus === undefined || tabId === undefined || tabId === null) return;
     const routeKey = `${tabId}:${routedInteractionMode ?? "none"}:${routeableFrameKey}`;
@@ -167,6 +183,23 @@ export function App(): ReactElement {
       bus.send("background", createDaemonDisconnectMessage());
     }
   };
+
+  const handleCopyAgentPrompt = useCallback((): void => {
+    const clipboard = navigator.clipboard;
+    if (clipboard === undefined) {
+      setAgentPromptCopyState("error");
+      return;
+    }
+
+    void clipboard.writeText(agentPrompt).then(
+      () => {
+        setAgentPromptCopyState("copied");
+      },
+      () => {
+        setAgentPromptCopyState("error");
+      },
+    );
+  }, [agentPrompt]);
 
   const showPropsPanel = summary !== null && componentProps.length > 0;
 
@@ -256,10 +289,13 @@ export function App(): ReactElement {
             entries={journal.entries}
             canUndo={journal.canUndo}
             canRedo={journal.canRedo}
+            canCopyAgentPrompt={agentPrompt.length > 0}
+            agentPromptCopyState={agentPromptCopyState}
             pendingCount={journal.pendingCount}
             onUndo={journal.undo}
             onRedo={journal.redo}
             onClear={journal.clear}
+            onCopyAgentPrompt={handleCopyAgentPrompt}
           />
         </main>
       </div>

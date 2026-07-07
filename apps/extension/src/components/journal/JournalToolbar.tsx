@@ -3,21 +3,33 @@ import type { ReactElement } from "react";
 interface JournalToolbarProps {
   readonly canUndo: boolean;
   readonly canRedo: boolean;
+  readonly canCopyAgentPrompt: boolean;
+  readonly agentPromptCopyState: "idle" | "copied" | "error";
   readonly pendingCount: number;
   readonly onUndo: () => void;
   readonly onRedo: () => void;
   readonly onClear: () => void;
+  readonly onCopyAgentPrompt: () => void;
 }
 
 export function JournalToolbar({
   canUndo,
   canRedo,
+  canCopyAgentPrompt,
+  agentPromptCopyState,
   pendingCount,
   onUndo,
   onRedo,
   onClear,
+  onCopyAgentPrompt,
 }: JournalToolbarProps): ReactElement {
   const transactionStatus = pendingCount > 0 ? `${pendingCount} pending` : "idle";
+  const promptStatus =
+    agentPromptCopyState === "copied"
+      ? "Agent prompt copied"
+      : agentPromptCopyState === "error"
+        ? "Copy failed"
+        : "";
 
   return (
     <div className="journal-toolbar">
@@ -49,14 +61,34 @@ export function JournalToolbar({
         >
           Clear
         </button>
+        <button
+          type="button"
+          className="journal-toolbar__button"
+          onClick={onCopyAgentPrompt}
+          disabled={!canCopyAgentPrompt}
+          aria-label="Copy agent prompt"
+          data-testid="copy-agent-prompt"
+        >
+          Copy Agent Prompt
+        </button>
       </div>
-      <span
-        className="journal-toolbar__status"
-        data-testid="journal-transaction-status"
-        data-pending={pendingCount}
-      >
-        {transactionStatus}
-      </span>
+      <div className="journal-toolbar__status-group">
+        <span
+          className="journal-toolbar__status"
+          data-testid="journal-transaction-status"
+          data-pending={pendingCount}
+        >
+          {transactionStatus}
+        </span>
+        <span
+          className="journal-toolbar__prompt-status"
+          data-state={agentPromptCopyState}
+          data-testid="agent-prompt-copy-status"
+          aria-live="polite"
+        >
+          {promptStatus}
+        </span>
+      </div>
     </div>
   );
 }

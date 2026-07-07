@@ -1,4 +1,4 @@
-import type { Operation, OperationKind } from "@vision-control/change-ir";
+import type { ElementRef, Operation, OperationKind } from "@vision-control/change-ir";
 import type { ReactElement } from "react";
 
 export interface OperationSummary {
@@ -6,6 +6,10 @@ export interface OperationSummary {
   readonly from: string;
   readonly to: string;
   readonly variant: "set" | "add" | "remove";
+}
+
+function formatElementRef(ref: ElementRef): string {
+  return ref.selector ?? ref.sourceId ?? ref.runtimeId;
 }
 
 /**
@@ -153,11 +157,17 @@ export function summarizeOperation(op: Operation): OperationSummary {
         to: op.value,
         variant: "set",
       };
+    case "remove-element":
+      return {
+        subject: op.tagName,
+        from: `<${op.tagName}> ${formatElementRef(op.element)} from ${formatElementRef(op.parent)}[${op.index}]`,
+        to: "",
+        variant: "remove",
+      };
     case "remove-style":
     case "set-attribute":
     case "position-element":
     case "insert-element":
-    case "remove-element":
     case "duplicate-element":
     case "wrap-elements":
     case "unwrap-element":

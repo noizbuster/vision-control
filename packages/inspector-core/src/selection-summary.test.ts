@@ -50,6 +50,27 @@ describe("selection summary", () => {
     expect(summary.boxModel.content.width).toBeGreaterThanOrEqual(0);
   });
 
+  it("includes a parent ref when a runtime id resolver is provided", () => {
+    const parent = document.createElement("section");
+    parent.id = "wrapper";
+    document.body.appendChild(parent);
+
+    const child = document.createElement("button");
+    child.id = "submit";
+    parent.appendChild(child);
+
+    const adapter = createBrowserDomAdapter();
+    const summary = buildSelectionSummary(child, adapter, createIdentity(), {
+      runtimeIdForElement: (element) => (element === parent ? "parent-1" : "runtime-1"),
+    });
+
+    expect(summary.siblingSummary.parent).toMatchObject({
+      runtimeId: "parent-1",
+      tagName: "section",
+      selector: "#wrapper",
+    });
+  });
+
   it("flags high confidence when a source marker is present", () => {
     const el = document.createElement("div");
     el.setAttribute("data-vc-source", "src/App.tsx:5");

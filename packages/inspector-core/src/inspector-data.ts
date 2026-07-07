@@ -8,6 +8,7 @@
  */
 
 import {
+  ElementRefSchema,
   IdentityConfidenceSchema,
   SelectionIdentitySchema,
 } from "@vision-control/element-identity";
@@ -112,6 +113,7 @@ export const SiblingSummarySchema = z.object({
   index: z.number().int().min(0),
   parentTagName: z.string(),
   parentLayoutRole: z.string().optional(),
+  parent: ElementRefSchema.optional(),
 });
 export type SiblingSummary = z.infer<typeof SiblingSummarySchema>;
 

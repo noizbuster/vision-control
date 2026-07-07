@@ -1,3 +1,5 @@
+import type { Operation } from "@vision-control/change-ir";
+import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BusMessage, BusMessageHandler, BusRoute } from "../messaging/index.js";
@@ -228,6 +230,77 @@ describe("overlay runtime", () => {
     expect((summaries[0]?.payload as { identity: { tagName: string } }).identity.tagName).toBe(
       "button",
     );
+  });
+
+  it("uses preview runtime ids for the selected element and parent in selection-summary", () => {
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus });
+    runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
+
+    const container = document.createElement("section");
+    const button = document.createElement("button");
+    button.id = "delete-target";
+    container.appendChild(button);
+    document.body.appendChild(container);
+    setRect(container, { x: 0, y: 0, width: 160, height: 80 });
+    setRect(button, { x: 10, y: 20, width: 100, height: 40 });
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    const selectedRuntimeId = button.getAttribute("data-vc-preview-id");
+    const parentRuntimeId = container.getAttribute("data-vc-preview-id");
+    const summary = selectionSummaryMessages(bus)[0]?.payload as SelectionSummary | undefined;
+
+    expect(selectedRuntimeId).toBeTruthy();
+    expect(parentRuntimeId).toBeTruthy();
+    expect(summary?.identity.runtimeId).toBe(selectedRuntimeId);
+    expect(summary?.siblingSummary.parent?.runtimeId).toBe(parentRuntimeId);
+  });
+
+  it("clears selected overlays and panel summary after removing the selected element", () => {
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus });
+    runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
+
+    const host = document.querySelector("[data-vc-overlay-host]") as HTMLElement;
+    const shadowRoot = host.shadowRoot as ShadowRoot;
+
+    const parent = document.createElement("section");
+    const button = document.createElement("button");
+    button.id = "delete-target";
+    parent.appendChild(button);
+    document.body.appendChild(parent);
+    setRect(parent, { x: 0, y: 0, width: 160, height: 80 });
+    setRect(button, { x: 10, y: 20, width: 100, height: 40 });
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    const selectedRuntimeId = button.getAttribute("data-vc-preview-id");
+    const parentRuntimeId = parent.getAttribute("data-vc-preview-id");
+    if (selectedRuntimeId === null) throw new Error("selected preview id not assigned");
+    if (parentRuntimeId === null) throw new Error("parent preview id not assigned");
+
+    const operation: Operation = {
+      id: "op-delete-selected",
+      timestamp: 1_700_000_000_000,
+      runtime: false,
+      origin: "property-panel",
+      confidence: 1,
+      kind: "remove-element",
+      element: { runtimeId: selectedRuntimeId, selector: "#delete-target" },
+      parent: { runtimeId: parentRuntimeId },
+      index: 0,
+      tagName: "button",
+    };
+
+    runtime.applyOperation(operation);
+
+    expect(parent.contains(button)).toBe(false);
+    expect(readOutlineStyle(shadowRoot, ".vc-select-outline").display).toBe("none");
+    const summaries = selectionSummaryMessages(bus);
+    expect(summaries[summaries.length - 1]?.payload).toBeNull();
   });
 
   it("keeps page clicks pass-through until Inspect mode is explicitly enabled", () => {

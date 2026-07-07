@@ -25,6 +25,10 @@ export function useSelectionSummary(bus: MessageBus | undefined): {
     }
     return bus.on("selection-summary", (message: BusMessage) => {
       const payload = message.payload as unknown;
+      if (payload === null) {
+        setSummary(null);
+        return;
+      }
       if (isSelectionSummaryPayload(payload)) {
         setSummary(payload as SelectionSummary);
       }

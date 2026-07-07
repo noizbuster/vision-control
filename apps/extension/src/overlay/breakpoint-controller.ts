@@ -13,7 +13,10 @@
 
 import type { SelectionSummary } from "@vision-control/inspector-core";
 
-import { createSelectionSummaryMessage } from "../messaging/panel-messages.js";
+import {
+  createSelectionSummaryClearedMessage,
+  createSelectionSummaryMessage,
+} from "../messaging/panel-messages.js";
 import type { BusMessage, BusRoute } from "../messaging/types.js";
 import { type BreakpointResolver, createBreakpointResolver } from "./breakpoint-resolver.js";
 
@@ -60,6 +63,7 @@ export function createBreakpointController(
 
   const clear = (): void => {
     lastSummary = null;
+    bus.send("panel", createSelectionSummaryClearedMessage());
   };
 
   const onViewportScreens = (message: BusMessage): void => {

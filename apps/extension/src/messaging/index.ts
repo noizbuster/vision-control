@@ -36,6 +36,7 @@ export {
   createMultiSelectGroupMessage,
   createRequestComponentPropsMessage,
   createSelectElementMessage,
+  createSelectionSummaryClearedMessage,
   createSelectionSummaryMessage,
   createSessionUpdateMessage,
   type DaemonConnectPayload,

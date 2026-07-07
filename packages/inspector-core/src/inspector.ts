@@ -41,6 +41,7 @@ export interface InspectorOptions {
   readonly overlayElement: OverlayElement;
   readonly domAdapter: DomAdapter;
   readonly bus: InspectorBus;
+  readonly getRuntimeId?: (element: Element) => string;
 }
 
 /** State machine for the inspector. */
@@ -68,6 +69,7 @@ export interface Inspector {
  */
 export function createInspector(options: InspectorOptions): Inspector {
   const { overlayRoot, overlayElement, domAdapter, bus } = options;
+  const runtimeIdForElement = options.getRuntimeId;
   const runtimeIds = new WeakMap<Element, string>();
   let mode: InspectorMode = "idle";
   let selectedElement: Element | null = null;
@@ -223,11 +225,14 @@ export function createInspector(options: InspectorOptions): Inspector {
         selector,
       }),
     });
-    const summary = buildSelectionSummary(target, domAdapter, identity);
+    const summary = buildSelectionSummary(target, domAdapter, identity, {
+      runtimeIdForElement: getRuntimeId,
+    });
     bus.sendSelection(identity, summary);
   }
 
   function getRuntimeId(element: Element): string {
+    if (runtimeIdForElement !== undefined) return runtimeIdForElement(element);
     const existing = runtimeIds.get(element);
     if (existing !== undefined) return existing;
     const id = createRuntimeId(`runtime-${createOperationId()}`);

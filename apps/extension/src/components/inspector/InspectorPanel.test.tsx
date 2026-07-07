@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import type { Operation } from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -63,6 +64,7 @@ function makeSummary(): SelectionSummary {
       count: 3,
       index: 1,
       parentTagName: "form",
+      parent: { runtimeId: "parent-1", tagName: "form", selector: "form" },
     },
     parentLayout: {
       mode: "block",
@@ -78,7 +80,7 @@ function makeProps(
     onSelectElement?: (selector: string) => void;
     editorMode?: EditorMode;
     onChangeEditorMode?: (mode: EditorMode) => void;
-    onEditorCommand?: (command: unknown) => void;
+    onEditorCommand?: (command: Operation) => void;
     onValidationError?: (error: string | null) => void;
   } = {},
 ) {
@@ -161,6 +163,24 @@ describe("InspectorPanel", () => {
     render(<InspectorPanel {...makeProps({ editorMode: "text" })} />);
 
     expect(document.querySelector("[data-vc-text-editor-host]")).not.toBeNull();
+  });
+
+  it("emits a remove-element command when Delete element is clicked", () => {
+    const onEditorCommand = vi.fn<(command: Operation) => void>();
+    render(<InspectorPanel {...makeProps({ onEditorCommand })} />);
+
+    expect(screen.queryByText("Actions")).toBeNull();
+    screen.getByRole("button", { name: "Delete element" }).click();
+
+    expect(onEditorCommand).toHaveBeenCalledOnce();
+    const command = onEditorCommand.mock.calls[0]?.[0];
+    expect(command?.kind).toBe("remove-element");
+    if (command?.kind !== "remove-element") return;
+    expect(command.element.runtimeId).toBe("runtime-1");
+    expect(command.parent.runtimeId).toBe("parent-1");
+    expect(command.index).toBe(1);
+    expect(command.tagName).toBe("button");
+    expect(command.attributes).toEqual({ id: "submit", type: "submit" });
   });
 
   it("does not render the Alignment section when no alignmentPanel slot is passed (additive default)", () => {

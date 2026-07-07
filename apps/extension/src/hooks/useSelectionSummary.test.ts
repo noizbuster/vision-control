@@ -130,6 +130,37 @@ describe("useSelectionSummary", () => {
     expect(result.current.summary).toEqual(summary);
   });
 
+  it("clears the summary when a selection-summary clear payload arrives", () => {
+    const { bus, receive } = createFakeBus();
+    const { result } = renderHook(() => useSelectionSummary(bus));
+    const summary = makeSummary();
+
+    act(() => {
+      receive({
+        protocolVersion: "1.0.0",
+        messageId: "msg-1",
+        messageType: "selection-summary",
+        sourceRoute: "background",
+        targetRoute: "panel",
+        timestamp: Date.now(),
+        payload: summary,
+      });
+    });
+    act(() => {
+      receive({
+        protocolVersion: "1.0.0",
+        messageId: "msg-2",
+        messageType: "selection-summary",
+        sourceRoute: "background",
+        targetRoute: "panel",
+        timestamp: Date.now(),
+        payload: null,
+      });
+    });
+
+    expect(result.current.summary).toBeNull();
+  });
+
   it("sends a select-element message when selectElement is called", () => {
     const { bus, messages } = createFakeBus();
     const { result } = renderHook(() => useSelectionSummary(bus));

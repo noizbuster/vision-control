@@ -119,6 +119,7 @@ describe("inspector data builders", () => {
     el.id = "link";
     el.setAttribute("href", "/path");
     el.setAttribute("data-testid", "nav-link");
+    el.setAttribute("data-vc-preview-id", "vc-internal");
     el.setAttribute("onclick", "alert(1)");
     el.setAttribute("style", "color: red;");
     document.body.appendChild(el);
@@ -133,6 +134,7 @@ describe("inspector data builders", () => {
     expect(names).not.toContain("onclick");
     expect(names).not.toContain("style");
     expect(names).not.toContain("data-vc-source");
+    expect(names).not.toContain("data-vc-preview-id");
   });
 
   it("excludes password and hidden input values", () => {

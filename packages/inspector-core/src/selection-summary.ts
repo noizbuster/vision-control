@@ -6,7 +6,11 @@
  * attributes, semantic role/name, sibling context, and source confidence.
  */
 
-import type { SelectionIdentity } from "@vision-control/element-identity";
+import {
+  type ElementRef,
+  generateStableSelector,
+  type SelectionIdentity,
+} from "@vision-control/element-identity";
 
 import { buildAttributes } from "./attributes.js";
 import { buildBoxModelSummary } from "./box-model.js";
@@ -18,12 +22,22 @@ import type { ParentLayoutSummary, SelectionSummary } from "./inspector-data.js"
 import { buildSemanticSummary } from "./semantic.js";
 import { buildSiblingSummary } from "./sibling-summary.js";
 
+export interface BuildSelectionSummaryOptions {
+  readonly runtimeIdForElement?: (element: Element) => string;
+}
+
 /** Build the full {@link SelectionSummary} for `element`. */
 export function buildSelectionSummary(
   element: Element,
   domAdapter: DomAdapter,
   identity: SelectionIdentity,
+  options: BuildSelectionSummaryOptions = {},
 ): SelectionSummary {
+  const parent = domAdapter.getParent(element);
+  const parentRef =
+    parent !== null && options.runtimeIdForElement !== undefined
+      ? buildParentRef(parent, domAdapter, options.runtimeIdForElement)
+      : undefined;
   return {
     identity,
     breadcrumb: buildBreadcrumb(element, domAdapter),
@@ -32,9 +46,27 @@ export function buildSelectionSummary(
     classList: buildClassList(element, domAdapter),
     attributes: buildAttributes(element, domAdapter),
     semantic: buildSemanticSummary(element, domAdapter),
-    siblingSummary: buildSiblingSummary(element, domAdapter),
+    siblingSummary: buildSiblingSummary(element, domAdapter, parentRef),
     parentLayout: buildParentLayoutSummary(element, domAdapter),
     sourceConfidence: identity.confidence,
+  };
+}
+
+function buildParentRef(
+  element: Element,
+  domAdapter: DomAdapter,
+  runtimeIdForElement: (element: Element) => string,
+): ElementRef {
+  const descriptor = domAdapter.getDescriptor(element);
+  const data = domAdapter.getElementData(element);
+  const sourceId = data.attributes["data-vc-source"];
+  return {
+    runtimeId: runtimeIdForElement(element),
+    tagName: data.tagName,
+    selector: generateStableSelector({ descriptor }),
+    ...(sourceId !== undefined && sourceId.length > 0 ? { sourceId } : {}),
+    ...(data.role !== undefined ? { role: data.role } : {}),
+    ...(data.name !== undefined ? { name: data.name } : {}),
   };
 }
 

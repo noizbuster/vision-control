@@ -229,7 +229,7 @@ export function createInteractionControllers(
 export function buildSelectionContext(element: Element): SelectionContext {
   const domRect = element.getBoundingClientRect();
   const style = window.getComputedStyle(element);
-  const runtimeId = element.getAttribute(PREVIEW_ID_ATTR) ?? assignPreviewId(element);
+  const runtimeId = getOrAssignPreviewRuntimeId(element);
   return {
     element,
     elementRef: { runtimeId, tagName: element.tagName.toLowerCase() },
@@ -240,6 +240,10 @@ export function buildSelectionContext(element: Element): SelectionContext {
       position: style.position,
     },
   };
+}
+
+export function getOrAssignPreviewRuntimeId(element: Element): string {
+  return element.getAttribute(PREVIEW_ID_ATTR) ?? assignPreviewId(element);
 }
 
 function assignPreviewId(element: Element): string {

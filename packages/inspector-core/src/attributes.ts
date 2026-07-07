@@ -34,16 +34,16 @@ const EXCLUDED_ATTRIBUTES = new Set([
   "onscroll",
 ]);
 
-const IDENTITY_ATTR = "data-vc-source";
+const INTERNAL_ATTR_PREFIX = "data-vc-";
 
 /**
  * Build an array of safe attribute entries for the selected element.
  *
- * Included: id, class, role, aria-*, data-* (except the identity marker),
+ * Included: id, class, role, aria-*, data-* (except Vision Control internals),
  * href, src, type, name, and value for non-secret inputs.
  *
- * Excluded: inline style (covered by computed style), event handlers, the
- * identity marker `data-vc-source`, and any value that looks secret.
+ * Excluded: inline style (covered by computed style), event handlers,
+ * `data-vc-*` runtime/source markers, and any value that looks secret.
  */
 export function buildAttributes(element: Element, domAdapter: DomAdapter): AttributeEntry[] {
   const data = domAdapter.getElementData(element);
@@ -70,7 +70,7 @@ function isExcluded(name: string): boolean {
   if (EXCLUDED_ATTRIBUTES.has(name)) {
     return true;
   }
-  if (name === IDENTITY_ATTR) {
+  if (name.startsWith(INTERNAL_ATTR_PREFIX)) {
     return true;
   }
   return false;

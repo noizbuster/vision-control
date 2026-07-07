@@ -143,6 +143,26 @@ function textEdit(id: string, runtimeId: string, newText: string): Operation {
   };
 }
 
+function removeElement(
+  id: string,
+  runtimeId: string,
+  parentRuntimeId: string,
+  index: number,
+): Operation {
+  return {
+    id,
+    timestamp: BASE_TIME,
+    runtime: false,
+    origin: "property-panel",
+    confidence: 1,
+    kind: "remove-element",
+    element: { runtimeId },
+    parent: { runtimeId: parentRuntimeId },
+    index,
+    tagName: "button",
+  };
+}
+
 describe("content edit wiring (panel -> content apply path)", () => {
   let runtime: OverlayRuntime | null = null;
   let bus: ReturnType<typeof createFakeBus>;
@@ -236,6 +256,28 @@ describe("content edit wiring (panel -> content apply path)", () => {
 
     bus.emit("editor-command", textEdit("op-text-001", runtimeId, "after"));
     expect(target.textContent).toBe("after");
+  });
+
+  it("applies a remove-element editor-command and clear-preview restores the node", () => {
+    const parent = document.createElement("section");
+    const target = document.createElement("button");
+    target.textContent = "Delete me";
+    parent.appendChild(target);
+    document.body.appendChild(parent);
+    setRect(parent, 0, 0, 80, 30);
+    setRect(target, 0, 0, 40, 20);
+    target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    const runtimeId = target.getAttribute("data-vc-preview-id");
+    const parentRuntimeId = parent.getAttribute("data-vc-preview-id");
+    if (runtimeId === null) throw new Error("preview id not assigned");
+    if (parentRuntimeId === null) throw new Error("parent preview id not assigned");
+
+    bus.emit("editor-command", removeElement("op-delete-001", runtimeId, parentRuntimeId, 0));
+    expect(parent.contains(target)).toBe(false);
+
+    bus.emit("clear-preview", {});
+    expect(parent.contains(target)).toBe(true);
   });
 
   it("clear-preview removes all applied preview mutations from the DOM", () => {

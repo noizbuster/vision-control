@@ -131,7 +131,12 @@ function makeSummary(display: string): SelectionSummary {
       tagName: "div",
       textContentPreview: "",
     },
-    siblingSummary: { count: 1, index: 0, parentTagName: "body" },
+    siblingSummary: {
+      count: 1,
+      index: 0,
+      parentTagName: "body",
+      parent: { runtimeId: "parent-1", tagName: "body", selector: "body" },
+    },
     parentLayout: { mode: "block", display: "block" },
     sourceConfidence: "high",
   };
@@ -397,6 +402,23 @@ describe("App", () => {
 
     expect(screen.getByText("Component Props")).toBeDefined();
     expect(screen.getByText("Button.variant")).toBeDefined();
+  });
+
+  it("sends and records a remove-element command from the delete action", async () => {
+    slotState.summary = makeSummary("inline");
+    render(<App />);
+
+    screen.getByRole("button", { name: "Delete element" }).click();
+
+    await waitFor(() => expect(screen.getByText("Remove")).toBeDefined());
+    const editorMessage = slotState.bus.send.mock.calls
+      .map((call) => call[1])
+      .find((message) => message.messageType === "editor-command");
+    const operation = editorMessage?.payload as Operation | undefined;
+    expect(operation?.kind).toBe("remove-element");
+    if (operation?.kind !== "remove-element") return;
+    expect(operation.element.runtimeId).toBe("runtime-1");
+    expect(operation.parent.runtimeId).toBe("parent-1");
   });
 
   it("does not render the Component Props section when props exist but no selection (additive-slot contract)", () => {

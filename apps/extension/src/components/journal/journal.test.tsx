@@ -96,6 +96,21 @@ function reorder(fromIndex: number, toIndex: number): Operation {
   };
 }
 
+function removeElement(): Operation {
+  return {
+    id: "op-remove-el1",
+    timestamp: BASE_TIME,
+    runtime: false,
+    origin: "property-panel" as const,
+    confidence: 1,
+    kind: "remove-element",
+    element: { runtimeId: "btn-1" },
+    parent: { runtimeId: "row-1" },
+    index: 2,
+    tagName: "button",
+  };
+}
+
 describe("summarizeOperation", () => {
   it("summarizes a style edit", () => {
     expect(summarizeOperation(styleEdit("16px", "8px"))).toEqual({
@@ -150,6 +165,15 @@ describe("summarizeOperation", () => {
       variant: "set",
     });
   });
+
+  it("summarizes an element removal", () => {
+    expect(summarizeOperation(removeElement())).toEqual({
+      subject: "button",
+      from: "<button> btn-1 from row-1[2]",
+      to: "",
+      variant: "remove",
+    });
+  });
 });
 
 describe("BeforeAfterSummary", () => {
@@ -171,6 +195,11 @@ describe("BeforeAfterSummary", () => {
   it("renders a remove variant with a - prefix", () => {
     render(<BeforeAfterSummary operation={classRemove("bg-blue-500")} />);
     expect(screen.getByText("- bg-blue-500")).toBeDefined();
+  });
+
+  it("renders an element removal with a - prefix", () => {
+    render(<BeforeAfterSummary operation={removeElement()} />);
+    expect(screen.getByText("- <button> btn-1 from row-1[2]")).toBeDefined();
   });
 });
 

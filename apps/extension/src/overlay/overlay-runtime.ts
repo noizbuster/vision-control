@@ -43,6 +43,7 @@ import {
 import {
   buildSelectionContext,
   createInteractionControllers,
+  getOrAssignPreviewRuntimeId,
   type InteractionControllers,
 } from "./interaction-wiring.js";
 import { createMarqueeController, type MarqueeController } from "./marquee-controller.js";
@@ -125,6 +126,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     overlayElement,
     domAdapter,
     bus: inspectorBus,
+    getRuntimeId: getOrAssignPreviewRuntimeId,
   });
 
   const previewDom = createBrowserPreviewDomAdapter();
@@ -324,6 +326,11 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
 
   const applyOperation = (operation: Operation): void => {
     previewManager.applyOperation(operation);
+    if (operation.kind === "remove-element") {
+      inspector.deselect();
+      controllers?.onSelectionChange(null);
+      propertyInspector.hide();
+    }
   };
 
   const clearPreviews = (): void => {

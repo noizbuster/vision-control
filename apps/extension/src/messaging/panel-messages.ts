@@ -39,6 +39,17 @@ export function createSelectionSummaryMessage(summary: SelectionSummary): BusMes
   };
 }
 
+export function createSelectionSummaryClearedMessage(): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `selection-summary-clear-${Date.now()}`,
+    messageType: "selection-summary",
+    targetRoute: "panel",
+    payload: null,
+    timestamp: Date.now(),
+  };
+}
+
 export function createSelectElementMessage(selector: string): BusMessage {
   return {
     protocolVersion: "1.0.0",

@@ -1,10 +1,4 @@
-import type {
-  ClassAddOperation,
-  ClassRemoveOperation,
-  ClassReplaceOperation,
-  StyleEditOperation,
-  TextEditOperation,
-} from "@vision-control/change-ir";
+import type { Operation } from "@vision-control/change-ir";
 import type { ConstraintViolation, MultiSelectGroup } from "@vision-control/editor-core";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import type {
@@ -20,6 +14,7 @@ import { BoxModel } from "./BoxModel.js";
 import { Breadcrumb } from "./Breadcrumb.js";
 import { ClassList } from "./ClassList.js";
 import { ComputedStyle } from "./ComputedStyle.js";
+import { ElementActions } from "./ElementActions.js";
 import { GridPanel } from "./GridPanel.js";
 import { MultiSelectInspectorSection } from "./MultiSelectInspectorSection.js";
 import { SemanticSummary } from "./SemanticSummary.js";
@@ -31,14 +26,7 @@ interface InspectorPanelProps {
   readonly onSelectElement: (selector: string) => void;
   readonly editorMode: EditorMode;
   readonly onChangeEditorMode: (mode: EditorMode) => void;
-  readonly onEditorCommand: (
-    command:
-      | StyleEditOperation
-      | ClassAddOperation
-      | ClassRemoveOperation
-      | ClassReplaceOperation
-      | TextEditOperation,
-  ) => void;
+  readonly onEditorCommand: (command: Operation) => void;
   readonly onValidationError: (error: string | null) => void;
   readonly multiSelectGroup?: MultiSelectGroup | null;
   readonly multiSelectViolations?: readonly ConstraintViolation[];
@@ -155,6 +143,7 @@ export function InspectorPanel({
                 onClose={() => onChangeEditorMode(null)}
               />
             )}
+            <ElementActions summary={summary} onCommand={onEditorCommand} />
           </Section>
 
           <Section title="Breadcrumb">

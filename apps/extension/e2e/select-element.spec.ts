@@ -84,6 +84,47 @@ test.describe("@select-element browser", () => {
     expect(Math.abs(select.width - btnRect.width)).toBeLessThanOrEqual(2);
   });
 
+  test("property inspector moves by dragging the element-name header", async ({ page }) => {
+    await serveFixture(page, BOARD_HTML);
+    const btnRect = await pageElementRect(page, "#btn");
+
+    await page.mouse.click(btnRect.x + 5, btnRect.y + 5);
+    await page.waitForTimeout(800);
+
+    const before = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-inspector"),
+      "property inspector",
+    );
+    const header = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-inspector__header"),
+      "property inspector header",
+    );
+
+    await page.mouse.move(header.x + 20, header.y + 8);
+    await page.mouse.down();
+    await page.mouse.move(header.x - 120, header.y + 80, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+
+    const afterDrag = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-inspector"),
+      "property inspector after drag",
+    );
+    expect(afterDrag.x).toBeLessThan(before.x - 80);
+    expect(afterDrag.y).toBeGreaterThan(before.y + 50);
+
+    const cardRect = await pageElementRect(page, "#card");
+    await page.mouse.click(cardRect.x + 5, cardRect.y + 5);
+    await page.waitForTimeout(500);
+
+    const afterReselect = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-inspector"),
+      "property inspector after reselect",
+    );
+    expect(Math.abs(afterReselect.x - afterDrag.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(afterReselect.y - afterDrag.y)).toBeLessThanOrEqual(2);
+  });
+
   test("outline follows the element after scroll", async ({ page }) => {
     await serveFixture(page, BOARD_HTML);
     const cardRect = await pageElementRect(page, "#card");

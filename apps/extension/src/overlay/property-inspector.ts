@@ -26,6 +26,7 @@ import type { PreviewManager } from "@vision-control/preview-engine";
 
 import type { BusMessage, BusRoute } from "../messaging/index.js";
 import { createInspectorEditMessage } from "../messaging/index.js";
+import { makeDraggableFixedPanel } from "./draggable-panel.js";
 
 /** Source marker attribute (matches integrations; enriches the op target). */
 const SOURCE_ATTR = "data-vc-source";
@@ -59,6 +60,7 @@ export interface PropertyInspector {
 
 const INSPECTOR_CLASS = "vc-inspector";
 const TEXT_INPUT_CLASS = "vc-inspector__text-input";
+const HEADER_DRAGGING_CLASS = "vc-inspector__header--dragging";
 
 type StyleControlId =
   | "background-color"
@@ -105,6 +107,9 @@ function readSourceId(element: Element): string | undefined {
   return undefined;
 }
 
+// allow: SIZE_OK — this floating inspector still owns tightly coupled edit
+// state, render sections, and listener cleanup. New drag behavior is extracted
+// to draggable-panel.ts; future inspector changes should split section renderers.
 export function createPropertyInspector(options: PropertyInspectorOptions): PropertyInspector {
   const { document: doc, shadowRoot, previewManager, bus } = options;
 
@@ -231,6 +236,12 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
       badge.textContent = ref.sourceId;
       header.appendChild(badge);
     }
+    const draggable = makeDraggableFixedPanel({
+      panel: root,
+      handle: header,
+      draggingClassName: HEADER_DRAGGING_CLASS,
+    });
+    trackListener(draggable.dispose);
     root.appendChild(header);
   };
 
@@ -464,6 +475,15 @@ const INSPECTOR_CSS = /* css */ `
     gap: 6px;
     padding-bottom: 4px;
     border-bottom: 1px solid oklch(28% 0.01 260);
+    cursor: move;
+    touch-action: none;
+    user-select: none;
+  }
+  .vc-inspector__header--dragging {
+    cursor: grabbing;
+  }
+  .vc-inspector__header > * {
+    pointer-events: none;
   }
   .vc-inspector__title {
     font-weight: 600;

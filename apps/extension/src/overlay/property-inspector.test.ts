@@ -75,6 +75,12 @@ function setAndFire(input: HTMLInputElement, value: string, eventType = "input")
   input.dispatchEvent(new Event(eventType, { bubbles: true }));
 }
 
+function pointerEvent(type: string, init: MouseEventInit & { readonly pointerId: number }): Event {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, ...init });
+  Object.defineProperty(event, "pointerId", { value: init.pointerId });
+  return event;
+}
+
 function lastInspectorEdit(harness: Harness): Operation | null {
   const matches = harness.bus.sent.filter((m) => m.messageType === "inspector-edit");
   const latest = matches[matches.length - 1];
@@ -256,6 +262,76 @@ describe("property inspector", () => {
 
     h.inspector.hide();
     expect(inspectorEl(h).style.display).toBe("none");
+  });
+
+  it("moves the floating inspector by dragging its element-name header", () => {
+    const h = harness;
+    if (h === null) return;
+    const el = document.createElement("button");
+    document.body.appendChild(el);
+    selectElement(h, el);
+
+    const panel = inspectorEl(h);
+    panel.getBoundingClientRect = () =>
+      ({
+        x: 100,
+        y: 12,
+        width: 260,
+        height: 180,
+        top: 12,
+        right: 360,
+        bottom: 192,
+        left: 100,
+        toJSON: () => ({}),
+      }) satisfies DOMRect;
+    const header = panel.querySelector<HTMLElement>(".vc-inspector__header");
+    if (header === null) throw new Error("inspector header missing");
+
+    header.dispatchEvent(pointerEvent("pointerdown", { pointerId: 1, clientX: 120, clientY: 22 }));
+    window.dispatchEvent(pointerEvent("pointermove", { pointerId: 1, clientX: 220, clientY: 102 }));
+    window.dispatchEvent(pointerEvent("pointerup", { pointerId: 1, clientX: 220, clientY: 102 }));
+
+    expect(panel.style.left).toBe("200px");
+    expect(panel.style.top).toBe("92px");
+    expect(panel.style.right).toBe("auto");
+    expect(header.classList.contains("vc-inspector__header--dragging")).toBe(false);
+  });
+
+  it("keeps the dragged inspector position when a new element is selected", () => {
+    const h = harness;
+    if (h === null) return;
+    const first = document.createElement("button");
+    const second = document.createElement("a");
+    document.body.appendChild(first);
+    document.body.appendChild(second);
+    selectElement(h, first);
+
+    const panel = inspectorEl(h);
+    panel.getBoundingClientRect = () =>
+      ({
+        x: 100,
+        y: 12,
+        width: 260,
+        height: 180,
+        top: 12,
+        right: 360,
+        bottom: 192,
+        left: 100,
+        toJSON: () => ({}),
+      }) satisfies DOMRect;
+    const header = panel.querySelector<HTMLElement>(".vc-inspector__header");
+    if (header === null) throw new Error("inspector header missing");
+
+    header.dispatchEvent(pointerEvent("pointerdown", { pointerId: 2, clientX: 120, clientY: 22 }));
+    window.dispatchEvent(pointerEvent("pointermove", { pointerId: 2, clientX: 180, clientY: 72 }));
+    window.dispatchEvent(pointerEvent("pointerup", { pointerId: 2, clientX: 180, clientY: 72 }));
+
+    h.previewDom.registerElement("vc-test-element-2", second);
+    h.inspector.showFor(second, { runtimeId: "vc-test-element-2" });
+
+    expect(inspectorEl(h).style.left).toBe("160px");
+    expect(inspectorEl(h).style.top).toBe("62px");
+    expect(inspectorEl(h).querySelector(".vc-inspector__title")?.textContent).toBe("a");
   });
 
   it("re-selecting a different element repopulates the inspector from its computed state", () => {

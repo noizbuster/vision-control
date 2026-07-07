@@ -98,6 +98,7 @@ describe("extractStaticStyles — object-literal (dynamic / agent-required)", ()
   });
 
   it("flags template interpolation in a value", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: test fixture contains literal template interpolation syntax
     const result = extractStaticStyles(obj("color: `${theme.color}`"));
     expect(result.isStatic).toBe(false);
     expect(result.dynamicReason).toBe("template-interpolation");
@@ -139,6 +140,7 @@ describe("extractStaticStyles — template-literal (styled-components)", () => {
   });
 
   it("flags template interpolation as dynamic (agent-required)", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: test fixture represents a styled-components template body with literal interpolation
     const result = extractStaticStyles(tpl("color: red;\n  background: ${bg};"));
     expect(result.isStatic).toBe(false);
     expect(result.dynamicReason).toBe("template-interpolation");

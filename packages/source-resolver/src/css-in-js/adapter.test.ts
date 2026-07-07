@@ -40,6 +40,7 @@ const staticDef = (overrides: Partial<CssInJsDefinition> = {}): CssInJsDefinitio
 const dynamicDef = (overrides: Partial<CssInJsDefinition> = {}): CssInJsDefinition => ({
   flavor: "styled-components",
   shape: "template-literal",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: test fixture represents a styled-components template body with literal interpolation
   body: "color: red;\n  background: ${bg};",
   workspaceRelativePath: "src/Card.tsx",
   startLine: 2,

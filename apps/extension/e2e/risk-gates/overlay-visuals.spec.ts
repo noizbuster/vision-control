@@ -36,7 +36,8 @@ test.describe("risk: overlay visuals (browser)", () => {
 
     const hover = await overlayElementInfo(page, ".vc-hover-outline");
     extExpect(hover).not.toBeNull();
-    extExpect(Math.abs(hover!.width - rect.width)).toBeLessThanOrEqual(3);
+    if (!hover) throw new Error("hover should not be null after assertion");
+    extExpect(Math.abs(hover.width - rect.width)).toBeLessThanOrEqual(3);
   });
 
   test("selection outline persists after click", async ({ page }) => {
@@ -48,7 +49,8 @@ test.describe("risk: overlay visuals (browser)", () => {
 
     const select = await overlayElementInfo(page, ".vc-select-outline");
     extExpect(select).not.toBeNull();
-    extExpect(Math.abs(select!.x - rect.x)).toBeLessThanOrEqual(3);
+    if (!select) throw new Error("select should not be null after assertion");
+    extExpect(Math.abs(select.x - rect.x)).toBeLessThanOrEqual(3);
   });
 
   test("box model overlay shows content/padding/border/margin regions on selection", async ({
@@ -103,8 +105,9 @@ test.describe("risk: overlay visuals (browser)", () => {
       };
     });
     extExpect(tokens).not.toBeNull();
-    extExpect(tokens!.hover.trim().length).toBeGreaterThan(0);
-    extExpect(tokens!.select.trim().length).toBeGreaterThan(0);
+    if (!tokens) throw new Error("tokens should not be null after assertion");
+    extExpect(tokens.hover.trim().length).toBeGreaterThan(0);
+    extExpect(tokens.select.trim().length).toBeGreaterThan(0);
   });
 
   test("overlay adapts to dark theme via prefers-color-scheme", async ({ page }) => {
@@ -121,7 +124,8 @@ test.describe("risk: overlay visuals (browser)", () => {
       return el ? getComputedStyle(el).borderColor : null;
     });
     extExpect(outlineColor).not.toBeNull();
-    extExpect(outlineColor!.trim().length).toBeGreaterThan(0);
+    if (!outlineColor) throw new Error("outlineColor should not be null after assertion");
+    extExpect(outlineColor.trim().length).toBeGreaterThan(0);
   });
 
   test("overlay adapts to light theme via prefers-color-scheme", async ({ page }) => {
@@ -138,7 +142,8 @@ test.describe("risk: overlay visuals (browser)", () => {
       return el ? getComputedStyle(el).borderColor : null;
     });
     extExpect(outlineColor).not.toBeNull();
-    extExpect(outlineColor!.trim().length).toBeGreaterThan(0);
+    if (!outlineColor) throw new Error("outlineColor should not be null after assertion");
+    extExpect(outlineColor.trim().length).toBeGreaterThan(0);
   });
 });
 

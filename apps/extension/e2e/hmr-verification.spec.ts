@@ -46,7 +46,8 @@ test.describe("@hmr-verification", () => {
       fixtureHtml('<div id="target" data-vc-source="src-hmr-01" style="padding:10px">Hello</div>'),
     );
     await page.evaluate(() => {
-      const el = document.getElementById("target")!;
+      const el = document.getElementById("target");
+      if (!el) throw new Error("element #target not found");
       el.style.padding = "24px";
     });
     const padding = await page.locator("#target").evaluate((el) => getComputedStyle(el).padding);
@@ -59,7 +60,9 @@ test.describe("@hmr-verification", () => {
   extTest("property assertion passes after a correct source-equivalent patch", async ({ page }) => {
     await serveFixture(page, fixtureHtml('<div id="target" style="padding:10px">Box</div>'));
     await page.evaluate(() => {
-      document.getElementById("target")!.style.padding = "24px";
+      const el = document.getElementById("target");
+      if (!el) throw new Error("element #target not found");
+      el.style.padding = "24px";
     });
 
     const actualPadding = await page
@@ -71,7 +74,9 @@ test.describe("@hmr-verification", () => {
   extTest("text assertion passes after a text source-equivalent patch", async ({ page }) => {
     await serveFixture(page, fixtureHtml('<div id="target">Hello</div>'));
     await page.evaluate(() => {
-      document.getElementById("target")!.textContent = "World";
+      const el = document.getElementById("target");
+      if (!el) throw new Error("element #target not found");
+      el.textContent = "World";
     });
     const actual = await page.locator("#target").textContent();
     extExpect(actual).toBe("World");

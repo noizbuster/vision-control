@@ -102,7 +102,8 @@ test.describe("@property-editors browser", () => {
       extExpect(before).toBe("10px");
 
       const applied = await page.evaluate(() => {
-        const el = document.getElementById("target")!;
+        const el = document.getElementById("target");
+        if (!el) throw new Error("element #target not found");
         const runtimeId = el.getAttribute("data-vc-preview-id");
         if (runtimeId === null) return false;
         const style = document.createElement("style");
@@ -146,7 +147,8 @@ test.describe("@property-editors browser", () => {
         .evaluate((el) => getComputedStyle(el).paddingTop);
 
       await page.evaluate(() => {
-        const el = document.getElementById("target")!;
+        const el = document.getElementById("target");
+        if (!el) throw new Error("element #target not found");
         const runtimeId = el.getAttribute("data-vc-preview-id");
         if (runtimeId === null) return;
         const style = document.createElement("style");
@@ -160,7 +162,8 @@ test.describe("@property-editors browser", () => {
       extExpect(edited).toBe("24px");
 
       await page.evaluate(() => {
-        const el = document.getElementById("target")!;
+        const el = document.getElementById("target");
+        if (!el) throw new Error("element #target not found");
         const runtimeId = el.getAttribute("data-vc-preview-id");
         if (runtimeId === null) return;
         document.head.querySelector("style[data-vc-preview-style]")?.remove();
@@ -184,6 +187,7 @@ test.describe("@property-editors browser", () => {
 
     const outline = await overlayElementInfo(page, ".vc-select-outline");
     extExpect(outline).not.toBeNull();
-    extExpect(Math.abs(outline!.x - rect.x)).toBeLessThanOrEqual(3);
+    if (!outline) throw new Error("outline should not be null after assertion");
+    extExpect(Math.abs(outline.x - rect.x)).toBeLessThanOrEqual(3);
   });
 });

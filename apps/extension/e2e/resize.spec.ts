@@ -247,8 +247,9 @@ test.describe("@resize browser", () => {
 
       const eHandle = await overlayElementInfo(page, ".vc-handle-e");
       extExpect(eHandle).not.toBeNull();
-      const hx = eHandle!.x + eHandle!.width / 2;
-      const hy = eHandle!.y + eHandle!.height / 2;
+      if (!eHandle) throw new Error("eHandle should not be null after assertion");
+      const hx = eHandle.x + eHandle.width / 2;
+      const hy = eHandle.y + eHandle.height / 2;
 
       await page.mouse.move(hx, hy);
       await page.mouse.down();
@@ -277,8 +278,9 @@ test.describe("@resize browser", () => {
 
     const eHandle = await overlayElementInfo(page, ".vc-handle-e");
     extExpect(eHandle).not.toBeNull();
-    const hx = eHandle!.x + eHandle!.width / 2;
-    const hy = eHandle!.y + eHandle!.height / 2;
+    if (!eHandle) throw new Error("eHandle should not be null after assertion");
+    const hx = eHandle.x + eHandle.width / 2;
+    const hy = eHandle.y + eHandle.height / 2;
 
     await page.mouse.move(hx, hy);
     await page.mouse.down();
@@ -303,8 +305,9 @@ test.describe("@resize browser", () => {
 
       const outline = await overlayElementInfo(page, ".vc-select-outline");
       extExpect(outline).not.toBeNull();
-      extExpect(Math.abs(outline!.x - rect.x)).toBeLessThanOrEqual(3);
-      extExpect(Math.abs(outline!.width - rect.width)).toBeLessThanOrEqual(3);
+      if (!outline) throw new Error("outline should not be null after assertion");
+      extExpect(Math.abs(outline.x - rect.x)).toBeLessThanOrEqual(3);
+      extExpect(Math.abs(outline.width - rect.width)).toBeLessThanOrEqual(3);
     },
   );
 });

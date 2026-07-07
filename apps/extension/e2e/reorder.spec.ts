@@ -166,8 +166,9 @@ test.describe("@reorder browser", () => {
 
     const outline = await overlayElementInfo(page, ".vc-select-outline");
     extExpect(outline).not.toBeNull();
-    extExpect(Math.abs(outline!.x - bRect.x)).toBeLessThanOrEqual(3);
-    extExpect(Math.abs(outline!.width - bRect.width)).toBeLessThanOrEqual(3);
+    if (!outline) throw new Error("outline should not be null after assertion");
+    extExpect(Math.abs(outline.x - bRect.x)).toBeLessThanOrEqual(3);
+    extExpect(Math.abs(outline.width - bRect.width)).toBeLessThanOrEqual(3);
   });
 
   extTest(
@@ -183,17 +184,19 @@ test.describe("@reorder browser", () => {
         return { rects, flexDirection: parentStyle.flexDirection, display: parentStyle.display };
       });
 
+      const rect0 = children.rects[0];
+      const rect1 = children.rects[1];
+      const rect2 = children.rects[2];
+      if (!rect0 || !rect1 || !rect2) throw new Error("expected at least 3 rects");
+
       const gapBetweenBandC =
-        children.rects[1]!.rect.x +
-        children.rects[1]!.rect.width +
-        (children.rects[2]!.rect.x - (children.rects[1]!.rect.x + children.rects[1]!.rect.width)) /
-          2;
+        rect1.rect.x + rect1.rect.width + (rect2.rect.x - (rect1.rect.x + rect1.rect.width)) / 2;
 
       const result = computeInsertionIndex(
         { runtimeId: "row" },
         children.rects,
         gapBetweenBandC,
-        children.rects[0]!.rect.y + 10,
+        rect0.rect.y + 10,
         "flex-container",
         children.flexDirection as "row",
       );
@@ -214,16 +217,17 @@ test.describe("@reorder browser", () => {
         return { rects };
       });
 
+      const rect0 = children.rects[0];
+      const rect1 = children.rects[1];
+      if (!rect0 || !rect1) throw new Error("expected at least 2 rects");
+
       const midpointBetweenXandY =
-        children.rects[0]!.rect.y +
-        children.rects[0]!.rect.height +
-        (children.rects[1]!.rect.y - (children.rects[0]!.rect.y + children.rects[0]!.rect.height)) /
-          2;
+        rect0.rect.y + rect0.rect.height + (rect1.rect.y - (rect0.rect.y + rect0.rect.height)) / 2;
 
       const result = computeInsertionIndex(
         { runtimeId: "col" },
         children.rects,
-        children.rects[0]!.rect.x + 10,
+        rect0.rect.x + 10,
         midpointBetweenXandY,
         "flex-container",
         "column",
@@ -245,7 +249,8 @@ test.describe("@reorder browser", () => {
         .locator("#a")
         .evaluate((el) => el.getAttribute("data-vc-preview-id"));
       extExpect(previewId).not.toBeNull();
-      extExpect(previewId!.length).toBeGreaterThan(0);
+      if (!previewId) throw new Error("previewId should not be null after assertion");
+      extExpect(previewId.length).toBeGreaterThan(0);
     },
   );
 });

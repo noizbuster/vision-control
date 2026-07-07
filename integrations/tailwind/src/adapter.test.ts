@@ -209,7 +209,7 @@ describe("createTailwindTokenAdapter — DYNAMIC classes never HIGH (misleading_
     // the `${` sequence (avoids tripping lint/suspicious/noTemplateCurlyInString).
     const interp = String.fromCharCode(36, 123);
     const source = new Map<string, string>([
-      ["src/TL.tsx", "export const TL = ({s}) => <div className={`gap-" + interp + "s}`}>x</div>;"],
+      ["src/TL.tsx", `export const TL = ({s}) => <div className={\`gap-${interp}s}\`}>x</div>;`],
     ]);
     const adapter = createTailwindTokenAdapter({ sourceFiles: source });
     const top = adapter.resolve({

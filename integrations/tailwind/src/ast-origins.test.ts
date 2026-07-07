@@ -97,7 +97,7 @@ describe("findClassNameOrigins — DYNAMIC className (must NOT be static)", () =
   it("marks a template-literal className as dynamic", () => {
     // `${` built from a char code so no source string literal trips noTemplateCurlyInString.
     const interp = String.fromCharCode(36, 123);
-    const content = "<div className={`flex gap-" + interp + "size}`}>x</div>";
+    const content = `<div className={\`flex gap-${interp}size}\`}>x</div>`;
     const origins = findClassNameOrigins(content, "src/TL.tsx");
     expect(origins.filter((o) => o.isStatic)).toHaveLength(0);
   });

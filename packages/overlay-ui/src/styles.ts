@@ -266,20 +266,24 @@ export const OVERLAY_CSS = /* css */ `
     position: absolute;
     pointer-events: none;
     box-sizing: border-box;
+    background: transparent;
+    border-style: solid;
   }
 
   .vc-box-model__region--margin {
-    background: color-mix(in oklch, var(--vc-margin-fill) 35%, transparent);
-    border: 1px dashed var(--vc-margin-edge);
+    border-color: color-mix(in oklch, var(--vc-margin-fill) 48%, transparent);
+    outline: 1px dashed var(--vc-margin-edge);
+    outline-offset: -1px;
   }
 
   .vc-box-model__region--border {
-    background: color-mix(in oklch, var(--vc-border-fill) 45%, transparent);
+    border-color: color-mix(in oklch, var(--vc-border-fill) 46%, transparent);
   }
 
   .vc-box-model__region--padding {
-    background: color-mix(in oklch, var(--vc-padding-fill) 40%, transparent);
-    border: 1px dashed var(--vc-padding-edge);
+    border-color: color-mix(in oklch, var(--vc-padding-fill) 52%, transparent);
+    outline: 1px dashed var(--vc-padding-edge);
+    outline-offset: -1px;
   }
 
   /* PRD §8.2 — flex/grid main-axis indicator. */

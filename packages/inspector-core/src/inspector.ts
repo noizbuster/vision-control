@@ -26,6 +26,7 @@ import {
   type PositionObserver,
 } from "@vision-control/overlay-ui";
 import type { DomAdapter } from "./dom-adapter.js";
+import { buildOverlayBoxModelState } from "./overlay-box-model-state.js";
 import { buildSelectionSummary, type SelectionSummary } from "./selection-summary.js";
 import { computeSourceConfidence } from "./source-confidence.js";
 
@@ -74,11 +75,30 @@ export function createInspector(options: InspectorOptions): Inspector {
   let mode: InspectorMode = "idle";
   let selectedElement: Element | null = null;
   let hoveredElement: Element | null = null;
+  let observedHoverElement: Element | null = null;
 
   const positionObserver: PositionObserver = createPositionObserver({
     onChange: () => sync(),
     onHidden: () => overlayElement.clear(),
     onVisible: () => sync(),
+  });
+  const hoverPositionObserver: PositionObserver = createPositionObserver({
+    onChange: () => {
+      if (selectedElement === null) {
+        sync();
+      }
+    },
+    onHidden: () => {
+      if (selectedElement === null) {
+        overlayElement.setHover(null);
+        overlayElement.setBoxModel(null);
+      }
+    },
+    onVisible: () => {
+      if (selectedElement === null) {
+        sync();
+      }
+    },
   });
 
   const keyboard: KeyboardController = createKeyboardController({
@@ -105,13 +125,17 @@ export function createInspector(options: InspectorOptions): Inspector {
   const hover = (target: Element | null): void => {
     hoveredElement = target;
     if (selectedElement === null) {
+      observeHoverTarget(target);
       renderHover(target);
     }
   };
 
   const select = (target: Element): void => {
     selectedElement = target;
+    hoveredElement = null;
     mode = "selected";
+    observeHoverTarget(null);
+    overlayElement.setHover(null);
     positionObserver.observe(target);
     renderSelection(target);
     notifySelection(target);
@@ -122,6 +146,7 @@ export function createInspector(options: InspectorOptions): Inspector {
     hoveredElement = null;
     mode = mode === "selected" ? "inspect" : mode;
     positionObserver.disconnect();
+    observeHoverTarget(null);
     overlayElement.clear();
     bus.sendDeselect();
   };
@@ -162,18 +187,33 @@ export function createInspector(options: InspectorOptions): Inspector {
   const dispose = (): void => {
     keyboard.deactivate();
     positionObserver.disconnect();
+    hoverPositionObserver.disconnect();
     overlayElement.clear();
     overlayRoot.unmount();
   };
 
+  function observeHoverTarget(target: Element | null): void {
+    if (observedHoverElement === target) return;
+    observedHoverElement = target;
+    hoverPositionObserver.disconnect();
+    if (target !== null) {
+      hoverPositionObserver.observe(target);
+    }
+  }
+
   function renderHover(target: Element | null): void {
     if (target === null) {
       overlayElement.setHover(null);
+      overlayElement.setBoxModel(null);
       return;
     }
     const rect = bridgeElementRect(target, domAdapter);
     if (rect.ok) {
       overlayElement.setHover(rect.value);
+      overlayElement.setBoxModel(buildOverlayBoxModelState(target, domAdapter, rect.value));
+    } else {
+      overlayElement.setHover(null);
+      overlayElement.setBoxModel(null);
     }
   }
 
@@ -200,6 +240,7 @@ export function createInspector(options: InspectorOptions): Inspector {
       label: `${elementData.tagName}${selector ? ` · ${selector}` : ""}`,
       confidence,
     });
+    overlayElement.setBoxModel(buildOverlayBoxModelState(target, domAdapter, rect.value));
   }
 
   function notifySelection(target: Element): void {

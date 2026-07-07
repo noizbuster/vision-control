@@ -30,6 +30,7 @@ export interface PositionObserver {
  * The callback is invoked on:
  * - element resize (ResizeObserver)
  * - scroll of any scrollable ancestor
+ * - document capture scroll
  * - window resize
  * - visibility changes (IntersectionObserver)
  */
@@ -41,6 +42,7 @@ export function createPositionObserver(callbacks: PositionObserverCallbacks): Po
   const scrollListeners: Array<{
     readonly element: EventTarget;
     readonly listener: EventListener;
+    readonly capture: boolean;
   }> = [];
 
   const notifyChange = (): void => {
@@ -59,17 +61,28 @@ export function createPositionObserver(callbacks: PositionObserverCallbacks): Po
   };
 
   const attachScrollListeners = (element: Element): void => {
+    const documentListener = (): void => notifyChange();
+    element.ownerDocument.addEventListener("scroll", documentListener, {
+      capture: true,
+      passive: true,
+    });
+    scrollListeners.push({
+      element: element.ownerDocument,
+      listener: documentListener,
+      capture: true,
+    });
+
     const ancestors = collectScrollAncestors(element);
     for (const ancestor of ancestors) {
       const listener = (): void => notifyChange();
       ancestor.addEventListener("scroll", listener, { passive: true });
-      scrollListeners.push({ element: ancestor, listener });
+      scrollListeners.push({ element: ancestor, listener, capture: false });
     }
   };
 
   const disconnectScrollListeners = (): void => {
-    for (const { element, listener } of scrollListeners) {
-      element.removeEventListener("scroll", listener);
+    for (const { element, listener, capture } of scrollListeners) {
+      element.removeEventListener("scroll", listener, { capture });
     }
     scrollListeners.length = 0;
   };
@@ -104,15 +117,16 @@ export function createPositionObserver(callbacks: PositionObserverCallbacks): Po
 }
 
 /**
- * Walk up from `element` and collect every scrollable ancestor (including
- * `window` and `document`). Uses `getComputedStyle` to detect overflow.
+ * Walk up from `element` and collect every scrollable ancestor, plus the owner
+ * window. Document capture scroll is attached separately above.
  */
 function collectScrollAncestors(element: Element): readonly EventTarget[] {
   const ancestors: EventTarget[] = [];
+  const ownerWindow = element.ownerDocument.defaultView ?? window;
   let current: Element | null = element.parentElement;
 
   while (current !== null) {
-    const style = window.getComputedStyle(current);
+    const style = ownerWindow.getComputedStyle(current);
     if (
       isScrollContainer(style.overflow) ||
       isScrollContainer(style.overflowX) ||
@@ -123,7 +137,7 @@ function collectScrollAncestors(element: Element): readonly EventTarget[] {
     current = current.parentElement;
   }
 
-  ancestors.push(window);
+  ancestors.push(ownerWindow);
   return ancestors;
 }
 

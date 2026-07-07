@@ -68,7 +68,7 @@ export function createBoxModelOverlay(container: HTMLElement): BoxModelOverlay {
       return;
     }
 
-    const { rect, margin, border } = state;
+    const { rect, margin, border, padding } = state;
     layer.style.display = "block";
 
     applyRegion(marginRegion, {
@@ -77,8 +77,10 @@ export function createBoxModelOverlay(container: HTMLElement): BoxModelOverlay {
       width: margin.left + rect.width + margin.right,
       height: margin.top + rect.height + margin.bottom,
     });
+    applyEdgeWidths(marginRegion, margin);
 
     applyRegion(borderRegion, rect);
+    applyEdgeWidths(borderRegion, border);
 
     applyRegion(paddingRegion, {
       x: rect.x + border.left,
@@ -86,9 +88,19 @@ export function createBoxModelOverlay(container: HTMLElement): BoxModelOverlay {
       width: Math.max(0, rect.width - border.left - border.right),
       height: Math.max(0, rect.height - border.top - border.bottom),
     });
+    applyEdgeWidths(paddingRegion, padding);
   };
 
   const clear = (): void => setBoxModel(null);
 
   return { setBoxModel, clear };
+}
+
+function applyEdgeWidths(element: HTMLElement, edges: EdgeValues): void {
+  const hasVisibleArea = edges.top > 0 || edges.right > 0 || edges.bottom > 0 || edges.left > 0;
+  element.style.display = hasVisibleArea ? "block" : "none";
+  element.style.borderTopWidth = `${edges.top}px`;
+  element.style.borderRightWidth = `${edges.right}px`;
+  element.style.borderBottomWidth = `${edges.bottom}px`;
+  element.style.borderLeftWidth = `${edges.left}px`;
 }

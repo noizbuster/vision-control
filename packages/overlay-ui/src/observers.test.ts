@@ -32,4 +32,17 @@ describe("position observer", () => {
     expect(globalThis.IntersectionObserver).toHaveBeenCalled();
     observer.disconnect();
   });
+
+  it("notifies on document capture scroll", () => {
+    const onChange = vi.fn();
+    const observer = createPositionObserver({ onChange });
+    const target = document.createElement("div");
+    document.body.appendChild(target);
+
+    observer.observe(target);
+    document.dispatchEvent(new Event("scroll"));
+
+    expect(onChange).toHaveBeenCalledOnce();
+    observer.disconnect();
+  });
 });

@@ -171,6 +171,28 @@ describe("StyleEditor", () => {
     expect(onCommand.mock.calls[0]?.[0].value).toBe("#ff0000");
   });
 
+  it("does not duplicate the command when an Enter commit is followed by blur", () => {
+    const onCommand = vi.fn();
+    const onValidationError = vi.fn();
+    render(
+      <StyleEditor
+        summary={makeSummary()}
+        onCommand={onCommand}
+        onValidationError={onValidationError}
+      />,
+    );
+
+    const paddingInput = screen.getAllByDisplayValue("8px")[0];
+    if (paddingInput === undefined) {
+      throw new Error("padding input not found");
+    }
+    fireEvent.change(paddingInput, { target: { value: "16px" } });
+    fireEvent.keyDown(paddingInput, { key: "Enter", code: "Enter" });
+    fireEvent.blur(paddingInput);
+
+    expect(onCommand).toHaveBeenCalledOnce();
+  });
+
   it("does NOT create a command for an invalid CSS value", () => {
     const onCommand = vi.fn();
     const onValidationError = vi.fn();

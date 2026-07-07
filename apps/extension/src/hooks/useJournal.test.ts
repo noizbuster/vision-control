@@ -208,6 +208,60 @@ describe("useJournal", () => {
     expect(result.current.entries[0]?.status).toBe("committed");
   });
 
+  it("commits an existing local entry when content echoes the same operation", () => {
+    const operation = styleEdit("op-record-echo", "blue");
+    const { result } = renderHook(() => useJournal({ previewEngine: null }));
+
+    act(() => {
+      result.current.record(operation);
+    });
+    act(() => {
+      result.current.recordRemote(operation);
+    });
+
+    expect(result.current.entries).toHaveLength(1);
+    expect(result.current.entries[0]?.operation.id).toBe("op-record-echo");
+    expect(result.current.entries[0]?.status).toBe("committed");
+  });
+
+  it("ignores duplicate remote operations with the same operation id", () => {
+    const operation = styleEdit("op-remote-duplicate", "blue");
+    const { result } = renderHook(() => useJournal({ previewEngine: null }));
+
+    act(() => {
+      result.current.recordRemote(operation);
+    });
+    act(() => {
+      result.current.recordRemote(operation);
+    });
+
+    expect(result.current.entries).toHaveLength(1);
+    expect(result.current.entries[0]?.operation.id).toBe("op-remote-duplicate");
+    expect(result.current.entries[0]?.status).toBe("committed");
+  });
+
+  it("keeps the operation index current across batched appends and commits", () => {
+    const operationA = styleEdit("op-batched-a", "blue");
+    const operationB = styleEdit("op-batched-b", "green");
+    const { result } = renderHook(() => useJournal({ previewEngine: null }));
+
+    act(() => {
+      result.current.record(operationA);
+      result.current.recordRemote(operationA);
+      result.current.record(operationB);
+    });
+    act(() => {
+      result.current.recordRemote(operationB);
+    });
+
+    expect(result.current.entries).toHaveLength(2);
+    expect(result.current.entries.map((entry) => entry.operation.id).sort()).toEqual([
+      "op-batched-a",
+      "op-batched-b",
+    ]);
+    expect(new Set(result.current.entries.map((entry) => entry.sequence)).size).toBe(2);
+  });
+
   describe("dispatch path (panel routes edits to content via the bus)", () => {
     it("undo dispatches the stored inverse operation to content", () => {
       const dispatched: Operation[] = [];

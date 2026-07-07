@@ -13,7 +13,7 @@ import {
   undo as undoEntry,
 } from "@vision-control/change-journal";
 import type { PreviewManager } from "@vision-control/preview-engine";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import type { ConnectionState } from "../messaging/index.js";
 
@@ -60,6 +60,22 @@ function applyCommitted(engine: PreviewManager, operation: Operation): boolean {
   }
 }
 
+function indexEntriesByOperationId(journal: Journal): Map<string, JournalEntry> {
+  const entriesByOperationId = new Map<string, JournalEntry>();
+  for (const entry of journal.entries) {
+    entriesByOperationId.set(entry.operation.id, entry);
+  }
+  return entriesByOperationId;
+}
+
+function nextSequenceFor(journal: Journal): number {
+  let nextSequence = 0;
+  for (const entry of journal.entries) {
+    nextSequence = Math.max(nextSequence, entry.sequence + 1);
+  }
+  return nextSequence;
+}
+
 export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
   const {
     previewEngine = null,
@@ -69,56 +85,84 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
   } = options;
   const [journal, setJournal] = useState<Journal>(createJournal);
   const [changeSetId] = useState<string>(newId);
-  const [sequence, setSequence] = useState(0);
+  const nextSequenceRef = useRef(0);
+  const entryByOperationIdRef = useRef<Map<string, JournalEntry>>(new Map());
+
+  const syncJournalRefs = useCallback((next: Journal): void => {
+    entryByOperationIdRef.current = indexEntriesByOperationId(next);
+    nextSequenceRef.current = nextSequenceFor(next);
+  }, []);
+
+  const appendOperation = useCallback(
+    (operation: Operation, status: JournalEntry["status"]): JournalEntry => {
+      const existing = entryByOperationIdRef.current.get(operation.id);
+      if (existing !== undefined) return existing;
+
+      const built = createJournalEntry({
+        id: newId(),
+        changeSetId,
+        transactionId: newId(),
+        sequence: nextSequenceRef.current,
+        actor: "human",
+        operation,
+        status,
+      });
+      entryByOperationIdRef.current.set(operation.id, built);
+      nextSequenceRef.current += 1;
+      setJournal((current) => {
+        const next = appendEntry(current, built);
+        syncJournalRefs(next);
+        return next;
+      });
+      return built;
+    },
+    [changeSetId, syncJournalRefs],
+  );
 
   const record = useCallback(
     (operation: Operation): JournalEntry => {
-      const id = newId();
-      const transactionId = newId();
-      const seq = sequence;
-      setSequence((n) => n + 1);
+      const existing = entryByOperationIdRef.current.get(operation.id);
+      if (existing !== undefined) return existing;
+
       const committed =
         previewEngine !== null && previewEngine !== undefined
           ? applyCommitted(previewEngine, operation)
           : false;
-      const built = createJournalEntry({
-        id,
-        changeSetId,
-        transactionId,
-        sequence: seq,
-        actor: "human",
-        operation,
-        status: committed ? "committed" : "preview",
-      });
-      setJournal((current) => appendEntry(current, built));
-      return built;
+      return appendOperation(operation, committed ? "committed" : "preview");
     },
-    [previewEngine, changeSetId, sequence],
+    [previewEngine, appendOperation],
   );
 
-  const commitEntry = useCallback((entryId: string): void => {
-    setJournal((current) => markEntryCommitted(current, entryId));
-  }, []);
+  const commitEntry = useCallback(
+    (entryId: string): void => {
+      setJournal((current) => {
+        const next = markEntryCommitted(current, entryId);
+        syncJournalRefs(next);
+        return next;
+      });
+    },
+    [syncJournalRefs],
+  );
 
   const recordRemote = useCallback(
     (operation: Operation): JournalEntry => {
-      const id = newId();
-      const transactionId = newId();
-      const seq = sequence;
-      setSequence((n) => n + 1);
-      const built = createJournalEntry({
-        id,
-        changeSetId,
-        transactionId,
-        sequence: seq,
-        actor: "human",
-        operation,
-        status: "committed",
-      });
-      setJournal((current) => appendEntry(current, built));
-      return built;
+      const existing = entryByOperationIdRef.current.get(operation.id);
+      if (existing !== undefined) {
+        if (existing.status !== "preview") return existing;
+
+        const committed: JournalEntry = { ...existing, status: "committed" };
+        entryByOperationIdRef.current.set(operation.id, committed);
+        setJournal((current) => {
+          const next = markEntryCommitted(current, existing.id);
+          syncJournalRefs(next);
+          return next;
+        });
+        return committed;
+      }
+
+      return appendOperation(operation, "committed");
     },
-    [changeSetId, sequence],
+    [appendOperation, syncJournalRefs],
   );
 
   const undo = useCallback((): void => {
@@ -130,9 +174,10 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
       } else if (previewEngine !== null && previewEngine !== undefined) {
         applyCommitted(previewEngine, inverse);
       }
+      syncJournalRefs(next);
       return next;
     });
-  }, [previewEngine, dispatchOperation]);
+  }, [previewEngine, dispatchOperation, syncJournalRefs]);
 
   const redo = useCallback((): void => {
     setJournal((current) => {
@@ -143,9 +188,10 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
       } else if (previewEngine !== null && previewEngine !== undefined) {
         applyCommitted(previewEngine, operation);
       }
+      syncJournalRefs(next);
       return next;
     });
-  }, [previewEngine, dispatchOperation]);
+  }, [previewEngine, dispatchOperation, syncJournalRefs]);
 
   const clear = useCallback((): void => {
     if (dispatchClear !== undefined) {
@@ -153,12 +199,18 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
     } else if (previewEngine !== null && previewEngine !== undefined) {
       previewEngine.clearAll();
     }
-    setJournal(clearJournal());
-  }, [previewEngine, dispatchClear]);
-
-  const replaceJournal = useCallback((next: Journal): void => {
+    const next = clearJournal();
+    syncJournalRefs(next);
     setJournal(next);
-  }, []);
+  }, [previewEngine, dispatchClear, syncJournalRefs]);
+
+  const replaceJournal = useCallback(
+    (next: Journal): void => {
+      syncJournalRefs(next);
+      setJournal(next);
+    },
+    [syncJournalRefs],
+  );
 
   const entries = useMemo<readonly JournalEntry[]>(
     () => [...journal.entries].reverse(),

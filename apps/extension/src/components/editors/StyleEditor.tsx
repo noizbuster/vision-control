@@ -5,7 +5,7 @@ import {
   validateCssValue,
 } from "@vision-control/inspector-core";
 import type { ReactElement } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface StyleEditorProps {
   readonly summary: SelectionSummary;
@@ -55,13 +55,20 @@ function EditableRow({
   onValidationError,
 }: EditableRowProps): ReactElement {
   const [draft, setDraft] = useState(entry.value);
+  const [committedValue, setCommittedValue] = useState(entry.value);
   const [error, setError] = useState<string | null>(null);
 
   const property = useMemo(() => kebabCase(entry.key), [entry.key]);
 
+  useEffect(() => {
+    setDraft(entry.value);
+    setCommittedValue(entry.value);
+    setError(null);
+  }, [entry.value]);
+
   const commit = useCallback((): void => {
     const trimmed = draft.trim();
-    if (trimmed === entry.value) {
+    if (trimmed === committedValue) {
       setError(null);
       onValidationError(null);
       return;
@@ -84,15 +91,15 @@ function EditableRow({
 
     setError(null);
     onValidationError(null);
-    onCommand(
-      createStyleEditCommand(
-        { runtimeId: target.runtimeId, selector: target.selector ?? undefined },
-        property,
-        trimmed,
-        entry.value,
-      ),
-    );
-  }, [draft, entry.value, property, target, onCommand, onValidationError]);
+    setDraft(trimmed);
+    setCommittedValue(trimmed);
+    const commandTarget = {
+      runtimeId: target.runtimeId,
+      ...(target.sourceId !== undefined ? { sourceId: target.sourceId } : {}),
+      ...(target.selector !== undefined ? { selector: target.selector } : {}),
+    };
+    onCommand(createStyleEditCommand(commandTarget, property, trimmed, committedValue));
+  }, [committedValue, draft, property, target, onCommand, onValidationError]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>): void => {

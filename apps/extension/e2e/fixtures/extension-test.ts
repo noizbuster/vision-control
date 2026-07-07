@@ -120,11 +120,17 @@ export async function setInteractionMode(
   page: Page,
   mode: E2eInteractionMode | null,
 ): Promise<void> {
-  const extensionId = await getExtensionId(page);
   const pageUrl = page.url();
-  const extensionPage = await page.context().newPage();
+  const extensionPage = await openExtensionPanel(page);
   try {
-    await extensionPage.goto(`${EXTENSION_URL_PREFIX}${extensionId}/panel.html`);
+    await extensionPage.waitForFunction(
+      (targetUrl) => {
+        const text = document.querySelector("[data-testid='inspected-url']")?.textContent ?? "";
+        return text.includes(targetUrl) || text.includes(new URL(targetUrl).origin);
+      },
+      pageUrl,
+      { timeout: 5_000 },
+    );
     await extensionPage.evaluate(
       async ({ mode: nextMode, pageUrl: targetUrl }) => {
         const chromeApi = (globalThis as { readonly chrome?: E2eChromeApi }).chrome;
@@ -157,6 +163,13 @@ export async function setInteractionMode(
   } finally {
     await extensionPage.close();
   }
+}
+
+export async function openExtensionPanel(page: Page): Promise<Page> {
+  const extensionId = await getExtensionId(page);
+  const extensionPage = await page.context().newPage();
+  await extensionPage.goto(`${EXTENSION_URL_PREFIX}${extensionId}/panel.html`);
+  return extensionPage;
 }
 
 async function getExtensionId(page: Page): Promise<string> {

@@ -1,6 +1,8 @@
 import {
   expect,
   fixtureHtml,
+  fixtureUrl,
+  openExtensionPanel,
   overlayElementInfo,
   pageElementRect,
   serveFixture,
@@ -67,6 +69,30 @@ test.describe("@select-element browser", () => {
     expect(Math.abs(hover.x - btnRect.x)).toBeLessThanOrEqual(2);
     expect(Math.abs(hover.y - btnRect.y)).toBeLessThanOrEqual(2);
     expect(Math.abs(hover.width - btnRect.width)).toBeLessThanOrEqual(2);
+  });
+
+  test("panel UI Inspect activates overlays when the panel is opened as an extension page", async ({
+    page,
+  }) => {
+    await serveFixture(page, BOARD_HTML, { interactionMode: null });
+    const panel = await openExtensionPanel(page);
+
+    await expect(panel.locator("[data-testid='inspected-url']")).toContainText(fixtureUrl("board"));
+    await panel.getByRole("button", { name: "Inspect" }).click();
+    await page.bringToFront();
+
+    const btnRect = await pageElementRect(page, "#btn");
+    await page.mouse.move(btnRect.x + 5, btnRect.y + 5);
+    await page.waitForTimeout(300);
+
+    const hover = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-hover-outline"),
+      "hover outline",
+    );
+    expect(Math.abs(hover.x - btnRect.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(hover.y - btnRect.y)).toBeLessThanOrEqual(2);
+
+    await panel.close();
   });
 
   test("click selects the element and the selection outline appears", async ({ page }) => {

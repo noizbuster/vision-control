@@ -168,7 +168,8 @@ describe("runVerification — NEGATIVE: wrong target reacquired", () => {
       </ul>
     `;
     const dom = makeDom();
-    const item0 = document.querySelector("#item-0")!;
+    const item0 = document.querySelector("#item-0");
+    if (!item0) throw new Error("test setup: #item-0 not found");
     const fp0 = dom.computeFingerprint(item0);
 
     const op = makeReorder(elementRef("rt-parent"), elementRef("rt-child"), 0, 2);
@@ -213,7 +214,8 @@ describe("runVerification — geometry tolerance end-to-end", () => {
     document.body.innerHTML =
       "<div data-vc-source='geo' id='el' style='width:100px;height:50px'></div>";
     const dom = makeDom();
-    const el = document.querySelector("#el")!;
+    const el = document.querySelector("#el");
+    if (!el) throw new Error("test setup: #el not found");
     const actual = dom.getRect(el);
     const result = assertGeometry(
       { element: el, dom, runtimeId: "rt", confidence: "high" },
@@ -227,7 +229,8 @@ describe("runVerification — geometry tolerance end-to-end", () => {
     document.body.innerHTML =
       "<div data-vc-source='geo' id='el' style='width:100px;height:50px'></div>";
     const dom = makeDom();
-    const el = document.querySelector("#el")!;
+    const el = document.querySelector("#el");
+    if (!el) throw new Error("test setup: #el not found");
     const actual = dom.getRect(el);
     const result = assertGeometry(
       { element: el, dom, runtimeId: "rt", confidence: "high" },

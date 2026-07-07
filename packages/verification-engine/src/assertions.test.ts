@@ -142,7 +142,8 @@ describe("assertParent", () => {
   it("passes when parent matches selector", () => {
     document.body.innerHTML = "<div id='container'><span id='child'>x</span></div>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const child = document.querySelector("#child")!;
+    const child = document.querySelector("#child");
+    if (!child) throw new Error("test setup: #child not found");
     const result = assertParent(
       { element: child, dom, runtimeId: "rt", confidence: "high" },
       "#container",
@@ -153,7 +154,8 @@ describe("assertParent", () => {
   it("fails when parent does not match", () => {
     document.body.innerHTML = "<div id='other'><span id='child'>x</span></div>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const child = document.querySelector("#child")!;
+    const child = document.querySelector("#child");
+    if (!child) throw new Error("test setup: #child not found");
     const result = assertParent(
       { element: child, dom, runtimeId: "rt", confidence: "high" },
       "#container",
@@ -170,7 +172,8 @@ describe("assertSiblingOrder", () => {
   it("passes at correct index", () => {
     document.body.innerHTML = "<ul><li>a</li><li id='b'>b</li><li>c</li></ul>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const li = document.querySelector("#b")!;
+    const li = document.querySelector("#b");
+    if (!li) throw new Error("test setup: #b not found");
     const result = assertSiblingOrder({ element: li, dom, runtimeId: "rt", confidence: "high" }, 1);
     expect(result.passed).toBe(true);
   });
@@ -178,7 +181,8 @@ describe("assertSiblingOrder", () => {
   it("fails at wrong index", () => {
     document.body.innerHTML = "<ul><li>a</li><li id='b'>b</li><li>c</li></ul>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const li = document.querySelector("#b")!;
+    const li = document.querySelector("#b");
+    if (!li) throw new Error("test setup: #b not found");
     const result = assertSiblingOrder({ element: li, dom, runtimeId: "rt", confidence: "high" }, 0);
     expect(result.passed).toBe(false);
     expect(result.actual).toBe("1");
@@ -193,7 +197,8 @@ describe("assertGeometry (tolerance)", () => {
   it("passes when rect is within 1px tolerance", () => {
     document.body.innerHTML = "<div id='d' style='width:100px;height:50px'></div>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const el = document.querySelector("#d")!;
+    const el = document.querySelector("#d");
+    if (!el) throw new Error("test setup: #d not found");
     const actual = dom.getRect(el);
     // Expected rect with x/y nudged by 0.5px — within tolerance 1.
     const expected = {
@@ -213,7 +218,8 @@ describe("assertGeometry (tolerance)", () => {
   it("fails when rect differs by more than 1px", () => {
     document.body.innerHTML = "<div id='d' style='width:100px;height:50px'></div>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const el = document.querySelector("#d")!;
+    const el = document.querySelector("#d");
+    if (!el) throw new Error("test setup: #d not found");
     const actual = dom.getRect(el);
     // Expected rect shifted by 5px — outside tolerance 1.
     const expected = { x: actual.x + 5, y: actual.y, width: actual.width, height: actual.height };
@@ -228,7 +234,8 @@ describe("assertGeometry (tolerance)", () => {
   it("uses default tolerance (1px) when not specified", () => {
     document.body.innerHTML = "<div id='d' style='width:100px;height:50px'></div>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const el = document.querySelector("#d")!;
+    const el = document.querySelector("#d");
+    if (!el) throw new Error("test setup: #d not found");
     const actual = dom.getRect(el);
     // Exactly 1px off — within tolerance (<=).
     const expected = { x: actual.x + 1, y: actual.y, width: actual.width, height: actual.height };
@@ -248,7 +255,8 @@ describe("assertRole / assertName", () => {
   it("assertRole passes with explicit role", () => {
     document.body.innerHTML = "<div id='d' role='tab'>x</div>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const el = document.querySelector("#d")!;
+    const el = document.querySelector("#d");
+    if (!el) throw new Error("test setup: #d not found");
     expect(
       assertRole({ element: el, dom, runtimeId: "rt", confidence: "high" }, "tab").passed,
     ).toBe(true);
@@ -257,7 +265,8 @@ describe("assertRole / assertName", () => {
   it("assertRole derives implicit role from tag", () => {
     document.body.innerHTML = "<button id='d'>x</button>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const el = document.querySelector("#d")!;
+    const el = document.querySelector("#d");
+    if (!el) throw new Error("test setup: #d not found");
     expect(
       assertRole({ element: el, dom, runtimeId: "rt", confidence: "high" }, "button").passed,
     ).toBe(true);
@@ -266,7 +275,8 @@ describe("assertRole / assertName", () => {
   it("assertName passes with aria-label", () => {
     document.body.innerHTML = "<button id='d' aria-label='Save'>x</button>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const el = document.querySelector("#d")!;
+    const el = document.querySelector("#d");
+    if (!el) throw new Error("test setup: #d not found");
     expect(
       assertName({ element: el, dom, runtimeId: "rt", confidence: "high" }, "Save").passed,
     ).toBe(true);
@@ -275,7 +285,8 @@ describe("assertRole / assertName", () => {
   it("assertName falls back to text content", () => {
     document.body.innerHTML = "<button id='d'>Delete</button>";
     const dom = createBrowserVerificationDomAdapter({ captureConsole: false });
-    const el = document.querySelector("#d")!;
+    const el = document.querySelector("#d");
+    if (!el) throw new Error("test setup: #d not found");
     expect(
       assertName({ element: el, dom, runtimeId: "rt", confidence: "high" }, "Delete").passed,
     ).toBe(true);

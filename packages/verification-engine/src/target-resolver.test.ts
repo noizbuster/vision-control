@@ -44,7 +44,8 @@ describe("resolveTarget — source id strategy", () => {
       <ul id='list-b'><li data-vc-source='li-src' id='item-2'>Second</li></ul>
     `;
     const dom = makeDom();
-    const item2 = document.querySelector("#item-2")!;
+    const item2 = document.querySelector("#item-2");
+    if (!item2) throw new Error("test setup: #item-2 not found");
     const fp2 = dom.computeFingerprint(item2);
 
     const result = await resolveTarget("li-src", {
@@ -144,7 +145,8 @@ describe("resolveTarget — fingerprint strategy", () => {
   it("resolves by fingerprint with low confidence", async () => {
     document.body.innerHTML = "<div id='fp-target' data-testid='widget'>x</div>";
     const dom = makeDom();
-    const el = document.querySelector("#fp-target")!;
+    const el = document.querySelector("#fp-target");
+    if (!el) throw new Error("test setup: #fp-target not found");
     const fingerprint = dom.computeFingerprint(el);
     const result = await resolveTarget(undefined, {
       dom,
@@ -182,7 +184,8 @@ describe("resolveTarget — priority cascade", () => {
 
   it("adapter fingerprint is deterministic and matches across calls", () => {
     document.body.innerHTML = "<div id='d' role='button' data-testid='t'>x</div>";
-    const el = document.querySelector("#d")!;
+    const el = document.querySelector("#d");
+    if (!el) throw new Error("test setup: #d not found");
     const adapter = makeDom();
     const fp1 = adapter.computeFingerprint(el);
     const fp2 = adapter.computeFingerprint(el);

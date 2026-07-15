@@ -6,6 +6,8 @@ import { createBackgroundTabLifecycle } from "../src/background-tab-lifecycle.js
 import { refreshHostAccess } from "../src/host-access-refresh.js";
 import { isAllowedUrl, STORAGE_KEY } from "../src/host-allowlist.js";
 import { HostAllowlistCache } from "../src/host-allowlist-sync.js";
+import { installBackgroundJournalHandlers } from "../src/journal/background-journal-handlers.js";
+import { SessionJournalStore } from "../src/journal/session-journal-store.js";
 import {
   createBackgroundBus,
   createChromeRouterTransport,
@@ -53,6 +55,11 @@ const background: BackgroundDefinition = defineBackground(() => {
 
   void store.restore();
 
+  const journalStore = new SessionJournalStore({
+    storage: chrome.storage?.session,
+  });
+  void journalStore.restore();
+
   const tabLifecycle = createBackgroundTabLifecycle({
     store,
     getGrantedHosts: () => hostAllowlist.getHosts(),
@@ -93,6 +100,21 @@ const background: BackgroundDefinition = defineBackground(() => {
   router.start();
 
   const backgroundBus = createBackgroundBus();
+
+  const journalHandlers = installBackgroundJournalHandlers({
+    store: journalStore,
+    bus: backgroundBus,
+    broadcastToPanel,
+    sendToTabContent: (tabId, message) => {
+      if (typeof chrome === "undefined" || chrome.tabs?.sendMessage === undefined) {
+        return;
+      }
+      void chrome.tabs.sendMessage(tabId, message).catch(() => {
+        // no-excuse-ok: catch — content script may not be loaded yet.
+      });
+    },
+  });
+
   let reconnectManager: ReconnectManager | undefined;
 
   function broadcastConnectionState(state: ConnectionState): void {
@@ -106,7 +128,7 @@ const background: BackgroundDefinition = defineBackground(() => {
     });
   });
 
-  function handleBridgeConnect(message: BusMessage): void {
+  backgroundBus.on("daemon-connect", (message) => {
     const payload = message.payload as { readonly pairingUrl: string } | undefined;
     const pairingUrl = payload?.pairingUrl;
     if (pairingUrl === undefined) {
@@ -124,19 +146,12 @@ const background: BackgroundDefinition = defineBackground(() => {
       onStateChange: broadcastConnectionState,
     });
     void reconnectManager.connect().catch(() => {});
-  }
+  });
 
-  function handleBridgeDisconnect(): void {
+  backgroundBus.on("daemon-disconnect", () => {
     reconnectManager?.disconnect();
     reconnectManager = undefined;
-    broadcastConnectionState("disconnected");
-  }
-
-  // bridge-* preferred; daemon-* legacy aliases (mid-migration, no permission break).
-  backgroundBus.on("bridge-connect", handleBridgeConnect);
-  backgroundBus.on("daemon-connect", handleBridgeConnect);
-  backgroundBus.on("bridge-disconnect", handleBridgeDisconnect);
-  backgroundBus.on("daemon-disconnect", handleBridgeDisconnect);
+  });
 
   backgroundBus.on("host-access-changed", () => {
     refreshOpenTabHostAccess("host access refresh failed");
@@ -178,6 +193,7 @@ const background: BackgroundDefinition = defineBackground(() => {
 
   chrome.tabs.onRemoved.addListener((tabId) => {
     tabLifecycle.handleRemoved(tabId);
+    journalHandlers.handleTabRemoved(tabId);
   });
 
   chrome.runtime.onConnect.addListener((port) => {

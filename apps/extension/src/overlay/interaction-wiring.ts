@@ -26,6 +26,7 @@ import {
   createJournal,
   createJournalEntry,
   type Journal,
+  JournalSchema,
 } from "@vision-control/change-journal";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
 import type { ElementRef } from "@vision-control/element-identity";
@@ -46,6 +47,11 @@ import {
   createResizeController,
   type SelectedElementContext,
 } from "../components/interaction/ResizeController.js";
+import {
+  createJournalRequestMessage,
+  JOURNAL_STATE_TYPE,
+  parseJournalStatePayload,
+} from "../journal/journal-messages.js";
 import { createGridDragController, type GridDragController } from "./grid-drag-controller.js";
 import { createGroupMoveRouter, type GroupMoveRouter } from "./group-move-router.js";
 import type { OverlayRuntimeBus } from "./overlay-runtime.js";
@@ -101,6 +107,42 @@ export function createInteractionControllers(
   let sequence = 0;
   const recorded: Operation[] = [];
   let selectedContext: SelectionContext | null = null;
+  let contentTabId: number | undefined;
+
+  const nextSequenceFor = (next: Journal): number => {
+    let nextSequence = 0;
+    for (const entry of next.entries) {
+      nextSequence = Math.max(nextSequence, entry.sequence + 1);
+    }
+    return nextSequence;
+  };
+
+  const applyRestoredJournal = (next: Journal): void => {
+    journal = next;
+    sequence = nextSequenceFor(next);
+    recorded.length = 0;
+    for (const entry of next.entries) {
+      recorded.push(entry.operation);
+    }
+  };
+
+  const journalStateUnsub = bus.on(JOURNAL_STATE_TYPE, (message) => {
+    const payload = parseJournalStatePayload(message.payload);
+    if (payload === null || payload.journal === null) {
+      return;
+    }
+    if (contentTabId !== undefined && payload.tabId !== contentTabId) {
+      return;
+    }
+    contentTabId = payload.tabId;
+    const parsed = JournalSchema.safeParse(payload.journal);
+    if (!parsed.success) {
+      return;
+    }
+    applyRestoredJournal(parsed.data);
+  });
+
+  bus.send("background", createJournalRequestMessage());
 
   const recordOperation = (operation: Operation): void => {
     recorded.push(operation);
@@ -203,6 +245,7 @@ export function createInteractionControllers(
     detach();
     resize.destroy();
     groupMoveUnsub();
+    journalStateUnsub();
   };
 
   return {

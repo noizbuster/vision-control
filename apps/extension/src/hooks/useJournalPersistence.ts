@@ -1,73 +1,97 @@
-import type { Journal, JournalDaemonClient, SyncResult } from "@vision-control/change-journal";
-import { restoreFromDaemon, syncToDaemon } from "@vision-control/change-journal";
+import type { Journal } from "@vision-control/change-journal";
 import { useEffect, useRef, useState } from "react";
+
+import {
+  createJournalReplaceMessage,
+  createJournalRequestMessage,
+  JOURNAL_STATE_TYPE,
+  parseJournalStatePayload,
+} from "../journal/journal-messages.js";
+import type { MessageBus } from "../messaging/index.js";
 
 export interface UseJournalPersistenceOptions {
   readonly journal: Journal;
-  readonly client: JournalDaemonClient | null;
+  readonly tabId: number | null | undefined;
+  readonly bus: MessageBus | undefined;
   readonly onRestore?: (journal: Journal) => void;
 }
 
 export interface UseJournalPersistenceResult {
-  readonly lastSync: SyncResult | null;
+  /** True after the first journal-state response for the current tab. */
+  readonly isHydrated: boolean;
   readonly isSyncing: boolean;
 }
 
 const SYNC_DEBOUNCE_MS = 300;
 
 /**
- * Sync the journal to the daemon while connected (debounced), and restore it
- * from the daemon on connect. When the client is null or disconnected this is a
- * no-op: the journal lives in memory in the panel via {@link useJournal}.
+ * Offline-first journal persistence via the background session store (ADR-019 C1).
+ *
+ * Panel never writes chrome.storage.session. Mutations go to background as
+ * `journal-replace`; rehydrate uses `journal-request` / `journal-state`.
  */
 export function useJournalPersistence(
   options: UseJournalPersistenceOptions,
 ): UseJournalPersistenceResult {
-  const { journal, client, onRestore } = options;
-  const [lastSync, setLastSync] = useState<SyncResult | null>(null);
+  const { journal, tabId, bus, onRestore } = options;
+  const [isHydrated, setIsHydrated] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const onRestoreRef = useRef(onRestore);
   onRestoreRef.current = onRestore;
-  const lastClientStateRef = useRef<string | null>(null);
-
-  const connected = client !== null && client.state === "connected";
+  const hydratedTabRef = useRef<number | null>(null);
+  const skipNextSyncRef = useRef(false);
 
   useEffect(() => {
-    if (client === null) return;
-    const currentState = client.state;
-    const previous = lastClientStateRef.current;
-    lastClientStateRef.current = currentState;
-    if (currentState !== "connected" || previous === "connected") return;
+    if (bus === undefined || tabId === undefined || tabId === null) {
+      return;
+    }
 
-    let cancelled = false;
-    setIsSyncing(true);
-    restoreFromDaemon(client)
-      .then((restored) => {
-        if (cancelled || restored === null) return;
-        onRestoreRef.current?.(restored);
-      })
-      .finally(() => {
-        if (!cancelled) setIsSyncing(false);
-      });
+    setIsHydrated(false);
+    hydratedTabRef.current = null;
+
+    const unsubscribe = bus.on(JOURNAL_STATE_TYPE, (message) => {
+      const payload = parseJournalStatePayload(message.payload);
+      if (payload === null || payload.tabId !== tabId) {
+        return;
+      }
+      if (payload.journal !== null) {
+        skipNextSyncRef.current = true;
+        onRestoreRef.current?.(payload.journal);
+      }
+      hydratedTabRef.current = tabId;
+      setIsHydrated(true);
+    });
+
+    bus.send("background", createJournalRequestMessage(tabId));
+
     return () => {
-      cancelled = true;
+      unsubscribe();
     };
-  }, [client]);
+  }, [bus, tabId]);
 
   useEffect(() => {
-    if (!connected || client === null) return;
-    const handle = setTimeout(() => {
-      setIsSyncing(true);
-      syncToDaemon(journal, client)
-        .then((result) => {
-          setLastSync(result);
-        })
-        .finally(() => {
-          setIsSyncing(false);
-        });
-    }, SYNC_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [journal, client, connected]);
+    if (bus === undefined || tabId === undefined || tabId === null) {
+      return;
+    }
+    if (hydratedTabRef.current !== tabId) {
+      return;
+    }
+    if (skipNextSyncRef.current) {
+      skipNextSyncRef.current = false;
+      return;
+    }
 
-  return { lastSync, isSyncing };
+    setIsSyncing(true);
+    const handle = setTimeout(() => {
+      bus.send("background", createJournalReplaceMessage(tabId, journal));
+      setIsSyncing(false);
+    }, SYNC_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(handle);
+      setIsSyncing(false);
+    };
+  }, [bus, tabId, journal]);
+
+  return { isHydrated, isSyncing };
 }

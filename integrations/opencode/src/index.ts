@@ -7,6 +7,7 @@
  *
  * The MCP server itself lives in `@vision-control/mcp-server` and is read-only.
  * There is no source-writing tool and there will not be one (ADR-010, ADR-012).
+ * No `VC_DAEMON_URL` is required (ADR-020).
  *
  * Platform: node (config is JSON, but the helpers are node-oriented).
  */
@@ -15,7 +16,6 @@ export {
   buildHttpEntry,
   buildOpenCodeConfig,
   buildStdioEntry,
-  DEFAULT_DAEMON_URL,
   DEFAULT_MCP_HTTP_URL,
   DEFAULT_STDIO_COMMAND,
   type HttpConfigOptions,

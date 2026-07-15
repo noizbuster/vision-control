@@ -10,6 +10,9 @@
  * No workspace imports: the config shapes are local so this package stays a
  * dependency-free leaf. The real tool list lives in `@vision-control/mcp-server`
  * (`TOOL_NAMES`) and is documented in the README.
+ *
+ * No `VC_DAEMON_URL`: the MCP process is a projection bridge (ADR-020). Live
+ * data arrives when the extension pairs on loopback :4322.
  */
 
 /** Name used as the config key inside `opencode.json#mcp`. */
@@ -18,9 +21,6 @@ export const MCP_SERVER_KEY = "vision-control" as const;
 /** Transports OpenCode can use to reach the Vision Control MCP server. */
 export const TRANSPORTS = ["stdio", "http"] as const;
 export type Transport = (typeof TRANSPORTS)[number];
-
-/** Default daemon URL the MCP server reads live page state from. */
-export const DEFAULT_DAEMON_URL = "http://127.0.0.1:4321";
 
 /** Default loopback MCP HTTP endpoint (ADR-013: bound to 127.0.0.1 only). */
 export const DEFAULT_MCP_HTTP_URL = "http://127.0.0.1:4322/mcp";
@@ -35,10 +35,10 @@ export const STDIO_BINARY_PATH = "packages/mcp-server/dist/bin.js";
 export interface StdioConfigOptions {
   /** Spawn command. Defaults to the workspace `pnpm exec` invocation. */
   readonly command?: readonly string[];
-  /** Daemon URL passed to the server so it reads live data. */
-  readonly daemonUrl?: string;
   /** Whether OpenCode should enable the server. Defaults to true. */
   readonly enabled?: boolean;
+  /** Optional extra environment (never required for product path). */
+  readonly environment?: Readonly<Record<string, string>>;
 }
 
 /** A complete `opencode.json#mcp["vision-control"]` entry for the stdio transport. */
@@ -46,7 +46,7 @@ export interface StdioServerEntry {
   readonly type: "local";
   readonly command: readonly string[];
   readonly enabled: boolean;
-  readonly environment?: { readonly VC_DAEMON_URL?: string };
+  readonly environment?: Readonly<Record<string, string>>;
 }
 
 /** Options for a loopback HTTP (url) server entry. */
@@ -78,13 +78,15 @@ export interface OpenCodeMcpConfig {
 export function buildStdioEntry(opts: StdioConfigOptions = {}): StdioServerEntry {
   const command = opts.command ?? DEFAULT_STDIO_COMMAND;
   const enabled = opts.enabled ?? true;
-  const daemonUrl = opts.daemonUrl ?? DEFAULT_DAEMON_URL;
-  return {
+  const entry: StdioServerEntry = {
     type: "local",
     command,
     enabled,
-    environment: { VC_DAEMON_URL: daemonUrl },
   };
+  if (opts.environment && Object.keys(opts.environment).length > 0) {
+    return { ...entry, environment: opts.environment };
+  }
+  return entry;
 }
 
 /** Build the loopback HTTP server entry for `opencode.json#mcp`. */

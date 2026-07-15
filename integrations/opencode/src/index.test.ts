@@ -4,7 +4,6 @@ import {
   buildHttpEntry,
   buildOpenCodeConfig,
   buildStdioEntry,
-  DEFAULT_DAEMON_URL,
   DEFAULT_MCP_HTTP_URL,
   DEFAULT_STDIO_COMMAND,
   MCP_SERVER_KEY,
@@ -25,14 +24,15 @@ describe(PACKAGE_NAME, () => {
 });
 
 describe("buildStdioEntry", () => {
-  it("uses the default workspace command and daemon url", () => {
+  it("uses the default workspace command without VC_DAEMON_URL", () => {
     const entry = buildStdioEntry();
     expect(entry).toEqual({
       type: "local",
       command: ["pnpm", "exec", "vision-control-mcp"],
       enabled: true,
-      environment: { VC_DAEMON_URL: DEFAULT_DAEMON_URL },
     });
+    expect(entry.environment).toBeUndefined();
+    expect(JSON.stringify(entry)).not.toContain("VC_DAEMON_URL");
   });
 
   it("lets a caller override the command for an out-of-workspace agent", () => {
@@ -40,10 +40,13 @@ describe("buildStdioEntry", () => {
     expect(entry.command).toEqual(["node", "packages/mcp-server/dist/bin.js"]);
   });
 
-  it("honors a custom daemon url and disabled flag", () => {
-    const entry = buildStdioEntry({ daemonUrl: "http://127.0.0.1:9999", enabled: false });
-    expect(entry.environment).toEqual({ VC_DAEMON_URL: "http://127.0.0.1:9999" });
+  it("honors a disabled flag and optional environment", () => {
+    const entry = buildStdioEntry({
+      enabled: false,
+      environment: { VC_MCP_TOKEN: "from-env" },
+    });
     expect(entry.enabled).toBe(false);
+    expect(entry.environment).toEqual({ VC_MCP_TOKEN: "from-env" });
   });
 
   it("never references a source-writing tool (read-only contract)", () => {

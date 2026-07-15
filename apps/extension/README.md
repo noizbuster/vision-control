@@ -47,11 +47,33 @@ WXT discovers entrypoints under [`entrypoints/`](./entrypoints/):
 Run from the repository root:
 
 ```bash
-pnpm nx run extension:dev      # WXT dev server with HMR
-pnpm nx run extension:build    # Production build -> .output/chrome-mv3/
+pnpm nx run extension:dev       # WXT only (no daemon)
+pnpm nx run extension:dev-pair  # daemon + WXT; opens pairing page in WXT Chromium
+pnpm nx run extension:build     # Production build -> .output/chrome-mv3/
 pnpm nx run extension:typecheck
 pnpm nx run extension:test
 ```
+
+### `extension:dev` vs `extension:dev-pair`
+
+- **`extension:dev`** — pure WXT HMR. Load the extension yourself and pair
+  against a daemon you started separately.
+- **`extension:dev-pair`** — starts the daemon with `--no-open` (so the OS
+  default browser is not used), waits for the ready JSON line, then launches
+  WXT with `VC_PAIRING_HTTP_URL` set. WXT's `webExt.startUrls` opens the
+  pairing page inside the Chromium instance that already has the unpacked
+  extension, so the content script can auto-pair.
+
+Requires a built daemon binary (`pnpm nx run daemon:build`). Optional env:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `VC_DAEMON_PORT` | `4321` | Stable daemon bind port for dev-pair |
+| `VC_DAEMON_BIN` | `apps/daemon/dist/index.js` | Daemon entry path |
+| `VC_DEV_START_URLS` | _(unset)_ | Comma-separated extra start URLs (wins over the pair URL alone) |
+
+If port `4321` is already bound, free it or set `VC_DAEMON_PORT` to another free
+loopback port.
 
 ## Permissions rationale
 

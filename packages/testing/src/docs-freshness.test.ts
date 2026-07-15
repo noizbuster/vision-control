@@ -175,10 +175,8 @@ describe("docs freshness: MCP read-only policy", () => {
       "vision_get_changeset",
       "vision_get_source_context",
       "vision_get_verification_plan",
-      "vision_get_diagnostics",
-      "vision_capture_element",
-      "vision_request_verification",
       "vision_clear_preview",
+      "vision_request_verification",
       "vision_mark_patch_started",
       "vision_mark_patch_completed",
     ];
@@ -294,12 +292,14 @@ describe("docs freshness: OpenCode and Pi integration docs", () => {
     );
   });
 
-  it("the canonical tool list is the expected read-only set", () => {
+  it("the canonical tool list is the expected C5 read-only set (nine tools)", () => {
     const canonical = loadCanonicalToolNames();
-    expect(canonical).toHaveLength(11);
+    expect(canonical).toHaveLength(9);
     expect(canonical.filter(isSourceMutatingTool)).toEqual([]);
     expect(canonical).toContain("vision_get_active_session");
     expect(canonical).toContain("vision_mark_patch_completed");
+    expect(canonical).not.toContain("vision_capture_element");
+    expect(canonical).not.toContain("vision_get_diagnostics");
   });
 });
 

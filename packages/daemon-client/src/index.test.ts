@@ -1,7 +1,12 @@
 import { PROTOCOL_VERSION } from "@vision-control/protocol";
 import { describe, expect, it } from "vitest";
 import { computeBackoffDelay, DaemonClient, type WebSocketLike } from "./client.js";
-import { parsePairingUrl, toWebSocketUrl } from "./pairing.js";
+import {
+  buildPairingHttpUrl,
+  parsePairingUrl,
+  synthesizePairingUrlFromHttpPairPage,
+  toWebSocketUrl,
+} from "./pairing.js";
 
 const TARGET = { token: "tok-abc", host: "127.0.0.1", port: 4321 };
 
@@ -20,6 +25,12 @@ describe("parsePairingUrl", () => {
     expect(parsePairingUrl("https://pair?token=abc&port=8080").success).toBe(false);
   });
 
+  it("still rejects http: pairing pages (scheme gate intact)", () => {
+    const httpPair =
+      "http://127.0.0.1:4321/pair?token=tok-abc&port=4321&host=127.0.0.1";
+    expect(parsePairingUrl(httpPair).success).toBe(false);
+  });
+
   it("fails when the token is missing", () => {
     expect(parsePairingUrl("vision-control://pair?port=8080").success).toBe(false);
   });
@@ -32,6 +43,142 @@ describe("parsePairingUrl", () => {
 describe("toWebSocketUrl", () => {
   it("builds a ws:// url with the token query", () => {
     expect(toWebSocketUrl(TARGET)).toBe("ws://127.0.0.1:4321/?token=tok-abc");
+  });
+});
+
+describe("buildPairingHttpUrl", () => {
+  it("builds a loopback /pair URL with encoded token and bind host in query", () => {
+    const result = buildPairingHttpUrl({
+      token: "tok/with spaces+&",
+      port: 4321,
+      host: "127.0.0.1",
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      return;
+    }
+    const parsed = new URL(result.url);
+    expect(parsed.protocol).toBe("http:");
+    expect(parsed.hostname).toBe("127.0.0.1");
+    expect(parsed.port).toBe("4321");
+    expect(parsed.pathname).toBe("/pair");
+    expect(parsed.searchParams.get("token")).toBe("tok/with spaces+&");
+    expect(parsed.searchParams.get("port")).toBe("4321");
+    expect(parsed.searchParams.get("host")).toBe("127.0.0.1");
+  });
+
+  it("always navigates via 127.0.0.1 while preserving bind host in query", () => {
+    const result = buildPairingHttpUrl({
+      token: "tok-abc",
+      port: 9999,
+      host: "localhost",
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      return;
+    }
+    const parsed = new URL(result.url);
+    expect(parsed.hostname).toBe("127.0.0.1");
+    expect(parsed.searchParams.get("host")).toBe("localhost");
+  });
+
+  it("refuses non-loopback hosts", () => {
+    const result = buildPairingHttpUrl({
+      token: "tok-abc",
+      port: 4321,
+      host: "evil.com",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("refuses empty token", () => {
+    const result = buildPairingHttpUrl({
+      token: "",
+      port: 4321,
+      host: "127.0.0.1",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("synthesizePairingUrlFromHttpPairPage", () => {
+  it("synthesizes a parseable vision-control:// URL from a loopback http pair page", () => {
+    const httpUrl =
+      "http://127.0.0.1:4321/pair?token=tok-abc&port=4321&host=127.0.0.1";
+    const result = synthesizePairingUrlFromHttpPairPage(httpUrl);
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      return;
+    }
+    expect(result.pairingUrl).toBe(
+      "vision-control://pair?token=tok-abc&port=4321&host=127.0.0.1",
+    );
+    const parsed = parsePairingUrl(result.pairingUrl);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.target).toEqual({
+        token: "tok-abc",
+        port: 4321,
+        host: "127.0.0.1",
+      });
+    }
+  });
+
+  it("accepts localhost and [::1] navigation hosts", () => {
+    const localhost = synthesizePairingUrlFromHttpPairPage(
+      "http://localhost:4321/pair?token=a&port=4321&host=localhost",
+    );
+    expect(localhost.success).toBe(true);
+
+    const ipv6 = synthesizePairingUrlFromHttpPairPage(
+      "http://[::1]:4321/pair?token=a&port=4321&host=::1",
+    );
+    expect(ipv6.success).toBe(true);
+  });
+
+  it("round-trips build → synthesize → parsePairingUrl", () => {
+    const built = buildPairingHttpUrl({
+      token: "round-trip/token+1",
+      port: 5555,
+      host: "127.0.0.1",
+    });
+    expect(built.success).toBe(true);
+    if (!built.success) {
+      return;
+    }
+    const synthesized = synthesizePairingUrlFromHttpPairPage(built.url);
+    expect(synthesized.success).toBe(true);
+    if (!synthesized.success) {
+      return;
+    }
+    const parsed = parsePairingUrl(synthesized.pairingUrl);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.target.token).toBe("round-trip/token+1");
+      expect(parsed.target.port).toBe(5555);
+      expect(parsed.target.host).toBe("127.0.0.1");
+    }
+  });
+
+  it("fails on non-loopback hosts", () => {
+    const result = synthesizePairingUrlFromHttpPairPage(
+      "http://evil.com/pair?token=tok&port=4321&host=evil.com",
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("fails on wrong path", () => {
+    const result = synthesizePairingUrlFromHttpPairPage(
+      "http://127.0.0.1:4321/other?token=tok&port=4321&host=127.0.0.1",
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("fails when token is missing", () => {
+    const result = synthesizePairingUrlFromHttpPairPage(
+      "http://127.0.0.1:4321/pair?port=4321&host=127.0.0.1",
+    );
+    expect(result.success).toBe(false);
   });
 });
 

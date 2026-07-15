@@ -1,10 +1,16 @@
 # @vision-control/map-origins
 
-CSS source-map origin resolution for the extension content script (ADR-019 C4).
+CSS + JS source-map origin resolution for the extension content script
+(ADR-019 C4).
 
-Resolves `CSS rule → stylesheet → source map → origin` using an injected
-`fetch` (page network / CORS / CSP). No `node:fs`, no background arbitrary-host
-fetch, no new mandatory host permissions.
+Resolves:
+
+- `CSS rule → stylesheet → source map → origin` (selector range when possible)
+- `script → source map → module candidates` (normalized `webpack://` paths)
+
+Uses an injected `fetch` (page network / CORS / CSP). No `node:fs`, no
+background arbitrary-host fetch, no `chrome.debugger`, no new mandatory host
+permissions.
 
 ## Caps (ADR-019 C4)
 
@@ -19,17 +25,24 @@ Per selection compile:
 | Wall clock | 2 s |
 
 On exceed, remaining maps are skipped and `originsTruncated: true` is returned.
-Missing maps yield empty origins for that rule (never throw).
+Missing maps yield empty origins for that rule/script (never throw).
 
 ## Public API
 
 | Export | Purpose |
 | --- | --- |
 | `resolveCssOrigins` | CSS pipeline entry point |
+| `resolveJsOrigins` | JS map systematic collection (module candidates) |
+| `scriptsFromElements` | Enumerate page scripts into `ScriptInput` |
+| `normalizeMapSourcePath` | Strip `webpack://` and similar virtual schemes |
 | `MAP_CAPS` / `DEFAULT_MAP_CAPS` | C4 cap constants |
 | `parseSourceMap` / `CssSourceMap` | Source-map v3 parse + selector range |
-| `extractSourceMappingUrl` | Discover map URL from CSS text |
+| `extractSourceMappingUrl` | Discover map URL from CSS/JS text |
 | `MapOrigin` | Origin shape (compatible with context-compiler) |
+
+JS module candidates use confidence `medium` and warning `module-path-only`.
+HIGH requires map+range (never DOM→JSX HIGH). Formal never-wrong-HIGH matrix is
+task 11.
 
 Nx tags: `platform:isomorphic`, `type:library`, `scope:map-origins`.
 
@@ -40,3 +53,4 @@ pnpm nx run map-origins:typecheck
 pnpm nx run map-origins:test
 pnpm nx run map-origins:build
 ```
+

@@ -60,6 +60,28 @@ export interface CssRuleInput {
   readonly mapUrl?: string;
 }
 
+/** One script resource to resolve against its source map (module candidates). */
+export interface ScriptInput {
+  /** Script `src` URL; absent for inline scripts. */
+  readonly scriptSrc?: string;
+  /**
+   * Script text used to discover `sourceMappingURL`. When omitted and
+   * `scriptSrc` is set, the pipeline fetches the script once.
+   */
+  readonly scriptText?: string;
+  /** Pre-known map URL; skips `sourceMappingURL` discovery when set. */
+  readonly mapUrl?: string;
+}
+
+/**
+ * Minimal script-element surface for content-script enumeration.
+ * Avoids importing DOM lib types into this isomorphic package.
+ */
+export interface ScriptElementLike {
+  readonly src: string;
+  readonly textContent: string | null;
+}
+
 /** Result of a CSS origin resolution pass. */
 export interface ResolveCssOriginsResult {
   readonly origins: readonly MapOrigin[];
@@ -67,8 +89,15 @@ export interface ResolveCssOriginsResult {
   readonly originsTruncated: boolean;
 }
 
-/** Options for {@link resolveCssOrigins}. */
-export interface ResolveCssOriginsOptions {
+/** Result of a JS map systematic collection pass. */
+export interface ResolveJsOriginsResult {
+  readonly origins: readonly MapOrigin[];
+  /** True when C4 caps caused remaining maps to be skipped. */
+  readonly originsTruncated: boolean;
+}
+
+/** Shared options for map-origin resolve pipelines. */
+export interface ResolveMapOriginsOptions {
   /** Content-script (or test) fetch implementation. */
   readonly fetch: FetchLike;
   /** Epoch-ms clock (default `Date.now`). Injected for wall-clock tests. */
@@ -76,6 +105,12 @@ export interface ResolveCssOriginsOptions {
   /** Partial override of ADR-019 C4 caps (tests only in normal use). */
   readonly caps?: Partial<MapCaps>;
 }
+
+/** Options for {@link resolveCssOrigins}. */
+export type ResolveCssOriginsOptions = ResolveMapOriginsOptions;
+
+/** Options for {@link resolveJsOrigins}. */
+export type ResolveJsOriginsOptions = ResolveMapOriginsOptions;
 
 /** ADR-019 C4 map-fetch caps. */
 export interface MapCaps {

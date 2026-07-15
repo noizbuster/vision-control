@@ -118,6 +118,7 @@ const findSelectorInContent = (
 /**
  * Parse a raw source-map v3 JSON value into a {@link CssSourceMap}.
  * Returns `undefined` for non-v3 or malformed input.
+ * Applies `sourceRoot` to relative `sources` entries when present.
  */
 export const parseSourceMap = (input: unknown): CssSourceMap | undefined => {
   if (typeof input !== "object" || input === null || Array.isArray(input)) return undefined;
@@ -125,15 +126,28 @@ export const parseSourceMap = (input: unknown): CssSourceMap | undefined => {
   if (obj.version !== 3) return undefined;
   if (typeof obj.mappings !== "string") return undefined;
 
-  const sources = Array.isArray(obj.sources)
+  const sourceRoot = typeof obj.sourceRoot === "string" ? obj.sourceRoot : "";
+  const rawSources = Array.isArray(obj.sources)
     ? obj.sources.filter((s): s is string => typeof s === "string")
     : [];
+  const sources =
+    sourceRoot.length === 0
+      ? rawSources
+      : rawSources.map((s) => joinSourceRootInline(sourceRoot, s));
   const sourcesContent = Array.isArray(obj.sourcesContent)
     ? obj.sourcesContent.map((s) => (typeof s === "string" ? s : undefined))
     : undefined;
 
   const segments = decodeMappings(obj.mappings);
   return new CssSourceMap(sources, segments, sourcesContent);
+};
+
+/** Local join to avoid a circular import with normalize-source-path. */
+const joinSourceRootInline = (sourceRoot: string, source: string): string => {
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(source)) return source;
+  if (source.startsWith("/")) return source;
+  const base = sourceRoot.endsWith("/") ? sourceRoot : `${sourceRoot}/`;
+  return `${base}${source}`;
 };
 
 /** Decode VLQ-encoded source-map mappings string into structured segments. */

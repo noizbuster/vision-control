@@ -1,0 +1,23 @@
+{
+  "name": "@vision-control/map-origins",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CSS (and later JS) source-map origin resolution for content-script map fetch with ADR-019 C4 caps.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

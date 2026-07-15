@@ -38,6 +38,7 @@ const manifest: readonly GeneratePackageOptions[] = [
   iso("source-resolver"),
   iso("workspace-index"),
   iso("context-compiler"),
+  iso("map-origins"),
   iso("verification-engine"),
   iso("daemon-core"),
   iso("daemon-client"),

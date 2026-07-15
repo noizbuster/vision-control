@@ -1,22 +1,42 @@
 /**
  * @vision-control/mcp-server — public API.
  *
- * Read-only MCP server that exposes Vision Control's visual editing context to
- * coding agents over stdio and loopback HTTP. Serves 7 read tools (active
- * session, selection, changeset, source context, verification plan,
- * diagnostics, element capture) and 4 coordination tools (request verification,
- * clear preview, mark patch started/completed).
+ * Read-only MCP server: stdio for agents + loopback discover/bridge on 4322
+ * (ADR-020). Projection of extension state; no source-changing tools
+ * (ADR-010, docs/agents/mcp-policy.md).
  *
- * CRITICAL GUARDRAIL: no source-changing tool exists. There is no
- * `vision_apply_deterministic_patch` and there will not be one in the MVP.
- * See docs/agents/mcp-policy.md and PRD section 17.1.
- *
- * Platform: node (uses stdio + HTTP server + the MCP SDK, all node-only).
+ * Platform: node (stdio + HTTP/WS + MCP SDK).
  */
 
 export { PACKAGE_NAME } from "./_package-name.js";
 export type { AuthConfig, AuthResult } from "./auth.js";
 export { checkAuth } from "./auth.js";
+export {
+  BridgePortInUseError,
+  type BridgeServerHandle,
+  type BridgeServerOptions,
+  BRIDGE_PROTOCOL_VERSION,
+  BRIDGE_WS_PATH,
+  type BuildDiscoverResponseInput,
+  buildDiscoverResponse,
+  DEFAULT_BRIDGE_HOST,
+  DEFAULT_BRIDGE_PORT,
+  type DiscoverResponse,
+  DISCOVER_PATH,
+  FORBIDDEN_DISCOVER_KEYS,
+  formatPairingStderrLines,
+  isLoopbackHost,
+  type MintPairTokenOptions,
+  mintPairToken,
+  NonLoopbackHostError,
+  PAIR_TOKEN_TTL_MS,
+  type PairTokenState,
+  type PairTokenValidation,
+  printPairingToStderr,
+  startBridgeServer,
+  validateLoopbackHost,
+  validatePairToken,
+} from "./bridge/index.js";
 export {
   type ActiveSessionRead,
   type ChangesetServiceRead,

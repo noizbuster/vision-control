@@ -1,31 +1,32 @@
 /**
  * Stub dependency provider for the MCP server.
  *
- * Returns empty/stub data when no daemon is connected. This lets the MCP
+ * Returns empty/stub data when the extension is not paired. This lets the MCP
  * server run standalone over stdio for structural testing — every tool
- * responds with a clear "no daemon connected" message rather than failing.
+ * responds with a clear "not paired" message rather than failing.
  *
- * The daemon replaces this with a real `McpServerDeps` implementation that
- * reads from storage, the protocol layer, and the running session.
+ * Live data arrives via the extension bridge projection (ADR-020). No daemon
+ * and no VC_DAEMON_URL are required to start the server.
  */
 
 import type { McpServerDeps } from "./types.js";
 
-const NO_DAEMON_NOTE = "no daemon connected — start the daemon and reconnect for live data";
+const NOT_PAIRED_NOTE = "not paired — pair the extension to the MCP bridge for live data";
 
 export function createStubDeps(): McpServerDeps {
   return {
     async getActiveSession() {
       return {
-        sessionId: "stub",
-        workspaceId: "stub",
+        sessionId: "none",
+        workspaceId: "none",
         connected: false,
-        protocolVersion: "1.0.0",
+        protocolVersion: "2.0.0",
+        note: NOT_PAIRED_NOTE,
       };
     },
     async getSelection() {
       return {
-        sessionId: "stub",
+        sessionId: "none",
         elementTag: "unknown",
         selector: undefined,
         sourceId: undefined,
@@ -33,31 +34,31 @@ export function createStubDeps(): McpServerDeps {
       };
     },
     async getChangeset() {
-      return { sessionId: "stub", operationCount: 0, operations: [] };
+      return { sessionId: "none", operationCount: 0, operations: [] };
     },
     async getSourceContext() {
       return undefined;
     },
     async getVerificationPlan() {
-      return { assertions: [], notes: NO_DAEMON_NOTE };
+      return { assertions: [], notes: NOT_PAIRED_NOTE };
     },
     async getDiagnostics() {
       return [];
     },
     async captureElement() {
-      return { captured: false, selector: undefined, sourceId: undefined, note: NO_DAEMON_NOTE };
+      return { captured: false, selector: undefined, sourceId: undefined, note: NOT_PAIRED_NOTE };
     },
     async requestVerification() {
-      return { acknowledged: false, message: NO_DAEMON_NOTE };
+      return { acknowledged: false, message: NOT_PAIRED_NOTE };
     },
     async clearPreview() {
-      return { acknowledged: false, message: NO_DAEMON_NOTE };
+      return { acknowledged: false, message: NOT_PAIRED_NOTE };
     },
     async markPatchStarted() {
-      return { acknowledged: false, message: NO_DAEMON_NOTE };
+      return { acknowledged: false, message: NOT_PAIRED_NOTE };
     },
     async markPatchCompleted() {
-      return { acknowledged: false, message: NO_DAEMON_NOTE };
+      return { acknowledged: false, message: NOT_PAIRED_NOTE };
     },
   };
 }

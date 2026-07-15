@@ -1,77 +1,123 @@
 #!/usr/bin/env node
 /**
- * MCP server binary entry point.
+ * MCP server binary entry point (ADR-020 C2/C3).
  *
- * Serves the Vision Control MCP server over stdio for local agent integration
- * (OpenCode, Claude Code, Cursor, generic stdio MCP). The agent spawns this
- * binary as a child process and communicates via JSON-RPC over stdin/stdout.
+ * One process serves:
+ *   1. stdio → coding agent (MCP JSON-RPC on stdout)
+ *   2. loopback HTTP discovery: GET http://127.0.0.1:4322/discover
+ *   3. loopback WebSocket pair+bridge: ws://127.0.0.1:4322/bridge
  *
- * Deps selection honors `VC_DAEMON_URL`:
- *   - Set         → the server reads live session/changeset data from the daemon
- *                   over loopback HTTP (`createHttpDaemonServices`).
- *   - Unset/empty → the server falls back to stub deps AND prints a warning to
- *                   stderr so the fallback is never a silent false claim.
- *
- * Usage:
- *   vision-control-mcp                                        # stub deps (warns on stderr)
- *   VC_DAEMON_URL=http://127.0.0.1:4321 vision-control-mcp    # live daemon data
+ * Pair token is printed once on stderr only. Never on stdout (reserved for
+ * agent JSON-RPC). Never in the discover body. No VC_DAEMON_URL required.
  */
 
 import { fileURLToPath } from "node:url";
-import { createDaemonMcpDeps } from "./daemon-deps.js";
-import { createHttpDaemonServices, type DaemonHttpFetch } from "./http-daemon-deps.js";
+
+import {
+  type BridgeServerHandle,
+  BridgePortInUseError,
+  DEFAULT_BRIDGE_HOST,
+  DEFAULT_BRIDGE_PORT,
+  mintPairToken,
+  NonLoopbackHostError,
+  printPairingToStderr,
+  startBridgeServer,
+} from "./bridge/index.js";
 import { createMcpServer } from "./server.js";
 import { createStubDeps } from "./stub-deps.js";
 import { startStdioTransport } from "./transports/stdio.js";
-import type { McpServerDeps } from "./types.js";
 
-export const STUB_WARNING =
-  "VC_DAEMON_URL not set — serving stub data. Set VC_DAEMON_URL to connect to a live daemon.";
-
-export interface ResolveDepsOptions {
-  /** Override the HTTP fetch used by the daemon client (tests inject a fake). */
-  readonly fetch?: DaemonHttpFetch;
+export interface StartMcpProcessOptions {
+  /** Override bind host (must be loopback). */
+  readonly host?: string;
+  /** Override bind port (default 4322; use 0 in tests). */
+  readonly port?: number;
+  /** Injectable stderr writer (defaults to process.stderr). */
+  readonly writeStderr?: (line: string) => void;
+  /** Skip stdio transport (tests that only need the bridge). */
+  readonly skipStdio?: boolean;
+  /** Injectable clock for pair-token TTL. */
+  readonly now?: () => number;
+  /** Override pair-token TTL (tests). */
+  readonly pairTokenTtlMs?: number;
 }
 
-export interface ResolvedDeps {
-  readonly deps: McpServerDeps;
-  /** True when no daemon URL was configured and stub deps were selected. */
-  readonly warned: boolean;
+export interface StartedMcpProcess {
+  readonly host: string;
+  readonly port: number;
+  readonly pairToken: string;
+  readonly stop: () => Promise<void>;
 }
 
 /**
- * Select MCP deps from the environment. Pure and side-effect-free so it is
- * unit-testable without spawning the stdio transport.
- *
- * A non-empty `VC_DAEMON_URL` selects daemon-backed deps that read live data
- * over loopback HTTP; anything else selects stub deps and flags a warning.
+ * Start the single-process MCP bridge + optional stdio transport.
+ * Does not require a daemon or VC_DAEMON_URL.
  */
-export function resolveMcpDeps(
-  env: NodeJS.ProcessEnv,
-  options: ResolveDepsOptions = {},
-): ResolvedDeps {
-  const daemonUrl = env.VC_DAEMON_URL;
-  if (typeof daemonUrl === "string" && daemonUrl.length > 0) {
-    const services = createHttpDaemonServices(daemonUrl, options);
-    return { deps: createDaemonMcpDeps(services), warned: false };
-  }
-  return { deps: createStubDeps(), warned: true };
-}
+export async function startMcpProcess(
+  options: StartMcpProcessOptions = {},
+): Promise<StartedMcpProcess> {
+  const host = options.host ?? DEFAULT_BRIDGE_HOST;
+  const port = options.port ?? DEFAULT_BRIDGE_PORT;
+  const writeStderr =
+    options.writeStderr ?? ((line: string) => process.stderr.write(`${line}\n`));
 
-/** Emit the stub warning to `write` when the daemon URL was absent. */
-export function maybeWarnStub(warned: boolean, write: (line: string) => void): void {
-  if (warned) write(STUB_WARNING);
+  const pairToken = mintPairToken({
+    now: options.now,
+    ttlMs: options.pairTokenTtlMs,
+  });
+
+  let bridge: BridgeServerHandle;
+  try {
+    bridge = await startBridgeServer({
+      host,
+      port,
+      pairToken,
+      now: options.now,
+    });
+  } catch (error) {
+    if (error instanceof NonLoopbackHostError || error instanceof BridgePortInUseError) {
+      writeStderr(error.message);
+    }
+    throw error;
+  }
+
+  // Pair material: stderr only, after bind so the printed port is real.
+  printPairingToStderr(pairToken, bridge.host, bridge.port, writeStderr);
+
+  const deps = createStubDeps();
+  const server = createMcpServer(deps);
+
+  if (options.skipStdio !== true) {
+    await startStdioTransport(server);
+  }
+
+  return {
+    host: bridge.host,
+    port: bridge.port,
+    pairToken: pairToken.token,
+    stop: async () => {
+      await bridge.stop();
+      if (options.skipStdio !== true) {
+        await server.close();
+      }
+    },
+  };
 }
 
 async function main(): Promise<void> {
-  const { deps, warned } = resolveMcpDeps(process.env);
-  maybeWarnStub(warned, (line) => process.stderr.write(`${line}\n`));
-  const server = createMcpServer(deps);
-  await startStdioTransport(server);
+  try {
+    await startMcpProcess();
+  } catch (error) {
+    if (!(error instanceof NonLoopbackHostError || error instanceof BridgePortInUseError)) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[vision-control-mcp] fatal: ${message}\n`);
+    }
+    process.exitCode = 1;
+  }
 }
 
-// Only run when executed directly (node dist/bin.js). Guarded so unit tests can
-// import `resolveMcpDeps` / `STUB_WARNING` without starting the stdio transport.
+// Only run when executed directly. Guarded so unit tests can import helpers
+// without starting stdio + bridge.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await main();
 }

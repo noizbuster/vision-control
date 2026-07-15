@@ -1,8 +1,7 @@
 # Troubleshooting
 
-Common issues and how to resolve them. Run `vision-control doctor` first — it
-reports the state of the workspace gates and runtime services in one pass (see
-[packages/cli/README.md](../packages/cli/README.md)).
+Common issues and how to resolve them. Ordinary editing needs only the
+extension. The optional MCP bridge is for coding agents.
 
 ---
 
@@ -10,10 +9,9 @@ reports the state of the workspace gates and runtime services in one pass (see
 
 ### `pnpm install` fails with `ERR_PNPM_IGNORED_BUILDS`
 
-A dependency with a postinstall script (e.g. `better-sqlite3`, `esbuild`) was
-blocked by pnpm 11's default build-deny. The workspace allowlist lives in
-`pnpm-workspace.yaml` under `allowBuilds`. Add the package there and re-run
-`pnpm install`. Native modules (`better-sqlite3`) need a working C++ toolchain.
+A dependency with a postinstall script (e.g. `esbuild`) was blocked by pnpm 11's
+default build-deny. The workspace allowlist lives in `pnpm-workspace.yaml` under
+`allowBuilds`. Add the package there and re-run `pnpm install`.
 
 ### `pnpm install` fails with a release-age / `minimumReleaseAge` error
 
@@ -53,7 +51,7 @@ the cache after adding test files.
 The checker scans every `.ts`/`.tsx` under each package's `src/` and enforces:
 no `platform:node` package importing a `platform:browser` package, and no
 deep-imports into another package's `src/`. If it fails, read the reported
-offender line — it names the importer file, the specifier, and the rule
+offender line  -  it names the importer file, the specifier, and the rule
 (`node-imports-browser` or `deep-import`). Re-tag a package or import only the
 package public API (`@vision-control/<name>`).
 
@@ -63,7 +61,7 @@ package public API (`@vision-control/<name>`).
 
 ### The extension will not load / the panel does not appear
 
-1. Build it: `pnpm nx run extension:build` — output lands in
+1. Build it: `pnpm nx run extension:build`  -  output lands in
    `apps/extension/.output/chrome-mv3/`.
 2. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**,
    and select that directory.
@@ -76,112 +74,83 @@ package public API (`@vision-control/<name>`).
 4. If the panel is missing, check `chrome://extensions` for errors logged by the
    service worker or the panel page.
 
+### Select / preview / undo do not work without MCP
+
+That is unexpected. The edit loop is extension-only (ADR-019). MCP is optional.
+If the overlay is missing, confirm the content script injects on the page
+(loopback or a granted Site Access host) and that the panel is open on that tab.
+
 ### `debugger` permission is requested
 
-It is in `optional_permissions` only and is never required for the MVP. The
-extension works without it. See ADR-006 and the PRD guardrail.
+It is in `optional_permissions` only and is never required. The extension works
+without it. See ADR-006 and the PRD guardrail.
 
 ---
 
-## Daemon
+## Optional MCP bridge
 
-### The daemon will not start
+### The MCP process will not start / port 4322 busy
 
-Run `pnpm nx run daemon:dev -- --help` — the `--help` path imports nothing heavy
-and exits 0 without binding. If that fails, the binary or its dependencies are
-not built: run `pnpm nx run daemon:build` (and `pnpm build` for the
-`@vision-control/storage` / `daemon-core` deps).
-
-The real start path opens a SQLite database at
-`<workspace>/.vision-control/daemon.db`, runs migrations, mints a pairing token,
-and binds to loopback. If it fails after that, the stderr line names the cause.
-
-### `NonLoopbackHostError` / the daemon refuses to bind
-
-The daemon binds to `127.0.0.1` only (PRD section 27.1). Passing
-`--host 0.0.0.0` or any non-loopback address is refused before it listens. Use
-`127.0.0.1`, `::1`, or `localhost`.
-
-### The daemon prints a pairing URL and then nothing
-
-That is correct. The ready line is emitted once on stdout:
-
-```
-{"event":"ready","port":N,"host":"127.0.0.1","pairingUrl":"vision-control://pair?token=…","pairingHttpUrl":"http://127.0.0.1:N/pair?token=…&port=N&host=…","sessionId":"…"}
+```bash
+pnpm nx run mcp-server:build
+node packages/mcp-server/dist/bin.js
+# or: vision-control mcp
 ```
 
-The raw token is shown exactly once; only its SHA-256 hash is stored. The
-extension uses it to authenticate the WebSocket upgrade. Tokens stay valid until
-they expire (default about 5 minutes) or are revoked. They are not single-use:
-reconnect within the TTL reuses the same token. Loading `GET /pair` does not
-consume or invalidate the token.
+Port **4322** is fixed for discover + bridge (ADR-020). If another process holds
+it, free the port or stop the other instance. There is no multi-port scan product
+path. Bind is loopback only (`127.0.0.1`).
 
-By default the daemon does not open a browser. It opens `pairingHttpUrl` (the
-local `/pair` landing page) only when bound to exact `127.0.0.1` and either
-`--open` is set or `VC_OPEN_PAIRING=1` (root monorepo `pnpm dev` sets this).
-`--no-open` always wins. Auto-open never runs for `::1` or `localhost` binds, and
-interactive TTY alone is not enough. See
-[apps/daemon/README.md](../apps/daemon/README.md).
+### Pair token not found
 
-### Pasting the `vision-control://pair?...` URL into a browser does nothing
+The pair token prints **once on stderr** when the MCP process starts. It is never
+on stdout (that would corrupt agent JSON-RPC) and never in
+`GET http://127.0.0.1:4322/discover`. Restart the MCP process to mint a fresh
+token if you lost it. Default TTL is about 5 minutes.
 
-The custom `vision-control://` scheme has no browser or OS protocol handler, so
-the address bar treats it as a search query. That is expected. Paste the deep
-link into the **Vision Control** DevTools panel's connect field instead (or paste
-just the token; the panel fills in daemon defaults).
+### Panel shows not paired / tools return `not_paired`
 
-For a browser-openable path, use the HTTP URL from `pairingHttpUrl` (or open
-`http://127.0.0.1:<port>/pair?token=…&port=…&host=…`). That page is a local
-landing page: with the Chromium extension loaded it can auto-pair; without the
-extension, or in another browser, it only shows paste instructions. There is
-still no OS registration of `vision-control://`.
+1. Confirm the MCP process is running and `curl -s http://127.0.0.1:4322/discover`
+   returns JSON without a token field.
+2. Paste the stderr pair token into the panel connect field (or auto-detect then
+   paste).
+3. Confirm the background service worker is alive (`chrome://extensions` →
+   service worker). On wake, re-pair if the in-memory token expired.
 
-The pairing secret appears in the HTTP URL query string, so it can linger in
-browser history until the tab is closed or history is cleared. Prefer a private
-window if that matters, and do not share the URL. The page sets
-`Cache-Control: no-store` and `Referrer-Policy: no-referrer`, but history is
-still a residual risk.
+Unpaired tools must return `not_paired` / empty / error. They must **never**
+return a stale verification `passed: true` (ADR-019 C6).
+
+### Docs still mention `VC_DAEMON_URL` or "start the daemon"
+
+Those paths are obsolete. There is no always-on daemon product path. Use
+`vision-control mcp` for the optional agent bridge. See
+[mcp-config-examples.md](./mcp-config-examples.md).
 
 ---
 
 ## Connection issues
 
-### `connection refused` to the daemon
+### `connection refused` to `127.0.0.1:4322`
 
-The daemon is not running, or it is on a different port. `--port 0` (the
-default) binds an ephemeral port; the actual port is in the ready line. Set
-`VC_DAEMON_URL` to `http://127.0.0.1:<that-port>` for the CLI, or run the daemon
-with a fixed `--port`. A web page cannot reach the daemon even if it guesses the
-port — the origin check rejects it first.
+The MCP bridge is not running. Start `vision-control mcp` (or the mcp-server
+binary). Ordinary editing does not need this process.
 
 ### `origin rejected` (403)
 
-The request's `Origin` header is not on the allowlist. The default allowlist is
-loopback origins plus `chrome-extension://`. To add a dev origin (e.g. a Vite
-dev server), list it under `origins` in `vision-control.config.ts`:
-
-```ts
-export default {
-  origins: ["http://localhost:5173"],
-};
-```
+A request's `Origin` header is not on the allowlist for a loopback HTTP surface.
+Default allowlist is loopback origins plus `chrome-extension://`. The product
+bridge is extension WebSocket pair + agent stdio; do not expose non-loopback
+binds (ADR-020).
 
 ### `UNAUTHORIZED` (401)
 
-The pairing token was missing, wrong, or expired. The daemon stores only the
-token hash; restart the daemon to mint a fresh token, or re-run the pairing flow.
-Tokens are valid until expiry or revoke (not single-use), so reconnect uses the
-same token within its TTL.
-
-### `WORKSPACE_NOT_BOUND`
-
-The session authenticated but has not bound to a workspace. Source/context reads
-are rejected until the extension binds the session. This is an intentional guard:
-a valid token alone does not grant source access.
+Wrong or missing Bearer token on optional HTTP MCP transport, or wrong extension
+pair token on the bridge. Agent Bearer (`VC_MCP_TOKEN`) is a **separate** secret
+from the extension pair token. Restart MCP to mint a fresh pair token on stderr.
 
 ---
 
-## MCP server
+## MCP server (agent side)
 
 ### The MCP server is not listed by the agent
 
@@ -189,7 +158,7 @@ Confirm the server builds and the binary runs:
 
 ```bash
 pnpm nx run mcp-server:build
-node packages/mcp-server/dist/bin.js   # starts and waits on stdio
+node packages/mcp-server/dist/bin.js   # starts stdio + bridge; pair token on stderr
 ```
 
 Then check the agent config points at the right command. From outside the
@@ -200,19 +169,18 @@ workspace, use the absolute path to `packages/mcp-server/dist/bin.js` instead of
 
 The Streamable HTTP transport requires the request to advertise
 `Accept: application/json, text/event-stream`. A bare `fetch` without that header
-gets 406. The CLI's `callMcpTool` and `vision-control doctor` set it
-automatically; custom clients must too.
+gets 406. Custom clients must set it.
 
-### MCP tool responds "no daemon connected"
+### MCP tool responds `not_paired` or empty
 
-The server is running with stub deps. Set `VC_DAEMON_URL` in the server's
-environment so it reads live data. With stub deps, every tool still returns a
-valid MCP response — useful for verifying the tool list without a daemon.
+The extension has not paired, or the projection cache has no snapshot yet. Pair
+the panel, select an element, and retry. This is not a daemon URL problem; there
+is no `VC_DAEMON_URL` on the product path.
 
 ### `vision_apply_deterministic_patch` is missing
 
 That is intentional, not a bug. The MCP server is read-only; there is no
-source-changing tool and there will not be one in the MVP. See
+source-changing tool and there will not be one. See
 [mcp-policy.md](./agents/mcp-policy.md). The agent writes source through its own
 file-writing mechanism and verifies through HMR.
 
@@ -225,9 +193,12 @@ file-writing mechanism and verifies through HMR.
 The redaction layer (ADR-009) masks secrets, cookies, auth headers, form values,
 and high-entropy tokens before export. If a value looks like a secret it is
 redacted by category, and the privacy report lists how many items were redacted
-and by which rule — without revealing the values. Do not attempt to bypass it;
+and by which rule  -  without revealing the values. Do not attempt to bypass it;
 if legitimate data is masked, adjust the source so it does not resemble a
 secret, or read it through a non-sensitive path.
+
+Origins may be empty when maps are unavailable or caps are hit (ADR-019 C4).
+That is valid; HIGH confidence requires map + range.
 
 ### `redactObject` masks a shared object reference as `[REDACTED:circular]`
 
@@ -240,8 +211,8 @@ data, flatten the shared reference to an index or id.
 
 ## Getting more detail
 
-- Architecture decisions: [docs/adr/](./adr/).
+- Architecture decisions: [docs/adr/](./adr/). Prefer ADR-019/020 for SoT and MCP.
 - Security and privacy contract: [docs/agents/security-privacy.md](./agents/security-privacy.md)
   and the user-facing [security-privacy-overview.md](./security-privacy-overview.md).
 - Verification rules: [docs/agents/verification.md](./agents/verification.md).
-- Run `vision-control doctor` for a full environment report.
+- Workspace health: `pnpm check`, `pnpm typecheck`, `pnpm test`, `pnpm build`.

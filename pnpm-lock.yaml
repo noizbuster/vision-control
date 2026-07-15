@@ -131,6 +131,9 @@ importers:
       '@vision-control/css-modules':
         specifier: workspace:*
         version: link:../../integrations/css-modules
+      '@vision-control/daemon-client':
+        specifier: workspace:*
+        version: link:../../packages/daemon-client
       '@vision-control/daemon-core':
         specifier: workspace:*
         version: link:../../packages/daemon-core

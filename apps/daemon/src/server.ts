@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { RedactionConfig } from "@vision-control/context-compiler";
+import { buildPairingHttpUrl } from "@vision-control/daemon-client";
 import type {
   ChangesetService,
   ConnectionService,
@@ -108,6 +109,8 @@ export interface PairingInfo {
   readonly port: number;
   readonly host: string;
   readonly pairingUrl: string;
+  /** Loopback HTTP pair-page URL (post-listen actual port). */
+  readonly pairingHttpUrl: string;
   readonly token: string;
   readonly sessionId: string;
   /** MCP HTTP endpoint URL. Present only when `mcpPort` is set. */
@@ -140,7 +143,7 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
 
   const { sessionService, workspaceId } = options;
   const issue = await sessionService.issuePairingToken(workspaceId, "loopback");
-  const pairingInfo: PairingInfo = {
+  const pairingInfoBase = {
     port: options.port,
     host: options.host,
     pairingUrl: issue.token.pairingUrl,
@@ -275,10 +278,20 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
     options.logger.info("MCP HTTP transport started", { mcpUrl });
   }
 
+  const httpUrlResult = buildPairingHttpUrl({
+    token: issue.token.token,
+    port: actualPort,
+    host: options.host,
+  });
+  if (!httpUrlResult.success) {
+    throw new Error(`failed to build pairing HTTP URL: ${httpUrlResult.reason}`);
+  }
+
   const resolvedPairingInfo: PairingInfo = {
-    ...pairingInfo,
+    ...pairingInfoBase,
     port: actualPort,
     pairingUrl: `vision-control://pair?token=${encodeURIComponent(issue.token.token)}&port=${actualPort}&host=${options.host}`,
+    pairingHttpUrl: httpUrlResult.url,
     ...(mcpUrl !== undefined ? { mcpUrl } : {}),
     ...(mcpToken !== undefined ? { mcpToken } : {}),
   };

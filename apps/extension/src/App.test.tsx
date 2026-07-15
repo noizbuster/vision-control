@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Operation } from "@vision-control/change-ir";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
 import { createMultiSelectGroupId } from "@vision-control/element-identity";
@@ -492,5 +492,50 @@ describe("App", () => {
         "Agent prompt copied",
       ),
     );
+  });
+
+  it("keeps inspector and edit path usable when the agent bridge is unpaired", async () => {
+    slotState.summary = makeSummary("inline");
+    render(<App />);
+
+    const pairing = screen.getByTestId("pairing-panel");
+    expect(pairing.getAttribute("data-editing-ready")).toBe("true");
+    expect(pairing.getAttribute("data-pairing-optional")).toBe("true");
+    expect(pairing.getAttribute("data-agent-pair-state")).toBe("disconnected");
+    expect(pairing.textContent?.toLowerCase()).not.toContain("daemon required");
+    expect(screen.getByRole("button", { name: "Delete element" })).toBeDefined();
+    expect(screen.getByTestId("editing-ready")).toBeDefined();
+
+    slotState.bus.send.mockClear();
+    screen.getByRole("button", { name: "Delete element" }).click();
+
+    await waitFor(() => {
+      const editorMessage = slotState.bus.send.mock.calls
+        .map((call) => call[1])
+        .find((message) => message.messageType === "editor-command");
+      expect(editorMessage).toBeDefined();
+      expect((editorMessage?.payload as Operation | undefined)?.kind).toBe("remove-element");
+    });
+    expect(screen.getByText("Remove")).toBeDefined();
+  });
+
+  it("pairs the optional agent bridge via bridge-connect, not a daemon-required gate", async () => {
+    const pairingUrl = "vision-control://pair?token=abc&port=4321&host=127.0.0.1";
+    render(<App />);
+
+    const input = screen.getByPlaceholderText(/vision-control:\/\//);
+    fireEvent.change(input, { target: { value: pairingUrl } });
+    fireEvent.click(screen.getByRole("button", { name: /pair agent/i }));
+
+    await waitFor(() => {
+      const connectMessage = slotState.bus.send.mock.calls
+        .map((call) => call[1])
+        .find((message) => message.messageType === "bridge-connect");
+      expect(connectMessage).toBeDefined();
+      expect(connectMessage?.payload).toEqual({ pairingUrl });
+    });
+    expect(
+      slotState.bus.send.mock.calls.some((call) => call[1].messageType === "daemon-connect"),
+    ).toBe(false);
   });
 });

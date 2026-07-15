@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { useState } from "react";
 
 import type { ConnectionState } from "../messaging/index.js";
+import { ConnectionStatus } from "./ConnectionStatus.js";
 
 interface PairingPanelProps {
   readonly status: ConnectionState;
@@ -30,17 +31,6 @@ export function PairingPanel({ status, onConnect, onDisconnect }: PairingPanelPr
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  if (status === "connected") {
-    return (
-      <div className="pairing-panel pairing-panel--connected" data-testid="pairing-panel">
-        <span className={`connection connection--${status}`}>{status}</span>
-        <button type="button" className="pairing-panel__disconnect" onClick={onDisconnect}>
-          Disconnect
-        </button>
-      </div>
-    );
-  }
-
   const submit = (): void => {
     const trimmed = value.trim();
     const candidate = looksLikeBareToken(trimmed) ? synthesizePairingUrl(trimmed) : trimmed;
@@ -54,29 +44,57 @@ export function PairingPanel({ status, onConnect, onDisconnect }: PairingPanelPr
   };
 
   return (
-    <div className="pairing-panel pairing-panel--form" data-testid="pairing-panel">
-      <input
-        className="pairing-panel__input"
-        type="text"
-        value={value}
-        placeholder="vision-control://pair?token=…&port=…&host=…"
-        onChange={(event) => {
-          setValue(event.target.value);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            submit();
-          }
-        }}
-      />
-      <button type="button" className="pairing-panel__connect" onClick={submit}>
-        Connect
-      </button>
-      {error !== null && (
-        <p className="pairing-panel__error" role="alert">
-          {error}
-        </p>
+    <section
+      className={`pairing-panel pairing-panel--${status === "connected" ? "connected" : "form"}`}
+      data-testid="pairing-panel"
+      data-pairing-optional="true"
+      data-editing-ready="true"
+      data-agent-pair-state={status}
+      aria-label="Agent MCP pairing optional"
+    >
+      <div className="pairing-panel__header">
+        <h2 className="pairing-panel__title" data-testid="pairing-panel-title">
+          Agent / MCP
+        </h2>
+        <span className="pairing-panel__optional" data-testid="pairing-optional-badge">
+          optional
+        </span>
+      </div>
+      <p className="pairing-panel__hint" data-testid="pairing-panel-hint">
+        Editing works without pairing. Connect only when you want an agent projection.
+      </p>
+      <ConnectionStatus status={status} />
+      {status === "connected" ? (
+        <button type="button" className="pairing-panel__disconnect" onClick={onDisconnect}>
+          Unpair agent
+        </button>
+      ) : (
+        <>
+          <input
+            className="pairing-panel__input"
+            type="text"
+            value={value}
+            placeholder="vision-control://pair?token=…&port=…&host=…"
+            aria-label="Agent MCP pairing URL"
+            onChange={(event) => {
+              setValue(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                submit();
+              }
+            }}
+          />
+          <button type="button" className="pairing-panel__connect" onClick={submit}>
+            Pair agent
+          </button>
+          {error !== null && (
+            <p className="pairing-panel__error" role="alert">
+              {error}
+            </p>
+          )}
+        </>
       )}
-    </div>
+    </section>
   );
 }

@@ -41,33 +41,80 @@ export function createRequestComponentPropsMessage(
   };
 }
 
-/**
- * Panel → background signal carrying the daemon pairing URL. The background
- * re-parses this with {@link parsePairingUrl} and drives the ReconnectManager;
- * the panel never talks to the daemon directly.
- */
-export interface DaemonConnectPayload {
+export interface BridgeConnectPayload {
   readonly pairingUrl: string;
 }
 
-export function createDaemonConnectMessage(pairingUrl: string): BusMessage {
+export type DaemonConnectPayload = BridgeConnectPayload;
+
+export const BRIDGE_CONNECT_MESSAGE_TYPE = "bridge-connect" as const;
+export const BRIDGE_DISCONNECT_MESSAGE_TYPE = "bridge-disconnect" as const;
+export const DAEMON_CONNECT_MESSAGE_TYPE = "daemon-connect" as const;
+export const DAEMON_DISCONNECT_MESSAGE_TYPE = "daemon-disconnect" as const;
+
+export const BRIDGE_CONNECT_MESSAGE_TYPES = [
+  BRIDGE_CONNECT_MESSAGE_TYPE,
+  DAEMON_CONNECT_MESSAGE_TYPE,
+] as const;
+
+export const BRIDGE_DISCONNECT_MESSAGE_TYPES = [
+  BRIDGE_DISCONNECT_MESSAGE_TYPE,
+  DAEMON_DISCONNECT_MESSAGE_TYPE,
+] as const;
+
+export type BridgeConnectMessageType = (typeof BRIDGE_CONNECT_MESSAGE_TYPES)[number];
+export type BridgeDisconnectMessageType = (typeof BRIDGE_DISCONNECT_MESSAGE_TYPES)[number];
+
+export function isBridgeConnectMessageType(messageType: string): boolean {
+  return (
+    messageType === BRIDGE_CONNECT_MESSAGE_TYPE || messageType === DAEMON_CONNECT_MESSAGE_TYPE
+  );
+}
+
+export function isBridgeDisconnectMessageType(messageType: string): boolean {
+  return (
+    messageType === BRIDGE_DISCONNECT_MESSAGE_TYPE ||
+    messageType === DAEMON_DISCONNECT_MESSAGE_TYPE
+  );
+}
+
+function createConnectMessage(
+  messageType: BridgeConnectMessageType,
+  pairingUrl: string,
+): BusMessage {
   return {
     protocolVersion: "1.0.0",
-    messageId: `daemon-connect-${Date.now()}`,
-    messageType: "daemon-connect",
+    messageId: `${messageType}-${Date.now()}`,
+    messageType,
     targetRoute: "background",
-    payload: { pairingUrl } satisfies DaemonConnectPayload,
+    payload: { pairingUrl } satisfies BridgeConnectPayload,
     timestamp: Date.now(),
   };
 }
 
-export function createDaemonDisconnectMessage(): BusMessage {
+function createDisconnectMessage(messageType: BridgeDisconnectMessageType): BusMessage {
   return {
     protocolVersion: "1.0.0",
-    messageId: `daemon-disconnect-${Date.now()}`,
-    messageType: "daemon-disconnect",
+    messageId: `${messageType}-${Date.now()}`,
+    messageType,
     targetRoute: "background",
     payload: {},
     timestamp: Date.now(),
   };
+}
+
+export function createBridgeConnectMessage(pairingUrl: string): BusMessage {
+  return createConnectMessage(BRIDGE_CONNECT_MESSAGE_TYPE, pairingUrl);
+}
+
+export function createBridgeDisconnectMessage(): BusMessage {
+  return createDisconnectMessage(BRIDGE_DISCONNECT_MESSAGE_TYPE);
+}
+
+export function createDaemonConnectMessage(pairingUrl: string): BusMessage {
+  return createConnectMessage(DAEMON_CONNECT_MESSAGE_TYPE, pairingUrl);
+}
+
+export function createDaemonDisconnectMessage(): BusMessage {
+  return createDisconnectMessage(DAEMON_DISCONNECT_MESSAGE_TYPE);
 }

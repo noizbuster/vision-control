@@ -183,6 +183,33 @@ describe("useJournal", () => {
     expect(result.current.isConnected).toBe(true);
   });
 
+  it("records and undoes edits when the agent bridge is disconnected", () => {
+    const dispatched: Operation[] = [];
+    const { result } = renderHook(() =>
+      useJournal({
+        connectionState: "disconnected",
+        dispatchOperation: (operation) => {
+          dispatched.push(operation);
+        },
+      }),
+    );
+
+    act(() => {
+      result.current.record(styleEdit("op-offline-001", "blue", "red"));
+    });
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.entries).toHaveLength(1);
+    expect(result.current.canUndo).toBe(true);
+
+    act(() => {
+      result.current.undo();
+    });
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(true);
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]?.inverseOf).toBe("op-offline-001");
+  });
+
   it("lists entries newest-first", () => {
     const { result } = renderHook(() => useJournal({ previewEngine: null }));
     act(() => {

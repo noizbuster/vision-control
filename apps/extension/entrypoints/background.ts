@@ -106,7 +106,7 @@ const background: BackgroundDefinition = defineBackground(() => {
     });
   });
 
-  backgroundBus.on("daemon-connect", (message) => {
+  function handleBridgeConnect(message: BusMessage): void {
     const payload = message.payload as { readonly pairingUrl: string } | undefined;
     const pairingUrl = payload?.pairingUrl;
     if (pairingUrl === undefined) {
@@ -124,12 +124,19 @@ const background: BackgroundDefinition = defineBackground(() => {
       onStateChange: broadcastConnectionState,
     });
     void reconnectManager.connect().catch(() => {});
-  });
+  }
 
-  backgroundBus.on("daemon-disconnect", () => {
+  function handleBridgeDisconnect(): void {
     reconnectManager?.disconnect();
     reconnectManager = undefined;
-  });
+    broadcastConnectionState("disconnected");
+  }
+
+  // bridge-* preferred; daemon-* legacy aliases (mid-migration, no permission break).
+  backgroundBus.on("bridge-connect", handleBridgeConnect);
+  backgroundBus.on("daemon-connect", handleBridgeConnect);
+  backgroundBus.on("bridge-disconnect", handleBridgeDisconnect);
+  backgroundBus.on("daemon-disconnect", handleBridgeDisconnect);
 
   backgroundBus.on("host-access-changed", () => {
     refreshOpenTabHostAccess("host access refresh failed");

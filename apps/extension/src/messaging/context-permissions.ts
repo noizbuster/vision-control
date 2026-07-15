@@ -14,16 +14,7 @@ function senderRouteName(route: BusRoute | "unknown" | undefined): string {
   return route ?? "unknown";
 }
 
-/**
- * Enforce the extension's context-permission boundary.
- *
- * Hard rules:
- * - Content scripts are untrusted page context: they may NOT send daemon calls.
- * - Panels may only target the inspected tab they belong to; the message must
- *   carry the tab identity so the background router can enforce isolation.
- * - The background service worker is the only context permitted to send and
- *   receive daemon messages.
- */
+/** Context-permission boundary for panel / content / background / daemon routes. */
 export function checkSendPermission(sender: MessageContext, message: BusMessage): PermissionResult {
   if (sender.route === "content" && isDaemonMessage(message)) {
     return {

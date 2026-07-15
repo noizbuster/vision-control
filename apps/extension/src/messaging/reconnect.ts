@@ -13,13 +13,7 @@ export interface ReconnectManagerOptions {
   readonly onMessage?: (envelope: ProtocolEnvelope) => void;
 }
 
-/**
- * Wraps the daemon client and keeps a small pending queue.
- *
- * While disconnected, daemon-bound messages are held locally and flushed once
- * the WebSocket handshake completes. State changes are broadcast so the panel
- * UI can render the real connection status.
- */
+/** Optional agent/MCP bridge client wrapper with offline pending queue. */
 export class ReconnectManager {
   private readonly client: DaemonClient;
   private readonly onStateChange: ((state: ConnectionState) => void) | undefined;

@@ -20,11 +20,24 @@ import type {
 import type { BusMessage, ConnectionState, TabSession } from "./types.js";
 
 export {
+  BRIDGE_CONNECT_MESSAGE_TYPE,
+  BRIDGE_CONNECT_MESSAGE_TYPES,
+  BRIDGE_DISCONNECT_MESSAGE_TYPE,
+  BRIDGE_DISCONNECT_MESSAGE_TYPES,
+  type BridgeConnectMessageType,
+  type BridgeConnectPayload,
+  type BridgeDisconnectMessageType,
+  createBridgeConnectMessage,
+  createBridgeDisconnectMessage,
   createDaemonConnectMessage,
   createDaemonDisconnectMessage,
   createHostAccessChangedMessage,
   createRequestComponentPropsMessage,
+  DAEMON_CONNECT_MESSAGE_TYPE,
+  DAEMON_DISCONNECT_MESSAGE_TYPE,
   type DaemonConnectPayload,
+  isBridgeConnectMessageType,
+  isBridgeDisconnectMessageType,
   type RequestComponentPropsPayload,
 } from "./panel-background-control-messages.js";
 

@@ -36,9 +36,9 @@ import {
 } from "./interaction-mode-routing.js";
 import type { BusMessage, FrameInfo } from "./messaging/index.js";
 import {
+  createBridgeConnectMessage,
+  createBridgeDisconnectMessage,
   createClearPreviewMessage,
-  createDaemonConnectMessage,
-  createDaemonDisconnectMessage,
   createEditorCommandMessage,
 } from "./messaging/index.js";
 import "./styles/variables.css";
@@ -126,7 +126,8 @@ export function App(): ReactElement {
   }, [bus]);
   useJournalPersistence({
     journal: journal.journal,
-    client: null,
+    tabId,
+    bus,
     onRestore: journal.replaceJournal,
   });
   useEffect(() => {
@@ -174,13 +175,13 @@ export function App(): ReactElement {
 
   const handleConnect = (pairingUrl: string): void => {
     if (bus !== undefined) {
-      bus.send("background", createDaemonConnectMessage(pairingUrl));
+      bus.send("background", createBridgeConnectMessage(pairingUrl));
     }
   };
 
   const handleDisconnect = (): void => {
     if (bus !== undefined) {
-      bus.send("background", createDaemonDisconnectMessage());
+      bus.send("background", createBridgeDisconnectMessage());
     }
   };
 

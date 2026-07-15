@@ -5,9 +5,18 @@ export type PermissionResult =
   | { readonly allowed: false; readonly reason: string };
 
 const DAEMON_PREFIX = "daemon:";
+const BRIDGE_PREFIX = "bridge-";
 
 function isDaemonMessage(message: BusMessage): boolean {
   return message.messageType.startsWith(DAEMON_PREFIX);
+}
+
+function isBridgeSocketMessage(message: BusMessage): boolean {
+  return (
+    message.messageType.startsWith(BRIDGE_PREFIX) ||
+    message.messageType === "daemon-connect" ||
+    message.messageType === "daemon-disconnect"
+  );
 }
 
 function senderRouteName(route: BusRoute | "unknown" | undefined): string {
@@ -20,6 +29,14 @@ export function checkSendPermission(sender: MessageContext, message: BusMessage)
     return {
       allowed: false,
       reason: `content scripts cannot send daemon messages (${message.messageType})`,
+    };
+  }
+
+  // Content never opens the MCP bridge socket (ADR-020 C3) — background only.
+  if (sender.route === "content" && isBridgeSocketMessage(message)) {
+    return {
+      allowed: false,
+      reason: `content scripts cannot open the MCP bridge (${message.messageType})`,
     };
   }
 

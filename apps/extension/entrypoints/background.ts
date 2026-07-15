@@ -1,4 +1,3 @@
-import { DaemonClient, parsePairingUrl } from "@vision-control/daemon-client";
 import type { BackgroundDefinition } from "wxt";
 import { defineBackground } from "wxt/utils/define-background";
 import { handleFrameHello } from "../src/background-frame-hello.js";
@@ -9,7 +8,9 @@ import { HostAllowlistCache } from "../src/host-allowlist-sync.js";
 import { installBackgroundJournalHandlers } from "../src/journal/background-journal-handlers.js";
 import { SessionJournalStore } from "../src/journal/session-journal-store.js";
 import {
+  ActiveSessionTracker,
   createBackgroundBus,
+  createBridgeBackgroundController,
   createChromeRouterTransport,
   createConnectionStateMessage,
   createEditForwarder,
@@ -17,10 +18,9 @@ import {
   createWebNavigationFrameProvider,
   discoverFrames,
   MessageRouter,
-  ReconnectManager,
   TabSessionStore,
 } from "../src/messaging/index.js";
-import type { BusMessage, ConnectionState, TabSession } from "../src/messaging/types.js";
+import type { BusMessage, TabSession } from "../src/messaging/types.js";
 
 function broadcastToPanel(message: BusMessage): void {
   if (typeof chrome === "undefined" || chrome.runtime?.sendMessage === undefined) {
@@ -37,8 +37,28 @@ function reportBackgroundError(context: string): (err: unknown) => void {
   };
 }
 
+function chromeLocalStorageArea():
+  | {
+      get: (key: string) => Promise<Record<string, unknown>>;
+      set: (items: Record<string, unknown>) => Promise<void>;
+      remove: (key: string) => Promise<void>;
+    }
+  | undefined {
+  if (typeof chrome === "undefined" || chrome.storage?.local === undefined) {
+    return undefined;
+  }
+  const area = chrome.storage.local;
+  return {
+    get: (key) => area.get(key) as Promise<Record<string, unknown>>,
+    set: (items) => area.set(items),
+    remove: (key) => area.remove(key),
+  };
+}
+
 const background: BackgroundDefinition = defineBackground(() => {
   const hostAllowlist = new HostAllowlistCache();
+  const localStorage = chromeLocalStorageArea();
+  const activeSessions = new ActiveSessionTracker();
 
   const store = new TabSessionStore({
     storage: chrome.storage?.session,
@@ -115,11 +135,14 @@ const background: BackgroundDefinition = defineBackground(() => {
     },
   });
 
-  let reconnectManager: ReconnectManager | undefined;
+  const bridge = createBridgeBackgroundController({
+    storage: localStorage,
+    onStateChange: (state) => {
+      broadcastToPanel(createConnectionStateMessage(state));
+    },
+  });
 
-  function broadcastConnectionState(state: ConnectionState): void {
-    broadcastToPanel(createConnectionStateMessage(state));
-  }
+  void bridge.runSwWakePolicy().catch(reportBackgroundError("bridge SW wake policy failed"));
 
   backgroundBus.on("frame-hello", (message, sender) => {
     handleFrameHello(message, sender, {
@@ -128,29 +151,29 @@ const background: BackgroundDefinition = defineBackground(() => {
     });
   });
 
-  backgroundBus.on("daemon-connect", (message) => {
+  const handleBridgeConnect = (message: BusMessage): void => {
     const payload = message.payload as { readonly pairingUrl: string } | undefined;
     const pairingUrl = payload?.pairingUrl;
     if (pairingUrl === undefined) {
       return;
     }
-    const parsed = parsePairingUrl(pairingUrl);
-    if (!parsed.success) {
-      broadcastConnectionState("disconnected");
-      return;
+    if (message.tabId !== undefined) {
+      activeSessions.markPaired(message.tabId);
+      activeSessions.setFocused(message.tabId);
     }
-    reconnectManager?.disconnect();
-    const client = new DaemonClient({ target: parsed.target });
-    reconnectManager = new ReconnectManager({
-      client,
-      onStateChange: broadcastConnectionState,
-    });
-    void reconnectManager.connect().catch(() => {});
-  });
+    void bridge.pairWithInput(pairingUrl).catch(reportBackgroundError("bridge pair failed"));
+  };
 
+  // Preferred bridge-* names and mid-migration daemon-* aliases (task 3).
+  backgroundBus.on("bridge-connect", handleBridgeConnect);
+  backgroundBus.on("bridge-disconnect", () => {
+    activeSessions.clear();
+    bridge.unpair();
+  });
+  backgroundBus.on("daemon-connect", handleBridgeConnect);
   backgroundBus.on("daemon-disconnect", () => {
-    reconnectManager?.disconnect();
-    reconnectManager = undefined;
+    activeSessions.clear();
+    bridge.unpair();
   });
 
   backgroundBus.on("host-access-changed", () => {
@@ -171,9 +194,6 @@ const background: BackgroundDefinition = defineBackground(() => {
   });
 
   backgroundBus.on("editor-command", (message, sender) => {
-    // Fall back to the sender context's tabId (the bus transport derives it
-    // from chrome.runtime.MessageSender.tab.id) so an edit is never silently
-    // dropped when the message envelope omits tabId.
     const tabId = message.tabId ?? sender?.tabId;
     if (tabId !== undefined) {
       forwardEditToContent({ ...message, tabId });
@@ -194,6 +214,11 @@ const background: BackgroundDefinition = defineBackground(() => {
   chrome.tabs.onRemoved.addListener((tabId) => {
     tabLifecycle.handleRemoved(tabId);
     journalHandlers.handleTabRemoved(tabId);
+    activeSessions.markUnpaired(tabId);
+  });
+
+  chrome.tabs.onActivated?.addListener((activeInfo) => {
+    activeSessions.setFocused(activeInfo.tabId);
   });
 
   chrome.runtime.onConnect.addListener((port) => {
@@ -204,12 +229,13 @@ const background: BackgroundDefinition = defineBackground(() => {
     const tabId = port.sender?.tab?.id;
     if (tabId !== undefined) {
       store.setInspected(tabId, true);
+      activeSessions.setFocused(tabId);
     }
     const session = tabId === undefined ? undefined : store.get(tabId);
     if (tabId !== undefined && session !== undefined) {
       port.postMessage(createSessionUpdateMessage(tabId, session));
     }
-    port.postMessage(createConnectionStateMessage(reconnectManager?.getState() ?? "disconnected"));
+    port.postMessage(createConnectionStateMessage(bridge.getConnectionState()));
   });
 });
 

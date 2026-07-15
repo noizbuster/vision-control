@@ -48,9 +48,7 @@ describe("PairingPanel — offline-first optional agent pair", () => {
     const panel = screen.getByTestId("pairing-panel");
     expect(panel.getAttribute("data-editing-ready")).toBe("true");
     expect(panel.getAttribute("data-agent-pair-state")).toBe("connected");
-    expect(screen.getByTestId("connection-status").getAttribute("data-editing-ready")).toBe(
-      "true",
-    );
+    expect(screen.getByTestId("connection-status").getAttribute("data-editing-ready")).toBe("true");
   });
 });
 
@@ -93,6 +91,8 @@ describe("PairingPanel — bare token fallback (defaults host/port)", () => {
     const sentUrl = onConnect.mock.calls[0]?.[0] as string;
     expect(sentUrl.startsWith("vision-control://pair?")).toBe(true);
     expect(sentUrl).toContain("token=my-bare-token");
+    expect(sentUrl).toContain("port=4322");
+    expect(sentUrl).not.toContain("port=4321");
   });
 });
 

@@ -15,6 +15,7 @@
     "test": "vitest run && node --test scripts/dev-pair-helpers.test.mjs"
   },
   "dependencies": {
+    "@vision-control/bridge-client": "workspace:*",
     "@vision-control/change-ir": "workspace:*",
     "@vision-control/change-journal": "workspace:*",
     "@vision-control/daemon-client": "workspace:*",

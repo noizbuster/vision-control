@@ -1,4 +1,18 @@
 export {
+  type BridgeBackgroundController,
+  type CreateBridgeBackgroundControllerOptions,
+  createBridgeBackgroundController,
+} from "./bridge-background.js";
+export {
+  ActiveSessionTracker,
+  BRIDGE_ENDPOINT_STORAGE_KEY,
+  clearBridgeEndpoint,
+  connectionStateFromBridge,
+  evaluateSwWake,
+  loadBridgeEndpoint,
+  persistBridgeEndpoint,
+} from "./bridge-session.js";
+export {
   type BusTransport,
   createBackgroundBus,
   createRuntimeBus,

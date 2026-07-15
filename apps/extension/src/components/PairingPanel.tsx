@@ -12,7 +12,8 @@ interface PairingPanelProps {
 }
 
 const DEFAULT_HOST = "127.0.0.1";
-const DEFAULT_PORT = 4321;
+/** MCP bridge fixed port (ADR-020 C2). Not the legacy daemon 4321. */
+const DEFAULT_PORT = 4322;
 
 function looksLikeBareToken(input: string): boolean {
   return input.length > 0 && !input.includes("://") && !input.includes("/");

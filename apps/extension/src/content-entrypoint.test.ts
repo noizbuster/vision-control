@@ -66,18 +66,44 @@ function createFakeRuntime(): OverlayRuntime {
   };
 }
 
+type MutableLocation = {
+  href: string;
+  origin: string;
+};
+
+type FakeHistory = {
+  state: unknown;
+  replaceState: ReturnType<typeof vi.fn>;
+};
+
 type PageWindow = Window & {
   __visionControlContentRuntime?: unknown;
   readonly addEventListener: ReturnType<typeof vi.fn>;
+  readonly location: MutableLocation;
+  readonly history: FakeHistory;
 };
 
 function createPageWindow(href: string, mainFrame: boolean): PageWindow {
   const url = new URL(href);
+  const location: MutableLocation = {
+    href: url.href,
+    origin: url.origin,
+  };
+  const history: FakeHistory = {
+    state: null,
+    replaceState: vi.fn((state: unknown, _title: string, nextUrl?: string | URL | null) => {
+      history.state = state;
+      if (typeof nextUrl === "string" && nextUrl.length > 0) {
+        const resolved = new URL(nextUrl, location.href);
+        location.href = resolved.href;
+      } else if (nextUrl instanceof URL) {
+        location.href = nextUrl.href;
+      }
+    }),
+  };
   const pageWindow = {
-    location: {
-      href: url.href,
-      origin: url.origin,
-    },
+    location,
+    history,
     top: null as Window | null,
     self: null as unknown as Window,
     addEventListener: vi.fn(),
@@ -219,17 +245,66 @@ describe("runVisionControlContentScript", () => {
     }
   });
 
+  it("strips the token from the address bar after a successful pair-page read", () => {
+    // Given: a main-frame /pair URL that still carries the secret token.
+    const token = "secret-pair-token-xyz";
+    const harness = createHarness({
+      href: `http://127.0.0.1:1234/pair?token=${token}&port=1234&host=127.0.0.1`,
+    });
+    harness.deps.document.title = "Vision Control Pairing";
+
+    // When: auto-pair succeeds and daemon-connect is sent.
+    runVisionControlContentScript(harness.deps);
+
+    // Then: history.replaceState rewrites the current entry without token=; port/host remain.
+    expect(harness.pageWindow.history.replaceState).toHaveBeenCalledTimes(1);
+    const replaceArgs = harness.pageWindow.history.replaceState.mock.calls[0] as
+      | readonly [unknown, string, string]
+      | undefined;
+    expect(replaceArgs?.[2]).toBeDefined();
+    expect(String(replaceArgs?.[2])).not.toContain("token=");
+    expect(String(replaceArgs?.[2])).toContain("port=1234");
+    expect(String(replaceArgs?.[2])).toContain("host=127.0.0.1");
+    expect(harness.pageWindow.location.href).not.toContain("token=");
+    expect(harness.pageWindow.location.href).toContain("port=1234");
+    expect(harness.pageWindow.location.href).toContain("host=127.0.0.1");
+    expect(harness.pageWindow.location.href).not.toContain(token);
+    expect(harness.deps.document.title).not.toContain(token);
+    expect(harness.deps.document.title.toLowerCase()).not.toContain("token");
+    expect(harness.createRuntime).not.toHaveBeenCalled();
+  });
+
   it("does not emit daemon-connect when /pair is missing a token", () => {
     // Given: a loopback /pair page without a pairing token.
+    const originalHref = "http://127.0.0.1:1234/pair?port=1234&host=127.0.0.1";
     const harness = createHarness({
-      href: "http://127.0.0.1:1234/pair?port=1234&host=127.0.0.1",
+      href: originalHref,
     });
 
     // When: the content entrypoint runs.
     runVisionControlContentScript(harness.deps);
 
-    // Then: no connect is attempted and the overlay is not mounted.
+    // Then: no connect is attempted, the overlay is not mounted, and the URL is left intact.
     expect(harness.createRuntime).not.toHaveBeenCalled();
+    expect(harness.bus.sent.some((entry) => entry.message.messageType === "daemon-connect")).toBe(
+      false,
+    );
+    expect(harness.pageWindow.history.replaceState).not.toHaveBeenCalled();
+    expect(harness.pageWindow.location.href).toBe(originalHref);
+  });
+
+  it("leaves a malformed pair URL intact and never mounts the overlay", () => {
+    // Given: loopback /pair with an unusable token payload (empty token).
+    const originalHref = "http://127.0.0.1:1234/pair?token=&port=1234&host=127.0.0.1";
+    const harness = createHarness({ href: originalHref });
+
+    // When: synthesis fails on the pair path.
+    runVisionControlContentScript(harness.deps);
+
+    // Then: no replaceState, no createRuntime, no daemon-connect.
+    expect(harness.createRuntime).not.toHaveBeenCalled();
+    expect(harness.pageWindow.history.replaceState).not.toHaveBeenCalled();
+    expect(harness.pageWindow.location.href).toBe(originalHref);
     expect(harness.bus.sent.some((entry) => entry.message.messageType === "daemon-connect")).toBe(
       false,
     );

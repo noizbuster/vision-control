@@ -111,6 +111,28 @@ function installContentRuntimeSlot(
   );
 }
 
+function stripPairingTokenFromAddressBar(win: Window): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(win.location.href);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return;
+    }
+    throw error;
+  }
+  if (!parsed.searchParams.has("token")) {
+    return;
+  }
+  parsed.searchParams.delete("token");
+  const next = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  win.history.replaceState(win.history.state, "", next);
+}
+
+function setPairPageConnectedTitle(doc: Document): void {
+  doc.title = "Vision Control Connected";
+}
+
 function tryAutoPairFromPairPage(
   deps: ContentEntrypointDependencies,
   bus: ContentEntrypointBus,
@@ -123,6 +145,8 @@ function tryAutoPairFromPairPage(
   if (synthesized.success) {
     installContentRuntimeSlot(deps, { bus, runtime: null, editHandlers: null });
     bus.send("background", createDaemonConnectMessage(synthesized.pairingUrl));
+    stripPairingTokenFromAddressBar(deps.window);
+    setPairPageConnectedTitle(deps.document);
     return true;
   }
   if (isLoopbackHttpPairPage(href)) {

@@ -32,11 +32,11 @@ Options:
   --mcp-port <port>    MCP HTTP transport port. 0 = ephemeral. When set, serves the
                        read-only MCP server over loopback HTTP with a separate bearer
                        token (ADR-013). Default: MCP transport disabled.
-  --open               Force open the local pairing page in a browser after ready
-                       (even when stdout is not a TTY).
-  --no-open            Never open a browser after ready. Wins over --open.
-                       Default: open on interactive TTY when bound to 127.0.0.1;
-                       stay quiet in non-TTY (CI/scripts) and for ::1/localhost binds.
+  --open               Force open the local pairing page in a browser after ready.
+  --no-open            Never open a browser after ready. Wins over --open and
+                       VC_OPEN_PAIRING. Default: do not open a browser. Open only
+                       with --open, or when VC_OPEN_PAIRING=1 (set by root pnpm dev),
+                       and only when bound to exact 127.0.0.1 (::1/localhost never).
   --help               Print this help and exit without binding.
 
 Security:
@@ -322,6 +322,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
             openFlag: parsed.open,
             noOpenFlag: parsed.noOpen,
             bindHost: info.host,
+            openFromMonorepoDev: process.env.VC_OPEN_PAIRING === "1",
           },
           openUrl,
         });

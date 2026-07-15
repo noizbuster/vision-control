@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  maybeOpenPairingPage,
-  openUrl,
-  resolveOpenCommand,
-  type OpenUrlFn,
-} from "./open-url.js";
+import { maybeOpenPairingPage, type OpenUrlFn, openUrl, resolveOpenCommand } from "./open-url.js";
 
 describe("resolveOpenCommand", () => {
   const url = "http://127.0.0.1:9/pair?token=t&port=9&host=127.0.0.1";
@@ -44,15 +39,33 @@ describe("openUrl", () => {
 describe("maybeOpenPairingPage", () => {
   const pairingHttpUrl = "http://127.0.0.1:4321/pair?token=secret-token&port=4321&host=127.0.0.1";
 
-  it("calls openUrl once when policy is true (TTY + 127.0.0.1)", async () => {
+  it("calls openUrl once when openFromMonorepoDev is true on 127.0.0.1", async () => {
     const open: OpenUrlFn = vi.fn(async () => undefined);
     await maybeOpenPairingPage({
       pairingHttpUrl,
       policy: {
-        isTty: true,
+        isTty: false,
         openFlag: false,
         noOpenFlag: false,
         bindHost: "127.0.0.1",
+        openFromMonorepoDev: true,
+      },
+      openUrl: open,
+    });
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith(pairingHttpUrl);
+  });
+
+  it("calls openUrl when --open is set", async () => {
+    const open: OpenUrlFn = vi.fn(async () => undefined);
+    await maybeOpenPairingPage({
+      pairingHttpUrl,
+      policy: {
+        isTty: false,
+        openFlag: true,
+        noOpenFlag: false,
+        bindHost: "127.0.0.1",
+        openFromMonorepoDev: false,
       },
       openUrl: open,
     });
@@ -69,21 +82,23 @@ describe("maybeOpenPairingPage", () => {
         openFlag: true,
         noOpenFlag: true,
         bindHost: "127.0.0.1",
+        openFromMonorepoDev: true,
       },
       openUrl: open,
     });
     expect(open).toHaveBeenCalledTimes(0);
   });
 
-  it("does not call openUrl for non-TTY without --open", async () => {
+  it("does not call openUrl for TTY alone without monorepo dev or --open", async () => {
     const open: OpenUrlFn = vi.fn(async () => undefined);
     await maybeOpenPairingPage({
       pairingHttpUrl,
       policy: {
-        isTty: false,
+        isTty: true,
         openFlag: false,
         noOpenFlag: false,
         bindHost: "127.0.0.1",
+        openFromMonorepoDev: false,
       },
       openUrl: open,
     });
@@ -99,6 +114,7 @@ describe("maybeOpenPairingPage", () => {
         openFlag: true,
         noOpenFlag: false,
         bindHost: "::1",
+        openFromMonorepoDev: true,
       },
       openUrl: open,
     });
@@ -114,10 +130,11 @@ describe("maybeOpenPairingPage", () => {
       maybeOpenPairingPage({
         pairingHttpUrl,
         policy: {
-          isTty: true,
-          openFlag: false,
+          isTty: false,
+          openFlag: true,
           noOpenFlag: false,
           bindHost: "127.0.0.1",
+          openFromMonorepoDev: false,
         },
         openUrl: open,
         writeError: (message) => {

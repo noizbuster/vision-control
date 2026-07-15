@@ -72,10 +72,11 @@ describe("HELP_TEXT", () => {
     expect(HELP_TEXT).toContain("0.0.0.0");
   });
 
-  it("documents --open, --no-open, and the TTY default", () => {
+  it("documents --open, --no-open, and monorepo VC_OPEN_PAIRING open policy", () => {
     expect(HELP_TEXT).toContain("--open");
     expect(HELP_TEXT).toContain("--no-open");
-    expect(HELP_TEXT).toContain("TTY");
+    expect(HELP_TEXT).toContain("VC_OPEN_PAIRING");
+    expect(HELP_TEXT).toContain("do not open a browser");
     expect(HELP_TEXT).toContain("127.0.0.1");
   });
 });

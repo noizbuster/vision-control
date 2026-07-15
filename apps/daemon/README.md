@@ -31,15 +31,17 @@ Default TTL is about 5 minutes. The token stays valid until expiry or revoke
 
 **Pairing paths**
 
-1. **Auto-open (default on interactive TTY + `127.0.0.1`)**. The daemon opens
-   `pairingHttpUrl` in your default browser. That is a loopback HTML landing page
-   at `/pair`. With the Chromium Vision Control extension loaded, the content
-   script can auto-pair. Other browsers only show paste instructions.
+1. **Auto-open (opt-in)**. The daemon opens `pairingHttpUrl` in your default
+   browser only when bound to exact `127.0.0.1` and either `--open` is set or
+   `VC_OPEN_PAIRING=1` (root monorepo `pnpm dev` sets this). That is a loopback
+   HTML landing page at `/pair`. With the Chromium Vision Control extension
+   loaded, the content script can auto-pair. Other browsers only show paste
+   instructions. Interactive TTY alone does not open a browser.
 2. **Paste into the panel**. Paste `pairingUrl` (`vision-control://pair?...`)
    into the DevTools panel connect field. The custom scheme has no browser or OS
    protocol handler; do not put it in an address bar.
 3. **Manual HTTP**. Open `pairingHttpUrl` yourself if auto-open was skipped
-   (`--no-open`, non-TTY, or bind host is not exact `127.0.0.1`).
+   (default, `--no-open`, or bind host is not exact `127.0.0.1`).
 
 The pairing secret is in the HTTP query string, so it can remain in browser
 history. Prefer a private window when that matters. The page sends
@@ -53,11 +55,12 @@ history. Prefer a private window when that matters. The page sends
 --port <port>        Bind port. 0 = ephemeral. Default 0.
 --workspace <path>   Workspace root containing vision-control.config.ts.
 --db <path>          SQLite path. Default <workspace>/.vision-control/daemon.db.
---open               Force open the local /pair page after ready (even when
-                     stdout is not a TTY). Still requires bind host 127.0.0.1.
---no-open            Never open a browser after ready. Wins over --open.
-                     Default: open on interactive TTY when bound to 127.0.0.1;
-                     stay quiet in non-TTY (CI/scripts) and for ::1/localhost.
+--open               Force open the local /pair page after ready. Still requires
+                     bind host 127.0.0.1.
+--no-open            Never open a browser after ready. Wins over --open and
+                     VC_OPEN_PAIRING. Default: do not open. Open only with --open
+                     or VC_OPEN_PAIRING=1 (root pnpm dev), and only on 127.0.0.1
+                     (::1/localhost never auto-open).
 --help               Print help and exit without binding.
 ```
 

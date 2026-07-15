@@ -79,10 +79,11 @@ On a successful start the daemon prints one JSON line to stdout:
 
 The raw pairing token is shown exactly once. Only its SHA-256 hash is persisted.
 Default TTL is about 5 minutes; the token is not consumed by loading `/pair`.
-On an interactive TTY bound to `127.0.0.1`, the daemon also opens
-`pairingHttpUrl` in your browser (use `--no-open` to skip, or `--open` to force
-when stdout is not a TTY). The daemon binds to loopback only (`127.0.0.1`,
-`::1`, `localhost`); non-loopback hosts are refused before listen. See
+By default the daemon does not open a browser. It opens `pairingHttpUrl` only
+when bound to exact `127.0.0.1` and either `--open` is set or
+`VC_OPEN_PAIRING=1` (root monorepo `pnpm dev` sets this); use `--no-open` to
+suppress. The daemon binds to loopback only (`127.0.0.1`, `::1`, `localhost`);
+non-loopback hosts are refused before listen. See
 [apps/daemon/README.md](./apps/daemon/README.md) for the full flag list and the
 optional `vision-control.config.ts`.
 

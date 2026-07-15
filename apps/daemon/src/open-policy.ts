@@ -4,6 +4,8 @@ export interface OpenBrowserPolicyInput {
   readonly openFlag: boolean;
   readonly noOpenFlag: boolean;
   readonly bindHost: string;
+  /** True when root monorepo `pnpm dev` set `VC_OPEN_PAIRING=1` (exact match only). */
+  readonly openFromMonorepoDev: boolean;
 }
 
 /**
@@ -12,8 +14,9 @@ export interface OpenBrowserPolicyInput {
  * Rules (in order):
  * 1. `--no-open` always wins (including when both flags are set).
  * 2. Only exact bind host `127.0.0.1` may auto-open (`::1` / `localhost` never).
- * 3. `--open` forces an attempt even when not a TTY.
- * 4. Otherwise open only on an interactive TTY.
+ * 3. `--open` forces an attempt.
+ * 4. `openFromMonorepoDev` (`VC_OPEN_PAIRING=1` from root `pnpm dev`) opens.
+ * 5. Otherwise do not open (interactive TTY alone is not enough).
  */
 export function shouldOpenBrowser(input: OpenBrowserPolicyInput): boolean {
   if (input.noOpenFlag) {
@@ -25,5 +28,8 @@ export function shouldOpenBrowser(input: OpenBrowserPolicyInput): boolean {
   if (input.openFlag) {
     return true;
   }
-  return input.isTty;
+  if (input.openFromMonorepoDev) {
+    return true;
+  }
+  return false;
 }

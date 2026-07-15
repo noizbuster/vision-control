@@ -116,11 +116,12 @@ they expire (default about 5 minutes) or are revoked. They are not single-use:
 reconnect within the TTL reuses the same token. Loading `GET /pair` does not
 consume or invalidate the token.
 
-On an interactive TTY bound to `127.0.0.1`, the daemon also tries to open
-`pairingHttpUrl` in your default browser (the local `/pair` landing page). Use
-`--no-open` to skip that, or `--open` to force an open when stdout is not a TTY.
-Auto-open never runs for `::1` or `localhost` binds, and never when `--no-open`
-is set. See [apps/daemon/README.md](../apps/daemon/README.md).
+By default the daemon does not open a browser. It opens `pairingHttpUrl` (the
+local `/pair` landing page) only when bound to exact `127.0.0.1` and either
+`--open` is set or `VC_OPEN_PAIRING=1` (root monorepo `pnpm dev` sets this).
+`--no-open` always wins. Auto-open never runs for `::1` or `localhost` binds, and
+interactive TTY alone is not enough. See
+[apps/daemon/README.md](../apps/daemon/README.md).
 
 ### Pasting the `vision-control://pair?...` URL into a browser does nothing
 

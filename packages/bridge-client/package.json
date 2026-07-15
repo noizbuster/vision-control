@@ -1,0 +1,27 @@
+{
+  "name": "@vision-control/bridge-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Isomorphic MCP bridge client: discover, pair, heartbeat, endpoint storage (ADR-020 C3/C8).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@vision-control/protocol": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

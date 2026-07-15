@@ -207,6 +207,9 @@ importers:
 
   apps/extension:
     dependencies:
+      '@vision-control/bridge-client':
+        specifier: workspace:*
+        version: link:../../packages/bridge-client
       '@vision-control/change-ir':
         specifier: workspace:*
         version: link:../../packages/change-ir
@@ -630,6 +633,25 @@ importers:
         specifier: 'catalog:'
         version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
 
+  packages/bridge-client:
+    dependencies:
+      '@vision-control/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
+
   packages/change-ir:
     dependencies:
       zod:
@@ -679,6 +701,7 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
+
   packages/context-compiler:
     dependencies:
       '@vision-control/change-ir':
@@ -924,6 +947,18 @@ importers:
       '@vision-control/security':
         specifier: workspace:*
         version: link:../security
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.1.0)(jsdom@29.1.1)(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/map-origins:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

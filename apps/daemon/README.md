@@ -22,13 +22,28 @@ pnpm nx run daemon:dev                # build + run against the discovered works
 On a successful start the daemon prints one JSON line to stdout:
 
 ```
-{"event":"ready","port":4321,"host":"127.0.0.1","pairingUrl":"vision-control://pair?token=...","sessionId":"..."}
+{"event":"ready","port":4321,"host":"127.0.0.1","pairingUrl":"vision-control://pair?token=...","pairingHttpUrl":"http://127.0.0.1:4321/pair?token=...&port=4321&host=127.0.0.1","sessionId":"..."}
 ```
 
-The pairing token is shown exactly once; only its SHA-256 hash is persisted.
-The `pairingUrl` is meant to be pasted into the Vision Control DevTools panel's
-connect field, not opened in a browser address bar; the `vision-control://`
-scheme has no browser handler.
+The raw pairing token is shown exactly once; only its SHA-256 hash is persisted.
+Default TTL is about 5 minutes. The token stays valid until expiry or revoke
+(not single-use for reconnect). `GET /pair` does not consume it.
+
+**Pairing paths**
+
+1. **Auto-open (default on interactive TTY + `127.0.0.1`)**. The daemon opens
+   `pairingHttpUrl` in your default browser. That is a loopback HTML landing page
+   at `/pair`. With the Chromium Vision Control extension loaded, the content
+   script can auto-pair. Other browsers only show paste instructions.
+2. **Paste into the panel**. Paste `pairingUrl` (`vision-control://pair?...`)
+   into the DevTools panel connect field. The custom scheme has no browser or OS
+   protocol handler; do not put it in an address bar.
+3. **Manual HTTP**. Open `pairingHttpUrl` yourself if auto-open was skipped
+   (`--no-open`, non-TTY, or bind host is not exact `127.0.0.1`).
+
+The pairing secret is in the HTTP query string, so it can remain in browser
+history. Prefer a private window when that matters. The page sends
+`Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
 
 ## CLI
 
@@ -38,6 +53,11 @@ scheme has no browser handler.
 --port <port>        Bind port. 0 = ephemeral. Default 0.
 --workspace <path>   Workspace root containing vision-control.config.ts.
 --db <path>          SQLite path. Default <workspace>/.vision-control/daemon.db.
+--open               Force open the local /pair page after ready (even when
+                     stdout is not a TTY). Still requires bind host 127.0.0.1.
+--no-open            Never open a browser after ready. Wins over --open.
+                     Default: open on interactive TTY when bound to 127.0.0.1;
+                     stay quiet in non-TTY (CI/scripts) and for ::1/localhost.
 --help               Print help and exit without binding.
 ```
 

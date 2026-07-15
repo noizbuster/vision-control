@@ -74,14 +74,17 @@ pnpm nx run daemon:dev
 On a successful start the daemon prints one JSON line to stdout:
 
 ```
-{"event":"ready","port":4321,"host":"127.0.0.1","pairingUrl":"vision-control://pair?token=...","sessionId":"..."}
+{"event":"ready","port":4321,"host":"127.0.0.1","pairingUrl":"vision-control://pair?token=...","pairingHttpUrl":"http://127.0.0.1:4321/pair?token=...&port=4321&host=127.0.0.1","sessionId":"..."}
 ```
 
-The pairing token is shown exactly once. Only its SHA-256 hash is persisted. The
-daemon binds to loopback only (`127.0.0.1`, `::1`, `localhost`); non-loopback
-hosts are refused before listen. See
-[apps/daemon/README.md](./apps/daemon/README.md) for the `--host` / `--port` /
-`--workspace` / `--db` flags and the optional `vision-control.config.ts`.
+The raw pairing token is shown exactly once. Only its SHA-256 hash is persisted.
+Default TTL is about 5 minutes; the token is not consumed by loading `/pair`.
+On an interactive TTY bound to `127.0.0.1`, the daemon also opens
+`pairingHttpUrl` in your browser (use `--no-open` to skip, or `--open` to force
+when stdout is not a TTY). The daemon binds to loopback only (`127.0.0.1`,
+`::1`, `localhost`); non-loopback hosts are refused before listen. See
+[apps/daemon/README.md](./apps/daemon/README.md) for the full flag list and the
+optional `vision-control.config.ts`.
 
 ### 3. Load the extension in Chromium
 
@@ -118,14 +121,21 @@ user-gesture approval.
 
 ### 4. Pair
 
-In the **Vision Control** panel, paste the `vision-control://pair?token=...` URL
-the daemon printed into the connect field, then click **Connect** (or press
-Enter). Do not put this URL in a browser address bar: the `vision-control://`
-scheme has no browser or OS protocol handler, so the address bar treats it as a
-search query. It is only a data format that carries the token, host, and port for
-the panel. Pasting just the token also works; the panel fills in the daemon
-defaults (`127.0.0.1:4321`). The panel validates the URL client-side, connects
-over WebSocket, and its status moves to connected, bound to your workspace.
+Preferred path when the daemon auto-opens: keep the Chromium extension loaded.
+The local `http://127.0.0.1:<port>/pair?...` page (`pairingHttpUrl` in the ready
+JSON) can auto-pair through the content script. Other browsers only show paste
+instructions. The token in that URL can linger in browser history; close the tab
+when done, and prefer a private window if that matters.
+
+Fallback: in the **Vision Control** panel, paste the
+`vision-control://pair?token=...` URL (`pairingUrl`) into the connect field, then
+click **Connect** (or press Enter). Do not put the custom-scheme URL in a browser
+address bar: `vision-control://` has no browser or OS protocol handler, so the
+address bar treats it as a search query. It is only a data format that carries
+the token, host, and port for the panel. Pasting just the token also works; the
+panel fills in the daemon defaults. The panel validates the URL client-side,
+connects over WebSocket, and its status moves to connected, bound to your
+workspace.
 
 ### 5. Edit
 

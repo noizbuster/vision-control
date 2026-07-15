@@ -104,18 +104,42 @@ The daemon binds to `127.0.0.1` only (PRD section 27.1). Passing
 
 ### The daemon prints a pairing URL and then nothing
 
-That is correct. The ready line
-`{"event":"ready","port":N,"pairingUrl":"vision-control://pair?token=…",...}`
-is emitted once on stdout. The token is shown exactly once; it is stored only as
-a SHA-256 hash. The extension uses it to authenticate the WebSocket upgrade.
+That is correct. The ready line is emitted once on stdout:
+
+```
+{"event":"ready","port":N,"host":"127.0.0.1","pairingUrl":"vision-control://pair?token=…","pairingHttpUrl":"http://127.0.0.1:N/pair?token=…&port=N&host=…","sessionId":"…"}
+```
+
+The raw token is shown exactly once; only its SHA-256 hash is stored. The
+extension uses it to authenticate the WebSocket upgrade. Tokens stay valid until
+they expire (default about 5 minutes) or are revoked. They are not single-use:
+reconnect within the TTL reuses the same token. Loading `GET /pair` does not
+consume or invalidate the token.
+
+On an interactive TTY bound to `127.0.0.1`, the daemon also tries to open
+`pairingHttpUrl` in your default browser (the local `/pair` landing page). Use
+`--no-open` to skip that, or `--open` to force an open when stdout is not a TTY.
+Auto-open never runs for `::1` or `localhost` binds, and never when `--no-open`
+is set. See [apps/daemon/README.md](../apps/daemon/README.md).
 
 ### Pasting the `vision-control://pair?...` URL into a browser does nothing
 
-That URL is not a browser-openable link. Paste it into the **Vision Control**
-DevTools panel's connect field instead. If the address bar sends it to a search
-engine, that is expected: the `vision-control://` scheme has no browser or OS
-protocol handler. The panel reads the token, host, and port out of the URL
-itself, so you can also paste just the token and it fills in the daemon defaults.
+The custom `vision-control://` scheme has no browser or OS protocol handler, so
+the address bar treats it as a search query. That is expected. Paste the deep
+link into the **Vision Control** DevTools panel's connect field instead (or paste
+just the token; the panel fills in daemon defaults).
+
+For a browser-openable path, use the HTTP URL from `pairingHttpUrl` (or open
+`http://127.0.0.1:<port>/pair?token=…&port=…&host=…`). That page is a local
+landing page: with the Chromium extension loaded it can auto-pair; without the
+extension, or in another browser, it only shows paste instructions. There is
+still no OS registration of `vision-control://`.
+
+The pairing secret appears in the HTTP URL query string, so it can linger in
+browser history until the tab is closed or history is cleared. Prefer a private
+window if that matters, and do not share the URL. The page sets
+`Cache-Control: no-store` and `Referrer-Policy: no-referrer`, but history is
+still a residual risk.
 
 ---
 

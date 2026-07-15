@@ -1,489 +1,281 @@
-import { type ChildProcess, spawn } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+/**
+ * @mcp-context-query — plan task 18 / ADR-020 MCP bridge e2e without daemon.
+ *
+ * Product path: single MCP process (stdio + discover:4322 + WS /bridge).
+ * Extension pairs with the stderr pair token, pushes snapshot selection, and
+ * C5 tools read the projection. No apps/daemon process is started.
+ *
+ * Agent-executable vitest twin (preferred CI surface):
+ *   packages/mcp-server/src/mcp-bridge-e2e.test.ts
+ * Sibling offline edit independence (no MCP required):
+ *   apps/extension/src/journal/offline-sot-edit-loop.test.ts
+ *
+ * Browser binary: not required. Runs under the extension Playwright suite as a
+ * Node-side bridge proof alongside browser specs.
+ */
+
+import { spawn } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { expect, test } from "@playwright/test";
 import { PROTOCOL_VERSION } from "@vision-control/protocol";
 import { WebSocket } from "ws";
 
-/**
- * @mcp-context-query — PRD section 42 demo step 9 (agent queries context via MCP).
- *
- * This is the end-to-end proof that `vision_get_source_context` returns REAL
- * daemon-compiled agent context, not a stub. It spins up a real daemon process
- * (the same binary the extension's daemon-client connects to), drives a
- * selection / page-navigation / changeset through the daemon's real WebSocket
- * protocol (the exact frames the extension background sends), then queries the
- * real MCP HTTP transport and asserts the compiled context carries live data:
- * the driven selection id, a verification plan derived from the driven
- * changeset, the breakpoint section derived from the driven viewport, and the
- * workspace token registry.
- *
- * No mock daemon. No stub deps. The MCP `getSourceContext` reads from the real
- * daemon closure the same way it does in production. If the daemon is dropped
- * the test fails cleanly (adversarial: misleading_success).
- *
- * Browser binary: not required for this spec (it exercises the daemon + MCP
- * HTTP path, not the extension UI). Runs under the extension e2e Playwright
- * suite alongside the browser specs.
- */
-
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..", "..");
-const DAEMON_BIN = resolve(REPO_ROOT, "apps", "daemon", "dist", "index.js");
+const MCP_INDEX = resolve(REPO_ROOT, "packages", "mcp-server", "dist", "index.js");
 
-const FIXTURE_ELEMENT_ID = "card-hero-001";
-const FIXTURE_BREAKPOINT = "lg";
+/** Product-locked bridge port (ADR-020 C2). Tests bind port 0; constant is 4322. */
+const PRODUCT_BRIDGE_PORT = 4322;
 
-interface ReadyLine {
-  readonly port: number;
-  readonly host: string;
-  readonly pairingUrl: string;
-  readonly sessionId: string;
-  readonly token: string;
-  readonly mcpUrl: string;
-  readonly mcpToken: string;
-}
+const C5_TOOL_NAMES = [
+  "vision_get_active_session",
+  "vision_get_selection",
+  "vision_get_changeset",
+  "vision_get_source_context",
+  "vision_get_verification_plan",
+  "vision_clear_preview",
+  "vision_request_verification",
+  "vision_mark_patch_started",
+  "vision_mark_patch_completed",
+] as const;
 
-interface DaemonProc {
-  readonly child: ChildProcess;
-  readonly ready: ReadyLine;
-  readonly stop: () => Promise<void>;
-}
+const FIXTURE_TAB = "tab-pw-e2e";
+const FIXTURE_SESSION = "sess-pw-e2e";
+const FIXTURE_TAG = "article";
+const FIXTURE_REV = 3;
 
-function makeWorkspace(): string {
-  const dir = mkdtempSync(join(tmpdir(), "vc-mcp-e2e-"));
-  writeFileSync(
-    `${dir}/vision-control.config.ts`,
-    "export default { workspace: { root: process.cwd() }, origins: [] };\n",
-  );
-  // A Tailwind v3 config so the workspace token registry is non-empty and the
-  // compiled context's token section carries real tokens with provenance.
-  writeFileSync(
-    `${dir}/tailwind.config.ts`,
-    [
-      "import type { Config } from 'tailwindcss';",
-      "const config: Config = {",
-      "  theme: {",
-      "    extend: {",
-      "      colors: { brand: { 500: '#3b82f6' } },",
-      "      spacing: { 76: '19rem' },",
-      "    },",
-      "  },",
-      "  content: [],",
-      "};",
-      "export default config;",
-      "",
-    ].join("\n"),
-  );
-  return dir;
-}
-
-function waitForReady(child: ChildProcess, timeoutMs = 15_000): Promise<ReadyLine> {
-  return new Promise((resolvePromise, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error("timed out waiting for daemon ready line"));
-    }, timeoutMs);
-    let buffer = "";
-    const onData = (chunk: Buffer): void => {
-      buffer += chunk.toString("utf8");
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (line.includes('"event":"ready"')) {
-          clearTimeout(timer);
-          child.stdout?.off("data", onData);
-          const parsed = JSON.parse(line) as {
-            port: number;
-            host: string;
-            pairingUrl: string;
-            sessionId: string;
-            mcpUrl?: string;
-            mcpToken?: string;
-          };
-          const token = new URL(parsed.pairingUrl).searchParams.get("token") ?? "";
-          if (parsed.mcpUrl === undefined || parsed.mcpToken === undefined) {
-            reject(new Error("daemon ready line missing MCP URL/token — pass --mcp-port"));
-            return;
-          }
-          resolvePromise({
-            port: parsed.port,
-            host: parsed.host,
-            pairingUrl: parsed.pairingUrl,
-            sessionId: parsed.sessionId,
-            token,
-            mcpUrl: parsed.mcpUrl,
-            mcpToken: parsed.mcpToken,
-          });
-          return;
-        }
-      }
+interface McpModule {
+  readonly startMcpProcess: (options: {
+    readonly port?: number;
+    readonly skipStdio?: boolean;
+    readonly writeStderr?: (line: string) => void;
+  }) => Promise<{
+    readonly host: string;
+    readonly port: number;
+    readonly pairToken: string;
+    readonly server: {
+      connect: (transport: unknown) => Promise<void>;
+      close: () => Promise<void>;
     };
-    child.stdout?.on("data", onData);
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
+    readonly stop: () => Promise<void>;
+  }>;
+  readonly DEFAULT_BRIDGE_PORT: number;
+  readonly DISCOVER_PATH: string;
+  readonly BRIDGE_WS_PATH: string;
+  readonly FORBIDDEN_DISCOVER_KEYS: readonly string[];
+  readonly TOOL_NAMES: readonly string[];
+  readonly minimalSnapshot: (input: {
+    readonly tabId: string;
+    readonly snapshotRev: number;
+    readonly sessionId?: string;
+    readonly selectionTag?: string;
+  }) => unknown;
 }
 
-async function startDaemon(workspace: string): Promise<DaemonProc> {
-  const child = spawn(
-    "node",
-    [DAEMON_BIN, "--workspace", workspace, "--port", "0", "--mcp-port", "0"],
-    { stdio: ["pipe", "pipe", "pipe"] },
-  );
-  const ready = await waitForReady(child);
-  return {
-    child,
-    ready,
-    stop: async () => {
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill("SIGTERM");
-        await new Promise<void>((done) => {
-          const force = setTimeout(() => {
-            if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-          }, 2000);
-          child.once("exit", () => {
-            clearTimeout(force);
-            done();
-          });
-        });
-      }
-    },
-  };
+async function loadMcpModule(): Promise<McpModule> {
+  const mod = (await import(pathToFileURL(MCP_INDEX).href)) as McpModule;
+  return mod;
 }
 
-interface EnvelopeFields {
-  readonly messageType: string;
-  readonly payload: Record<string, unknown>;
-}
-
-function envelope(spec: EnvelopeFields, id: string): string {
-  return JSON.stringify({
-    protocolVersion: PROTOCOL_VERSION,
-    messageId: id,
-    messageType: spec.messageType,
-    payload: spec.payload,
-    timestamp: Date.now(),
-  });
-}
-
-interface HandshakeResult {
-  readonly ws: WebSocket;
-  readonly close: () => Promise<void>;
-}
-
-/**
- * Authenticate the WebSocket with the pairing token and complete the
- * hello/welcome handshake. The extension's daemon-client performs this same
- * handshake; we replicate it here to drive real selection/navigation/changeset
- * frames through the daemon's protocol handler.
- */
-async function handshake(url: string): Promise<HandshakeResult> {
-  // `ws` (not the native WebSocket) is required: undici's WebSocket cannot set
-  // the Origin header the daemon's allowlist demands.
-  const ws = new WebSocket(url, { origin: "http://127.0.0.1:5173" });
-  await new Promise<void>((resolveHandshake, reject) => {
-    const timer = setTimeout(() => reject(new Error("WS handshake timed out")), 5000);
-    ws.once("open", () => {
-      ws.send(
-        envelope(
-          {
-            messageType: "hello",
-            payload: {
-              type: "hello",
-              clientVersion: PROTOCOL_VERSION,
-              clientCapabilities: ["selection", "verification", "error-reporting"],
-            },
-          },
-          "mcp-e2e-hello",
-        ),
-      );
-    });
-    ws.once("message", (data: unknown) => {
-      const text =
-        typeof data === "string" ? data : Buffer.isBuffer(data) ? data.toString("utf8") : "";
-      if (text.includes('"welcome"')) {
-        clearTimeout(timer);
-        resolveHandshake();
-      }
-    });
-    ws.once("error", (err: Error) => {
-      clearTimeout(timer);
-      reject(new Error(`WS connection error during handshake: ${err.message}`));
-    });
-  });
-  return {
-    ws,
-    close: async () => {
-      await new Promise<void>((done) => {
-        const t = setTimeout(done, 500);
-        ws.once("close", () => {
-          clearTimeout(t);
-          done();
-        });
-        try {
-          ws.close();
-        } catch {
-          done();
-        }
-      });
-    },
-  };
-}
-
-function sendFrame(ws: WebSocket, spec: EnvelopeFields, id: string): void {
-  ws.send(envelope(spec, id));
-}
-
-interface JsonRpcResult {
-  readonly jsonrpc: string;
-  readonly id: number | string;
-  readonly result?: { readonly content?: readonly { readonly text?: string }[] };
-  readonly error?: { readonly message?: string };
-}
-
-function parseJsonRpc(body: string): JsonRpcResult {
-  // The Streamable HTTP transport may answer with application/json or an SSE
-  // stream of `data:` lines. Handle both so the assertion does not depend on
-  // the SDK's framing choice.
-  const trimmed = body.trim();
-  if (trimmed.startsWith("event:") || trimmed.startsWith("data:")) {
-    const lines = trimmed.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i];
-      if (line === undefined) continue;
-      if (line.startsWith("data:")) {
-        return JSON.parse(line.slice(5).trim()) as JsonRpcResult;
-      }
-    }
-    throw new Error(`SSE response carried no data line: ${trimmed}`);
+function extractText(result: unknown): string {
+  if (typeof result !== "object" || result === null) return "";
+  const content = (result as { content?: unknown[] }).content;
+  const first = content?.[0];
+  if (first !== undefined && typeof first === "object" && first !== null && "text" in first) {
+    const text = (first as { text?: unknown }).text;
+    if (typeof text === "string") return text;
   }
-  return JSON.parse(trimmed) as JsonRpcResult;
+  return "";
 }
 
-async function callGetSourceContext(mcpUrl: string, mcpToken: string): Promise<unknown> {
-  const response = await fetch(mcpUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json, text/event-stream",
-      authorization: `Bearer ${mcpToken}`,
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "tools/call",
-      params: { name: "vision_get_source_context", arguments: { format: "json" } },
-    }),
+async function connectClient(server: {
+  connect: (transport: unknown) => Promise<void>;
+}): Promise<Client> {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  const client = new Client({ name: "extension-e2e-mcp", version: "1.0.0" });
+  await client.connect(clientTransport);
+  return client;
+}
+
+function listDaemonArgs(): Promise<readonly string[]> {
+  return new Promise((resolvePs) => {
+    const child = spawn("ps", ["-eo", "args="], { stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      out += chunk.toString("utf8");
+    });
+    child.on("close", () => {
+      resolvePs(
+        out
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.includes("apps/daemon") || /daemon\/dist\/index\.js/.test(line)),
+      );
+    });
+    child.on("error", () => resolvePs([]));
   });
-  expect(response.status, "MCP tools/call must succeed against the live daemon").toBe(200);
-  const body = await response.text();
-  const rpc = parseJsonRpc(body);
-  expect(rpc.error, "vision_get_source_context must not return an RPC error").toBeUndefined();
-  const text = rpc.result?.content?.[0]?.text;
-  expect(text, "compiled context text must be present").toBeDefined();
-  return JSON.parse(text ?? "{}");
 }
 
-let proc: DaemonProc;
-let workspace: string;
+test.describe("@mcp-context-query — MCP bridge e2e without daemon", () => {
+  test("product port is 4322 and C5 tool list is slim", async () => {
+    const mcp = await loadMcpModule();
+    expect(mcp.DEFAULT_BRIDGE_PORT).toBe(PRODUCT_BRIDGE_PORT);
+    expect(PRODUCT_BRIDGE_PORT).toBe(4322);
+    expect(mcp.DISCOVER_PATH).toBe("/discover");
+    expect(mcp.BRIDGE_WS_PATH).toBe("/bridge");
+    expect([...mcp.TOOL_NAMES]).toEqual([...C5_TOOL_NAMES]);
+    expect(mcp.TOOL_NAMES).toHaveLength(9);
+    expect(mcp.TOOL_NAMES).not.toContain("vision_capture_element");
+    expect(mcp.TOOL_NAMES).not.toContain("vision_get_diagnostics");
+  });
 
-test.beforeAll(async () => {
-  workspace = makeWorkspace();
-  proc = await startDaemon(workspace);
-}, 30_000);
+  test("start MCP → discover → pair → push selection → tool read matches", async () => {
+    const daemonBefore = await listDaemonArgs();
+    const mcp = await loadMcpModule();
+    const stderr: string[] = [];
+    const processHandle = await mcp.startMcpProcess({
+      port: 0,
+      skipStdio: true,
+      writeStderr: (line) => stderr.push(line),
+    });
+    let client: Client | undefined;
+    let ws: WebSocket | undefined;
 
-test.afterAll(async () => {
-  await proc?.stop();
-  if (workspace) rmSync(workspace, { recursive: true, force: true });
-});
-
-test.describe("@mcp-context-query — PRD section 42 step 9", () => {
-  test("vision_get_source_context returns live daemon-compiled context", async () => {
-    // Drive a selection + page navigation + changeset through the real daemon
-    // protocol (the same frames the extension background sends).
-    const wsUrl = `ws://127.0.0.1:${proc.ready.port}/?token=${proc.ready.token}`;
-    const handshake_ = await handshake(wsUrl);
     try {
-      sendFrame(
-        handshake_.ws,
-        {
-          messageType: "page.navigated",
-          payload: {
-            type: "page.navigated",
-            url: "http://127.0.0.1:5173/",
-            title: "Fixture",
-            framePath: ["main"],
-            viewport: { width: 1024, height: 768 },
-            activeBreakpoint: FIXTURE_BREAKPOINT,
-          },
-        },
-        "mcp-e2e-nav",
+      expect(stderr.join("\n")).toContain(processHandle.pairToken);
+
+      const discoverResponse = await fetch(
+        `http://${processHandle.host}:${processHandle.port}${mcp.DISCOVER_PATH}`,
       );
-      sendFrame(
-        handshake_.ws,
-        {
-          messageType: "selection.changed",
+      expect(discoverResponse.status).toBe(200);
+      const discoverBody = (await discoverResponse.json()) as Record<string, unknown>;
+      expect(discoverBody.port).toBe(processHandle.port);
+      expect(discoverBody.wsPath).toBe("/bridge");
+      expect(discoverBody.pairTokenRequired).toBe(true);
+      for (const key of mcp.FORBIDDEN_DISCOVER_KEYS) {
+        expect(discoverBody).not.toHaveProperty(key);
+      }
+      expect(JSON.stringify(discoverBody)).not.toContain(processHandle.pairToken);
+
+      client = await connectClient(processHandle.server);
+      const { tools } = await client.listTools();
+      expect(tools.map((t) => t.name).sort()).toEqual([...C5_TOOL_NAMES].sort());
+
+      ws = await new Promise<WebSocket>((resolveWs, reject) => {
+        const socket = new WebSocket(
+          `ws://${processHandle.host}:${processHandle.port}${mcp.BRIDGE_WS_PATH}?token=${encodeURIComponent(processHandle.pairToken)}`,
+        );
+        const timer = setTimeout(() => reject(new Error("WS pair timed out")), 5_000);
+        socket.once("open", () => {
+          clearTimeout(timer);
+          resolveWs(socket);
+        });
+        socket.once("error", (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+
+      const snap = mcp.minimalSnapshot({
+        tabId: FIXTURE_TAB,
+        snapshotRev: FIXTURE_REV,
+        sessionId: FIXTURE_SESSION,
+        selectionTag: FIXTURE_TAG,
+      });
+      ws.send(
+        JSON.stringify({
+          protocolVersion: PROTOCOL_VERSION,
+          messageId: "pw-e2e-push",
+          messageType: "snapshot.push",
+          tabId: FIXTURE_TAB,
+          timestamp: Date.now(),
           payload: {
-            type: "selection.changed",
-            elementId: FIXTURE_ELEMENT_ID,
-            framePath: ["main"],
+            type: "snapshot.push",
+            tabId: FIXTURE_TAB,
+            snapshotRev: FIXTURE_REV,
+            sessionId: FIXTURE_SESSION,
+            snapshot: snap,
           },
-        },
-        "mcp-e2e-sel",
+        }),
       );
-      sendFrame(
-        handshake_.ws,
-        {
-          messageType: "changeset.updated",
-          payload: {
-            type: "changeset.updated",
-            changesetId: "mcp-e2e-changeset",
-            revision: 1,
-            operations: [
-              {
-                id: "op-style-0001",
-                kind: "style-edit",
-                timestamp: Date.now(),
-                runtime: false,
-                target: { runtimeId: FIXTURE_ELEMENT_ID, tagName: "div", frameId: "main" },
-                property: "color",
-                value: "red",
-                previousValue: "black",
-              },
-            ],
-          },
-        },
-        "mcp-e2e-change",
-      );
-      // Poll until the changeset frame is persisted (robust wait for the
-      // daemon's async business handlers; no fixed sleep).
+
       await expect
         .poll(
           async () => {
-            const count = await callChangesetCount(proc.ready.mcpUrl, proc.ready.mcpToken);
-            return count;
+            const raw = await client?.callTool({
+              name: "vision_get_selection",
+              arguments: {},
+            });
+            const data = JSON.parse(extractText(raw)) as { elementTag?: string };
+            return data.elementTag;
           },
-          { timeout: 8000, message: "driven changeset must be persisted before the context read" },
+          { timeout: 5_000, message: "pushed selection must appear on vision_get_selection" },
         )
-        .toBeGreaterThan(0);
+        .toBe(FIXTURE_TAG);
 
-      const context = (await callGetSourceContext(proc.ready.mcpUrl, proc.ready.mcpToken)) as {
-        readonly target?: { readonly identity?: { readonly runtimeId?: string } };
-        readonly source?: { readonly candidates?: readonly unknown[] };
-        readonly verificationPlan?: {
-          readonly assertions?: readonly unknown[];
-          readonly notes?: string;
-        };
-        readonly breakpoint?: { readonly activeViewport?: string };
-        readonly tokenRegistry?: { readonly totalTokens?: number };
-      };
+      const session = JSON.parse(
+        extractText(await client.callTool({ name: "vision_get_active_session", arguments: {} })),
+      ) as { connected: boolean; sessionId: string };
+      expect(session.connected).toBe(true);
+      expect(session.sessionId).toBe(FIXTURE_SESSION);
 
-      // Target section (the compiled context names the selection "target")
-      // carries the driven element id — real data, not the stub.
-      expect(
-        context.target?.identity?.runtimeId,
-        "target section must carry the driven element id",
-      ).toBe(FIXTURE_ELEMENT_ID);
+      const selection = JSON.parse(
+        extractText(await client.callTool({ name: "vision_get_selection", arguments: {} })),
+      ) as { elementTag: string; sourceId?: string };
+      expect(selection.elementTag).toBe(FIXTURE_TAG);
+      expect(selection.sourceId).toBe(`src-${FIXTURE_TAB}`);
 
-      // Source candidates section is structurally carried. Candidate population
-      // requires a sourceId-bearing selection read model (the `source.request`
-      // resolution path); the section presence is the contract here.
-      expect(Array.isArray(context.source?.candidates), "source.candidates must be an array").toBe(
-        true,
-      );
+      const context = JSON.parse(
+        extractText(await client.callTool({ name: "vision_get_source_context", arguments: {} })),
+      ) as { tabId?: string; snapshotRev?: number };
+      expect(context.tabId).toBe(FIXTURE_TAB);
+      expect(context.snapshotRev).toBe(FIXTURE_REV);
 
-      // Verification plan section is derived from the driven changeset via the
-      // verification engine — real, never the STUB.
-      expect(
-        context.verificationPlan?.assertions?.length,
-        "verification plan must carry assertions derived from the driven changeset",
-      ).toBeGreaterThan(0);
-
-      // Breakpoint section reflects the driven viewport label (W3 plumbing).
-      expect(
-        context.breakpoint?.activeViewport,
-        "breakpoint section must carry the driven viewport label",
-      ).toBe(FIXTURE_BREAKPOINT);
-
-      // Token registry section reflects the workspace Tailwind config (real
-      // tokens, not empty).
-      expect(
-        context.tokenRegistry?.totalTokens,
-        "token registry must carry workspace tokens",
-      ).toBeGreaterThan(0);
+      const daemonAfter = await listDaemonArgs();
+      const spawned = daemonAfter.filter((line) => !daemonBefore.includes(line));
+      expect(spawned, "must not spawn apps/daemon").toEqual([]);
     } finally {
-      await handshake_.close();
+      if (ws !== undefined) {
+        await new Promise<void>((done) => {
+          const t = setTimeout(done, 500);
+          ws?.once("close", () => {
+            clearTimeout(t);
+            done();
+          });
+          try {
+            ws?.close();
+          } catch {
+            done();
+          }
+        });
+      }
+      if (client !== undefined) {
+        await client.close();
+      }
+      await processHandle.stop();
     }
   });
 
-  test("dropping the daemon makes vision_get_source_context degrade honestly", async () => {
-    // Adversarial (misleading_success): with no live WebSocket session, the MCP
-    // active-session read returns disconnected and the compiled context's
-    // selection reflects "no active session" rather than fabricated data.
-    const ctx = await callActiveSession(proc.ready.mcpUrl, proc.ready.mcpToken);
-    // A fresh MCP request with no connected browser client should never claim
-    // a live selection it does not have. (The handshake from the prior test may
-    // or may not still be active depending on timing; assert the read model is
-    // internally consistent — connected flag matches whether a session exists.)
-    expect(typeof ctx.connected).toBe("boolean");
-    expect(typeof ctx.protocolVersion).toBe("string");
+  test("sibling offline edit proof remains independent of MCP", async () => {
+    // Offline SoT (task 4) is the automated proof that select/preview/undo work
+    // with zero MCP/daemon. This assertion keeps the contract visible next to
+    // the bridge e2e so the suite cannot silently re-couple offline editing.
+    const offlineProof = resolve(
+      REPO_ROOT,
+      "apps",
+      "extension",
+      "src",
+      "journal",
+      "offline-sot-edit-loop.test.ts",
+    );
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync(offlineProof, "utf8");
+    expect(source).toContain("@offline-sot");
+    expect(source).toMatch(/must not spawn daemon/i);
+    expect(source).not.toMatch(/apps\/daemon\/dist/);
   });
 });
-
-async function callActiveSession(
-  mcpUrl: string,
-  mcpToken: string,
-): Promise<{ readonly connected: boolean; readonly protocolVersion: string }> {
-  const response = await fetch(mcpUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json, text/event-stream",
-      authorization: `Bearer ${mcpToken}`,
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 2,
-      method: "tools/call",
-      params: { name: "vision_get_active_session", arguments: {} },
-    }),
-  });
-  expect(response.status).toBe(200);
-  const rpc = parseJsonRpc(await response.text());
-  const text = rpc.result?.content?.[0]?.text ?? "{}";
-  const parsed = JSON.parse(text) as {
-    readonly connected?: boolean;
-    readonly protocolVersion?: string;
-  };
-  return {
-    connected: parsed.connected ?? false,
-    protocolVersion: parsed.protocolVersion ?? "",
-  };
-}
-
-async function callChangesetCount(mcpUrl: string, mcpToken: string): Promise<number> {
-  const response = await fetch(mcpUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json, text/event-stream",
-      authorization: `Bearer ${mcpToken}`,
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 3,
-      method: "tools/call",
-      params: { name: "vision_get_changeset", arguments: {} },
-    }),
-  });
-  if (!response.ok) return 0;
-  const rpc = parseJsonRpc(await response.text());
-  const parsed = JSON.parse(rpc.result?.content?.[0]?.text ?? "{}") as {
-    readonly operationCount?: number;
-  };
-  return parsed.operationCount ?? 0;
-}

@@ -12,6 +12,11 @@ export { PACKAGE_NAME } from "./_package-name.js";
 export type { AuthConfig, AuthResult } from "./auth.js";
 export { checkAuth } from "./auth.js";
 export {
+  type StartedMcpProcess,
+  type StartMcpProcessOptions,
+  startMcpProcess,
+} from "./bin.js";
+export {
   BRIDGE_PROTOCOL_VERSION,
   BRIDGE_WS_PATH,
   BridgePortInUseError,

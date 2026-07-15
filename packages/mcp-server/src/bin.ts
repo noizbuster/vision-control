@@ -12,7 +12,7 @@
  */
 
 import { fileURLToPath } from "node:url";
-
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   BridgePortInUseError,
   type BridgeServerHandle,
@@ -27,6 +27,7 @@ import {
   printPairingToStderr,
   startBridgeServer,
 } from "./bridge/index.js";
+
 import { createMcpServer } from "./server.js";
 import { startStdioTransport } from "./transports/stdio.js";
 
@@ -49,6 +50,11 @@ export interface StartedMcpProcess {
   readonly host: string;
   readonly port: number;
   readonly pairToken: string;
+  /**
+   * MCP server wired to the same projection deps as the bridge.
+   * Tests connect an in-memory transport; production uses stdio.
+   */
+  readonly server: McpServer;
   readonly stop: () => Promise<void>;
 }
 
@@ -110,12 +116,11 @@ export async function startMcpProcess(
     host: bridge.host,
     port: bridge.port,
     pairToken: pairToken.token,
+    server,
     stop: async () => {
       session.detach();
       await bridge.stop();
-      if (options.skipStdio !== true) {
-        await server.close();
-      }
+      await server.close();
     },
   };
 }

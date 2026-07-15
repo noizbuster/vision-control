@@ -1,12 +1,9 @@
 {
-  "$comment": "Pi MCP server entry for the stdio transport. Map these fields onto Pi's current MCP client settings. The command spawns the vision-control-mcp binary as a child process; Pi talks JSON-RPC over stdin/stdout. Replace VC_DAEMON_URL only if your daemon is not on the default loopback port. The server is read-only: no source-writing tool exists.",
+  "$comment": "Pi MCP server entry for the stdio transport. Map these fields onto Pi's current MCP client settings. The command spawns the vision-control-mcp binary as a child process; Pi talks JSON-RPC over stdin/stdout. No VC_DAEMON_URL: pair the extension on loopback :4322 for live data. The server is read-only: no source-writing tool exists.",
   "servers": {
     "vision-control": {
       "transport": "stdio",
-      "command": ["pnpm", "exec", "vision-control-mcp"],
-      "environment": {
-        "VC_DAEMON_URL": "http://127.0.0.1:4321"
-      }
+      "command": ["pnpm", "exec", "vision-control-mcp"]
     }
   }
 }

@@ -1,58 +1,54 @@
 /**
- * @vision-control/cli — Command-line entry point for Vision Control.
+ * @vision-control/cli — Product CLI is the MCP launcher only (ADR-020 C2).
  *
- * Parses `process.argv` manually (no external arg-parser dependency for the
- * MVP). Dispatches to command handlers that talk to the daemon over HTTP and
- * the MCP server over its HTTP transport.
+ * `vision-control mcp` spawns the single-process MCP binary (stdio + loopback
+ * discover/bridge on 4322). Help is the only other product command. Former
+ * daemon/data/doctor/codemod/share commands are rejected with clear errors.
  *
  * Platform: node.
  */
 
+import { runMcp } from "./commands/mcp.js";
+
 export const PACKAGE_NAME = "@vision-control/cli";
 
-export {
-  type ApplyOptions,
-  type ApplyResult,
-  applySuggestion,
-  type VerificationResult,
-} from "./codemod/apply-suggestion.js";
-export { loadSuggestion, runCodemodApply, runCodemodPreview } from "./codemod/commands.js";
-export {
-  type DiffPreview,
-  type DiffPreviewLine,
-  formatDiffPreview,
-  renderDiffPreview,
-} from "./codemod/diff-preview.js";
-export { type CliContext, createContext } from "./context.js";
+export { type RunMcpOptions, resolveMcpBinary, runMcp, type SpawnFn } from "./commands/mcp.js";
 
-export const HELP_TEXT = `Vision Control CLI — visual editing context for coding agents.
+/** Commands removed from the product CLI surface (ADR-020). */
+export const REMOVED_COMMANDS = [
+  "daemon",
+  "status",
+  "sessions",
+  "context",
+  "changes",
+  "verify",
+  "preview",
+  "share",
+  "codemod",
+  "doctor",
+] as const;
+
+export type RemovedCommand = (typeof REMOVED_COMMANDS)[number];
+
+const REMOVED_SET: ReadonlySet<string> = new Set(REMOVED_COMMANDS);
+
+export const HELP_TEXT = `Vision Control CLI — MCP launcher for coding agents (ADR-020).
 
 Usage:
-  vision-control <command> [subcommand] [options]
+  vision-control mcp [args...]
+  vision-control help
 
 Commands:
-  daemon                 Start the Vision Control daemon.
-  status                 Show daemon connection status.
-  sessions list          List active daemon sessions.
-  context current        Show the compiled agent context for the current selection.
-    --format json        Output as JSON (default).
-    --format markdown    Output as Markdown.
-  changes current        Show the current changeset.
-  verify current         Request verification of the current changeset.
-  preview clear          Clear all runtime preview mutations.
-  share export           Export a redacted, signed session bundle to a local file.
-    --out <path>         Output file path (required).
-    --include-screenshots  Include screenshot metadata only (default: excluded).
-  share import <path>    Import + verify a local session bundle.
-  doctor                 Run health checks.
+  mcp                    Start the single-process MCP server (stdio + bridge :4322).
   help, --help, -h       Show this help.
 
 Environment:
-  VC_DAEMON_URL          Daemon base URL (default: http://127.0.0.1:4321).
-  VC_MCP_URL             MCP HTTP endpoint URL (e.g. http://127.0.0.1:4322/mcp).
-  VC_MCP_TOKEN           MCP session token (Bearer auth).
-  VC_DAEMON_BIN          Path to the daemon binary (dist/index.js).
-  VC_PLAYGROUND_URL      Playground URL for doctor checks (default: http://127.0.0.1:5173).
+  VC_MCP_BIN             Path to packages/mcp-server dist/bin.js (optional override).
+
+Notes:
+  Pair token prints once on MCP stderr (never stdout). Discover is secret-free
+  at http://127.0.0.1:4322/discover. Monorepo health is pnpm check / typecheck /
+  test / build — not a product CLI doctor command.
 `;
 
 /** Parse the top-level command from argv. Returns the command + remaining args. */
@@ -64,20 +60,24 @@ export function parseCommand(argv: readonly string[]): {
   return { command: argv[0], rest: argv.slice(1) };
 }
 
-/** Extract --format value from args. */
-export function parseFormat(args: readonly string[]): "json" | "markdown" {
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    const next = args[i + 1];
-    if (arg === "--format" && next === "markdown") return "markdown";
-    if (arg === "--format=markdown") return "markdown";
+function removedCommandMessage(command: string): string {
+  if (command === "doctor") {
+    return (
+      `command "${command}" was removed from the product CLI (ADR-020).\n` +
+      "Monorepo health: pnpm check && pnpm typecheck && pnpm test && pnpm build\n" +
+      "Start MCP: vision-control mcp\n"
+    );
   }
-  return "json";
-}
-
-/** Detect the --confirm flag in args (used by `codemod apply`). */
-export function hasConfirm(args: readonly string[]): boolean {
-  return args.includes("--confirm");
+  if (command === "daemon" || command === "status") {
+    return (
+      `command "${command}" was removed from the product CLI (ADR-020).\n` +
+      "There is no product daemon path. Start the MCP bridge: vision-control mcp\n"
+    );
+  }
+  return (
+    `command "${command}" was removed from the product CLI (ADR-020).\n` +
+    "Agents use MCP tools after pairing the extension. Start MCP: vision-control mcp\n"
+  );
 }
 
 /**
@@ -92,124 +92,15 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     return 0;
   }
 
-  const ctx = createContext();
-
-  switch (command) {
-    case "daemon":
-      return runDaemon(rest);
-    case "status":
-      return runStatus(ctx);
-    case "sessions":
-      return runSessions(rest, ctx);
-    case "context":
-      return runContext(rest, ctx);
-    case "changes":
-      return runChanges(rest, ctx);
-    case "verify":
-      return runVerify(rest, ctx);
-    case "preview":
-      return runPreview(rest, ctx);
-    case "share":
-      return runShare(rest, ctx);
-    case "codemod":
-      return runCodemod(rest, ctx);
-    case "doctor":
-      return runDoctor(ctx);
-    default:
-      process.stderr.write(`unknown command: ${command}\n\n${HELP_TEXT}`);
-      return 1;
+  if (command === "mcp") {
+    return runMcp(rest);
   }
-}
 
-async function runSessions(
-  rest: readonly string[],
-  ctx: ReturnType<typeof createContext>,
-): Promise<number> {
-  if (rest[0] !== "list") {
-    process.stderr.write("usage: vision-control sessions list\n");
+  if (REMOVED_SET.has(command)) {
+    process.stderr.write(removedCommandMessage(command));
     return 1;
   }
-  return runSessionsList(ctx);
-}
 
-async function runContext(
-  rest: readonly string[],
-  ctx: ReturnType<typeof createContext>,
-): Promise<number> {
-  if (rest[0] !== "current") {
-    process.stderr.write("usage: vision-control context current [--format json|markdown]\n");
-    return 1;
-  }
-  return runContextCurrent(ctx, parseFormat(rest));
-}
-
-async function runChanges(
-  rest: readonly string[],
-  ctx: ReturnType<typeof createContext>,
-): Promise<number> {
-  if (rest[0] !== "current") {
-    process.stderr.write("usage: vision-control changes current\n");
-    return 1;
-  }
-  return runChangesCurrent(ctx);
-}
-
-async function runVerify(
-  rest: readonly string[],
-  ctx: ReturnType<typeof createContext>,
-): Promise<number> {
-  if (rest[0] !== "current") {
-    process.stderr.write("usage: vision-control verify current\n");
-    return 1;
-  }
-  return runVerifyCurrent(ctx);
-}
-
-async function runPreview(
-  rest: readonly string[],
-  ctx: ReturnType<typeof createContext>,
-): Promise<number> {
-  if (rest[0] !== "clear") {
-    process.stderr.write("usage: vision-control preview clear\n");
-    return 1;
-  }
-  return runPreviewClear(ctx);
-}
-
-async function runCodemod(
-  rest: readonly string[],
-  ctx: ReturnType<typeof createContext>,
-): Promise<number> {
-  const subcommand = rest[0];
-  const suggestionId = rest[1];
-  if (suggestionId === undefined) {
-    process.stderr.write(
-      "usage: vision-control codemod <preview|apply> <suggestion-id> [--confirm]\n",
-    );
-    return 1;
-  }
-  if (subcommand === "preview") {
-    return runCodemodPreview(suggestionId);
-  }
-  if (subcommand === "apply") {
-    return runCodemodApply(suggestionId, hasConfirm(rest), ctx);
-  }
-  process.stderr.write(
-    `unknown codemod subcommand: ${subcommand ?? "(none)"}\nusage: vision-control codemod <preview|apply> <suggestion-id> [--confirm]\n`,
-  );
+  process.stderr.write(`unknown command: ${command}\n\n${HELP_TEXT}`);
   return 1;
 }
-
-import { runCodemodApply, runCodemodPreview } from "./codemod/commands.js";
-import { runChangesCurrent } from "./commands/changes.js";
-import { runContextCurrent } from "./commands/context.js";
-import { runDaemon } from "./commands/daemon.js";
-import { runDoctor } from "./commands/doctor.js";
-import { runPreviewClear } from "./commands/preview.js";
-import { runSessionsList } from "./commands/sessions.js";
-import { runShare } from "./commands/share.js";
-import { runStatus } from "./commands/status.js";
-import { runVerifyCurrent } from "./commands/verify.js";
-// Import dependencies at the bottom to keep the public API section clean.
-// These are used by the dispatch functions above.
-import { createContext } from "./context.js";

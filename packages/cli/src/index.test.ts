@@ -1,8 +1,19 @@
-import { createServer, type Server } from "node:http";
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runContextCurrent } from "./commands/context.js";
-import { createContext, PACKAGE_NAME, parseCommand, parseFormat, runCli } from "./index.js";
+import {
+  HELP_TEXT,
+  PACKAGE_NAME,
+  parseCommand,
+  REMOVED_COMMANDS,
+  resolveMcpBinary,
+  runCli,
+  runMcp,
+} from "./index.js";
 
 describe("cli package", () => {
   it("exposes the package name sentinel", () => {
@@ -12,9 +23,8 @@ describe("cli package", () => {
 
 describe("cli arg parsing", () => {
   it("parses the top-level command", () => {
-    expect(parseCommand(["daemon"]).command).toBe("daemon");
-    expect(parseCommand(["status"]).command).toBe("status");
-    expect(parseCommand(["doctor"]).command).toBe("doctor");
+    expect(parseCommand(["mcp"]).command).toBe("mcp");
+    expect(parseCommand(["help"]).command).toBe("help");
   });
 
   it("returns undefined command for empty argv", () => {
@@ -22,37 +32,13 @@ describe("cli arg parsing", () => {
   });
 
   it("passes remaining args as rest", () => {
-    const { command, rest } = parseCommand(["sessions", "list"]);
-    expect(command).toBe("sessions");
-    expect(rest).toEqual(["list"]);
-  });
-
-  it("extracts --format markdown", () => {
-    expect(parseFormat(["current", "--format", "markdown"])).toBe("markdown");
-    expect(parseFormat(["current", "--format=markdown"])).toBe("markdown");
-  });
-
-  it("defaults to json format", () => {
-    expect(parseFormat(["current"])).toBe("json");
-    expect(parseFormat(["current", "--format", "json"])).toBe("json");
+    const { command, rest } = parseCommand(["mcp", "--verbose"]);
+    expect(command).toBe("mcp");
+    expect(rest).toEqual(["--verbose"]);
   });
 });
 
-describe("cli context", () => {
-  it("uses default daemon URL when env not set", () => {
-    const ctx = createContext({});
-    expect(ctx.daemonUrl).toBe("http://127.0.0.1:4321");
-    expect(ctx.mcpEndpoint).toBeUndefined();
-  });
-
-  it("reads MCP endpoint from env", () => {
-    const ctx = createContext({ VC_MCP_URL: "http://127.0.0.1:4322/mcp", VC_MCP_TOKEN: "tok-123" });
-    expect(ctx.mcpEndpoint?.url).toBe("http://127.0.0.1:4322/mcp");
-    expect(ctx.mcpEndpoint?.token).toBe("tok-123");
-  });
-});
-
-describe("cli dispatch", () => {
+describe("cli help surface", () => {
   it("prints help and returns 0 for --help", async () => {
     const code = await runCli(["--help"]);
     expect(code).toBe(0);
@@ -63,145 +49,166 @@ describe("cli dispatch", () => {
     expect(code).toBe(0);
   });
 
+  it("prints help and returns 0 for empty argv", async () => {
+    const code = await runCli([]);
+    expect(code).toBe(0);
+  });
+
+  it("lists only mcp and help as product commands", () => {
+    expect(HELP_TEXT).toContain("mcp");
+    expect(HELP_TEXT).toMatch(/\bhelp\b/);
+    for (const removed of REMOVED_COMMANDS) {
+      // Removed names must not appear as Commands table entries.
+      expect(HELP_TEXT).not.toMatch(new RegExp(`^\\s+${removed}\\b`, "m"));
+    }
+  });
+});
+
+describe("cli removed product commands", () => {
+  for (const command of REMOVED_COMMANDS) {
+    it(`rejects ${command} with non-zero exit`, async () => {
+      const stderrChunks: string[] = [];
+      const original = process.stderr.write.bind(process.stderr);
+      process.stderr.write = ((data: string | Uint8Array) => {
+        stderrChunks.push(typeof data === "string" ? data : Buffer.from(data).toString("utf8"));
+        return true;
+      }) as typeof process.stderr.write;
+      try {
+        const code = await runCli([command]);
+        expect(code).toBe(1);
+        const stderr = stderrChunks.join("");
+        expect(stderr).toContain(command);
+        expect(stderr.toLowerCase()).toMatch(/removed|adr-020/);
+        expect(stderr).toContain("vision-control mcp");
+      } finally {
+        process.stderr.write = original;
+      }
+    });
+  }
+
   it("returns 1 for unknown commands", async () => {
     const code = await runCli(["unknown-command"]);
     expect(code).toBe(1);
   });
-
-  it("returns 1 for sessions without list subcommand", async () => {
-    const code = await runCli(["sessions"]);
-    expect(code).toBe(1);
-  });
 });
 
-describe("cli status with mock daemon", () => {
-  let server: Server | undefined;
+describe("cli mcp launcher", () => {
+  let tempDir: string | undefined;
 
   afterEach(() => {
-    if (server !== undefined) {
-      server.close();
-      server = undefined;
+    if (tempDir !== undefined) {
+      rmSync(tempDir, { recursive: true, force: true });
+      tempDir = undefined;
     }
   });
 
-  it("reports connected when daemon is reachable", async () => {
-    server = createServer((req, res) => {
-      if (req.url === "/health") {
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ status: "ok" }));
-        return;
-      }
-      res.writeHead(404);
-      res.end();
-    });
-    await new Promise<void>((resolve) => server?.listen(0, "127.0.0.1", () => resolve()));
-    const port = (server.address() as { port: number }).port;
-
-    const code = await runCli(["status"]);
-    // Status depends on the daemon being at the default URL; with a mock server
-    // on a random port, we can't easily point the CLI at it without env override.
-    // This test verifies the parsing/dispatch path works; the actual health
-    // check is tested in the status module directly.
-    void port;
-    expect(code).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe("cli V1 context rendering (VC-V1V2-16)", () => {
-  let server: Server | undefined;
-
-  afterEach(() => {
-    if (server !== undefined) {
-      server.close();
-      server = undefined;
-    }
-  });
-
-  function v1ContextJson(): string {
-    return JSON.stringify({
-      goal: "Multi-select Auto Layout edit",
-      target: {
-        identity: { selectors: ["div.flex"] },
-        semantic: { tagName: "div", textContentPreview: "items" },
-        breadcrumb: [],
-        computedStyle: { display: "grid" },
-        boxModel: { contentWidth: 0, contentHeight: 0, positionX: 0, positionY: 0 },
-        classList: [],
-        attributes: [],
-      },
-      operations: [],
-      source: { candidates: [] },
-      layout: { parentMode: "grid", parentDisplay: "grid", siblingCount: 0, siblingIndex: 0 },
-      verificationPlan: { assertions: [], notes: "V1 plan" },
-      warnings: [],
-      privacyReport: { redactions: [], totalRedacted: 0 },
-      metadata: {
-        compiledAt: 1,
-        formatVersion: "1.1.0",
-        tokenBudget: 8000,
-        tokenEstimate: 1,
-        truncated: false,
-        truncatedSections: [],
-        operationCount: 0,
-      },
-      multiSelect: {
-        groupId: "grp-cli-v1-0001",
-        targets: [{ runtimeId: "rt-a", selectors: [".a"] }],
-      },
-      breakpoint: { activeViewport: "tablet", responsivePrefix: "md", scopedChangeCount: 1 },
-      suggestedDiffs: [
-        {
-          diff: "-gap-2\n+gap-4",
-          confidence: "high",
-          preconditions: [],
-          kind: "tailwind-token-replace",
-        },
-      ],
-      layoutContext: { gridColumns: 12 },
-      adapterWarnings: [{ code: "dyn", message: "dynamic class detected", severity: "warning" }],
-    });
-  }
-
-  async function startMockMcpServer(): Promise<{ port: number }> {
-    server = createServer((req, res) => {
-      req.on("data", () => {});
-      req.on("end", () => {
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            id: 1,
-            result: { content: [{ type: "text", text: v1ContextJson() }] },
-          }),
-        );
-      });
-    });
-    await new Promise<void>((resolve) => server?.listen(0, "127.0.0.1", () => resolve()));
-    return { port: (server.address() as { port: number }).port };
-  }
-
-  it("context current --format markdown renders V1 sections", async () => {
-    const { port } = await startMockMcpServer();
-    const ctx = createContext({ VC_MCP_URL: `http://127.0.0.1:${port}/mcp` });
-
-    const writes: string[] = [];
-    const originalWrite = process.stdout.write.bind(process.stdout);
-    process.stdout.write = (data: string) => {
-      writes.push(data);
+  it("returns 1 when the MCP binary path does not exist", async () => {
+    const stderrChunks: string[] = [];
+    const original = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((data: string | Uint8Array) => {
+      stderrChunks.push(typeof data === "string" ? data : Buffer.from(data).toString("utf8"));
       return true;
-    };
+    }) as typeof process.stderr.write;
     try {
-      const code = await runContextCurrent(ctx, "markdown");
-      expect(code).toBe(0);
+      const code = await runMcp([], {
+        env: { ...process.env, VC_MCP_BIN: "/no/such/mcp-server-bin.js" },
+        spawnImpl: () => {
+          throw new Error("spawn must not run when binary is missing");
+        },
+      });
+      expect(code).toBe(1);
+      expect(stderrChunks.join("")).toMatch(/mcp binary not found/i);
     } finally {
-      process.stdout.write = originalWrite;
+      process.stderr.write = original;
     }
-    const output = writes.join("");
-    expect(output).toContain("# Agent Context");
-    expect(output).toContain("## Multi-Select Group");
-    expect(output).toContain("grp-cli-v1-0001");
-    expect(output).toContain("## Breakpoint Context");
-    expect(output).toContain("## Suggested Diffs");
-    expect(output).toContain("## Adapter Warnings");
+  });
+
+  it("returns 1 when spawn fails", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "vc-cli-mcp-"));
+    const stub = join(tempDir, "exists-but-spawn-fails.js");
+    writeFileSync(stub, "process.exit(0);\n");
+
+    const stderrChunks: string[] = [];
+    const original = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((data: string | Uint8Array) => {
+      stderrChunks.push(typeof data === "string" ? data : Buffer.from(data).toString("utf8"));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const code = await runMcp([], {
+        env: { ...process.env, VC_MCP_BIN: stub },
+        spawnImpl: () => {
+          const child = new EventEmitter() as ChildProcess;
+          queueMicrotask(() => {
+            child.emit("error", new Error("ENOENT"));
+          });
+          return child;
+        },
+      });
+      expect(code).toBe(1);
+      expect(stderrChunks.join("").toLowerCase()).toMatch(/failed to start mcp/);
+    } finally {
+      process.stderr.write = original;
+    }
+  });
+
+  it("spawns node with the MCP binary and remaining args", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "vc-cli-mcp-"));
+    const stub = join(tempDir, "stub-mcp.js");
+    const out = join(tempDir, "argv.json");
+    writeFileSync(
+      stub,
+      [
+        "import { writeFileSync } from 'node:fs';",
+        "writeFileSync(process.env.VC_STUB_OUT, JSON.stringify(process.argv.slice(2)));",
+        "process.exit(0);",
+      ].join("\n"),
+    );
+
+    const launchCode = await runMcp(["passthrough-flag"], {
+      env: { ...process.env, VC_MCP_BIN: stub, VC_STUB_OUT: out },
+    });
+    expect(launchCode).toBe(0);
+    expect(JSON.parse(readFileSync(out, "utf8"))).toEqual(["passthrough-flag"]);
+  });
+
+  it("runCli mcp dispatches to the launcher", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "vc-cli-mcp-"));
+    const stub = join(tempDir, "stub-mcp.js");
+    const out = join(tempDir, "argv.json");
+    writeFileSync(
+      stub,
+      [
+        "import { writeFileSync } from 'node:fs';",
+        "writeFileSync(process.env.VC_STUB_OUT, JSON.stringify({ ok: true }));",
+        "process.exit(0);",
+      ].join("\n"),
+    );
+
+    const saved = process.env.VC_MCP_BIN;
+    const savedOut = process.env.VC_STUB_OUT;
+    process.env.VC_MCP_BIN = stub;
+    process.env.VC_STUB_OUT = out;
+    try {
+      const code = await runCli(["mcp"]);
+      expect(code).toBe(0);
+      expect(JSON.parse(readFileSync(out, "utf8"))).toEqual({ ok: true });
+    } finally {
+      if (saved === undefined) delete process.env.VC_MCP_BIN;
+      else process.env.VC_MCP_BIN = saved;
+      if (savedOut === undefined) delete process.env.VC_STUB_OUT;
+      else process.env.VC_STUB_OUT = savedOut;
+    }
+  });
+
+  it("resolveMcpBinary prefers an existing VC_MCP_BIN", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "vc-cli-mcp-"));
+    const stub = join(tempDir, "custom-mcp.js");
+    writeFileSync(stub, "export {};\n");
+    expect(resolveMcpBinary({ VC_MCP_BIN: stub })).toBe(stub);
+  });
+
+  it("resolveMcpBinary ignores a missing VC_MCP_BIN path", () => {
+    expect(resolveMcpBinary({ VC_MCP_BIN: "/no/such/custom-mcp.js" })).toBeUndefined();
   });
 });

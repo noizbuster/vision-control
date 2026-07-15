@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Node library skeleton for @vision-control/cli.",
+  "description": "Vision Control product CLI — MCP launcher only (ADR-020).",
   "bin": {
     "vision-control": "./dist/bin.js"
   },
@@ -18,19 +18,10 @@
   "files": [
     "dist"
   ],
-  "dependencies": {
-    "@vision-control/context-compiler": "workspace:*",
-    "@vision-control/daemon-client": "workspace:*",
-    "@vision-control/mcp-server": "workspace:*",
-    "@vision-control/security": "workspace:*",
-    "@vision-control/source-resolver": "workspace:*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "catalog:",
-    "@types/ws": "catalog:",
-    "@vision-control/protocol": "workspace:*",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "ws": "catalog:"
+    "vitest": "catalog:"
   }
 }

@@ -25,8 +25,7 @@
       "options": {
         "command": "vitest run",
         "cwd": "packages/cli"
-      },
-      "dependsOn": [{ "projects": "daemon", "target": "build" }]
+      }
     },
     "package": {
       "executor": "nx:run-commands",

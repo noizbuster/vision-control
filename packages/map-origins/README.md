@@ -33,6 +33,7 @@ Missing maps yield empty origins for that rule/script (never throw).
 | --- | --- |
 | `resolveCssOrigins` | CSS pipeline entry point |
 | `resolveJsOrigins` | JS map systematic collection (module candidates) |
+| `mergeOriginResults` | Merge CSS+JS results for snapshot compile |
 | `scriptsFromElements` | Enumerate page scripts into `ScriptInput` |
 | `assignMapOriginConfidence` | Never-wrong-HIGH policy matrix |
 | `enforceMapOriginNeverWrongHigh` | Downgrade lying HIGH origins |

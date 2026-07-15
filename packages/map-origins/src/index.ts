@@ -27,6 +27,11 @@ export {
 } from "./confidence-policy.js";
 export { type FetchTextResult, fetchTextCapped } from "./fetch-text.js";
 export {
+  type MergedOriginResults,
+  mergeOriginResults,
+  type OriginResolveResult,
+} from "./merge-origin-results.js";
+export {
   isBundlerRuntimeNoise,
   joinSourceRoot,
   normalizeMapSourcePath,

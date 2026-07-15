@@ -5,10 +5,7 @@
  * printed once on stderr, never on stdout or `/discover`. TTL 5 minutes.
  */
 
-import {
-  generatePairingToken,
-  type GeneratePairingTokenOptions,
-} from "@vision-control/security";
+import { type GeneratePairingTokenOptions, generatePairingToken } from "@vision-control/security";
 
 import { PAIR_TOKEN_TTL_MS } from "./constants.js";
 

@@ -7,7 +7,7 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
-import { WebSocketServer, type WebSocket } from "ws";
+import { type WebSocket, WebSocketServer } from "ws";
 
 import {
   BRIDGE_WS_PATH,
@@ -17,13 +17,13 @@ import {
 } from "./constants.js";
 import { buildDiscoverResponse } from "./discover.js";
 import { NonLoopbackHostError, validateLoopbackHost } from "./loopback.js";
-import {
-  type PairTokenState,
-  validatePairToken,
-} from "./pair-token.js";
+import { type PairTokenState, validatePairToken } from "./pair-token.js";
 
 export class BridgePortInUseError extends Error {
-  constructor(public readonly port: number, public readonly host: string) {
+  constructor(
+    public readonly port: number,
+    public readonly host: string,
+  ) {
     super(
       `Port ${port} is already in use on ${host}. ` +
         `Vision Control MCP uses fixed port ${DEFAULT_BRIDGE_PORT} (no multi-port scan). ` +
@@ -42,7 +42,10 @@ export interface BridgeServerOptions {
   readonly pairToken: PairTokenState;
   /** Injectable clock for token expiry checks. */
   readonly now?: () => number;
-  /** Called when a pair token is accepted and the socket is open. */
+  /**
+   * Called when a pair token is accepted and the socket is open.
+   * Wire {@link createBridgeSession}.attach here for snapshot/command traffic.
+   */
   readonly onPaired?: (socket: WebSocket) => void;
 }
 
@@ -57,9 +60,7 @@ export interface BridgeServerHandle {
  * Start discover HTTP + bridge WebSocket on one loopback port.
  * Throws {@link NonLoopbackHostError} or {@link BridgePortInUseError}.
  */
-export async function startBridgeServer(
-  options: BridgeServerOptions,
-): Promise<BridgeServerHandle> {
+export async function startBridgeServer(options: BridgeServerOptions): Promise<BridgeServerHandle> {
   const host = options.host ?? DEFAULT_BRIDGE_HOST;
   validateLoopbackHost(host);
   const requestedPort = options.port ?? DEFAULT_BRIDGE_PORT;
@@ -157,7 +158,12 @@ function extractPairToken(req: IncomingMessage, url: URL): string | undefined {
   const auth = req.headers.authorization;
   if (typeof auth === "string") {
     const parts = auth.split(" ");
-    if (parts.length === 2 && parts[0] === "Bearer" && parts[1] !== undefined && parts[1].length > 0) {
+    if (
+      parts.length === 2 &&
+      parts[0] === "Bearer" &&
+      parts[1] !== undefined &&
+      parts[1].length > 0
+    ) {
       return parts[1];
     }
   }

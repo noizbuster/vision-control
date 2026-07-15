@@ -1,5 +1,6 @@
 /**
- * MCP bridge surface: discover + pair WS on loopback 4322 (ADR-020 C2/C3).
+ * MCP bridge surface: discover + pair WS on loopback 4322 (ADR-020 C2/C3)
+ * plus projection cache / command queue (ADR-020 snapshot push + C5).
  */
 
 export {
@@ -9,6 +10,18 @@ export {
   NonLoopbackHostError,
   startBridgeServer,
 } from "./bridge-server.js";
+export {
+  type BridgeSession,
+  type BridgeSessionOptions,
+  createBridgeSession,
+  minimalSnapshot,
+} from "./bridge-session.js";
+export {
+  type CommandQueue,
+  createCommandQueue,
+  type EnqueueCommandInput,
+  type QueuedCommand,
+} from "./command-queue.js";
 export {
   BRIDGE_PROTOCOL_VERSION,
   BRIDGE_WS_PATH,
@@ -34,3 +47,15 @@ export {
   printPairingToStderr,
   validatePairToken,
 } from "./pair-token.js";
+export {
+  createProjectionCache,
+  HEARTBEAT_MAX_GAP_MS,
+  type ProjectionCache,
+  type ProjectionCacheState,
+  type ProjectionEntry,
+} from "./projection-cache.js";
+export {
+  createProjectionDeps,
+  type ProjectionCommandPayload,
+  type ProjectionDepsOptions,
+} from "./projection-deps.js";

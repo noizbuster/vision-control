@@ -28,9 +28,7 @@ export interface BuildDiscoverResponseInput {
 }
 
 /** Build the public discover payload (no secrets). */
-export function buildDiscoverResponse(
-  input: BuildDiscoverResponseInput = {},
-): DiscoverResponse {
+export function buildDiscoverResponse(input: BuildDiscoverResponseInput = {}): DiscoverResponse {
   return {
     host: input.host ?? DEFAULT_BRIDGE_HOST,
     port: input.port ?? DEFAULT_BRIDGE_PORT,

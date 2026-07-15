@@ -3,10 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 
 import {
-  BridgePortInUseError,
-  type BridgeServerHandle,
   BRIDGE_PROTOCOL_VERSION,
   BRIDGE_WS_PATH,
+  BridgePortInUseError,
+  type BridgeServerHandle,
   buildDiscoverResponse,
   DEFAULT_BRIDGE_PORT,
   DISCOVER_PATH,
@@ -123,9 +123,9 @@ describe("bridge server integration", () => {
 
   it("refuses non-loopback bind before listen", async () => {
     const pairToken = mintPairToken();
-    await expect(
-      startBridgeServer({ host: "0.0.0.0", port: 0, pairToken }),
-    ).rejects.toThrow(NonLoopbackHostError);
+    await expect(startBridgeServer({ host: "0.0.0.0", port: 0, pairToken })).rejects.toThrow(
+      NonLoopbackHostError,
+    );
   });
 
   it("fails clearly when the fixed port is busy (no multi-port scan)", async () => {

@@ -14,8 +14,12 @@
 import { fileURLToPath } from "node:url";
 
 import {
-  type BridgeServerHandle,
   BridgePortInUseError,
+  type BridgeServerHandle,
+  createBridgeSession,
+  createCommandQueue,
+  createProjectionCache,
+  createProjectionDeps,
   DEFAULT_BRIDGE_HOST,
   DEFAULT_BRIDGE_PORT,
   mintPairToken,
@@ -24,7 +28,6 @@ import {
   startBridgeServer,
 } from "./bridge/index.js";
 import { createMcpServer } from "./server.js";
-import { createStubDeps } from "./stub-deps.js";
 import { startStdioTransport } from "./transports/stdio.js";
 
 export interface StartMcpProcessOptions {
@@ -58,12 +61,22 @@ export async function startMcpProcess(
 ): Promise<StartedMcpProcess> {
   const host = options.host ?? DEFAULT_BRIDGE_HOST;
   const port = options.port ?? DEFAULT_BRIDGE_PORT;
-  const writeStderr =
-    options.writeStderr ?? ((line: string) => process.stderr.write(`${line}\n`));
+  const writeStderr = options.writeStderr ?? ((line: string) => process.stderr.write(`${line}\n`));
+  const now = options.now ?? Date.now;
 
   const pairToken = mintPairToken({
     now: options.now,
     ttlMs: options.pairTokenTtlMs,
+  });
+
+  const cache = createProjectionCache();
+  const commands = createCommandQueue();
+  const session = createBridgeSession({ cache, commands, now });
+  const deps = createProjectionDeps({
+    cache,
+    commands,
+    now,
+    sendCommand: (payload) => session.sendCommand(payload),
   });
 
   let bridge: BridgeServerHandle;
@@ -73,6 +86,9 @@ export async function startMcpProcess(
       port,
       pairToken,
       now: options.now,
+      onPaired: (socket) => {
+        session.attach(socket);
+      },
     });
   } catch (error) {
     if (error instanceof NonLoopbackHostError || error instanceof BridgePortInUseError) {
@@ -84,7 +100,6 @@ export async function startMcpProcess(
   // Pair material: stderr only, after bind so the printed port is real.
   printPairingToStderr(pairToken, bridge.host, bridge.port, writeStderr);
 
-  const deps = createStubDeps();
   const server = createMcpServer(deps);
 
   if (options.skipStdio !== true) {
@@ -96,6 +111,7 @@ export async function startMcpProcess(
     port: bridge.port,
     pairToken: pairToken.token,
     stop: async () => {
+      session.detach();
       await bridge.stop();
       if (options.skipStdio !== true) {
         await server.close();

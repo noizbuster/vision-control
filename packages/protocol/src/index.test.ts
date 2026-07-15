@@ -9,6 +9,12 @@ import {
   versionMismatchEnvelope,
 } from "./__fixtures__/envelopes.js";
 import {
+  bridgeSchemas,
+  CommandAckSchema,
+  CommandEnqueueSchema,
+  SnapshotPushSchema,
+} from "./catalog/bridge.js";
+import {
   browserToDaemonSchemas,
   ChangesetUpdatedSchema,
   DiagnosticReportedSchema,
@@ -479,6 +485,134 @@ describe("§25.2 daemon→browser catalog (7 messages)", () => {
       }
     });
   }
+});
+
+describe("ADR-020 bridge catalog (snapshot.push / command.enqueue / command.ack)", () => {
+  it("exactly 3 bridge schemas (heartbeat reuses session.heartbeat)", () => {
+    expect(bridgeSchemas).toHaveLength(3);
+  });
+
+  const cases: Array<{ name: string; schema: z.ZodType; sample: unknown }> = [
+    {
+      name: "snapshot.push",
+      schema: SnapshotPushSchema,
+      sample: {
+        type: "snapshot.push",
+        tabId: "tab-7",
+        snapshotRev: 3,
+        sessionId: "sess-1",
+        snapshot: {
+          formatVersion: "1.0.0",
+          snapshotRev: 3,
+          tabId: "tab-7",
+          compiledAt: 1_700_000_000_000,
+          operations: [],
+          journal: {
+            entryCount: 0,
+            canUndo: false,
+            canRedo: false,
+            undoDepth: 0,
+            redoDepth: 0,
+            recentKinds: [],
+          },
+          origins: [],
+          originsTruncated: false,
+          privacyReport: { redactions: [], totalRedacted: 0 },
+          warnings: [],
+        },
+      },
+    },
+    {
+      name: "command.enqueue",
+      schema: CommandEnqueueSchema,
+      sample: {
+        type: "command.enqueue",
+        commandId: "cmd-1",
+        kind: "clear_preview",
+        tabId: "tab-7",
+      },
+    },
+    {
+      name: "command.ack",
+      schema: CommandAckSchema,
+      sample: {
+        type: "command.ack",
+        commandId: "cmd-1",
+        ok: true,
+        tabId: "tab-7",
+      },
+    },
+  ];
+
+  for (const { name, schema, sample } of cases) {
+    it(`${name} parses + serializes round-trip`, () => {
+      const json = JSON.stringify(sample);
+      const parsed = JSON.parse(json);
+      const result = schema.safeParse(parsed);
+      expect(result.success, `${name} should parse`).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(sample);
+      }
+      const msgResult = parseMessage(parsed);
+      expect(msgResult.success, `${name} should be in the Message union`).toBe(true);
+      if (msgResult.success) {
+        expect(msgResult.data.type).toBe(name);
+      }
+    });
+  }
+
+  it("session.heartbeat remains valid on the bridge wire", () => {
+    const sample = { type: "session.heartbeat", clientTime: 1_700_000_000_000 };
+    const result = parseMessage(sample);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.type).toBe("session.heartbeat");
+    }
+  });
+
+  it("rejects snapshot.push without monotonic snapshotRev", () => {
+    const result = SnapshotPushSchema.safeParse({
+      type: "snapshot.push",
+      tabId: "tab-1",
+      snapshot: {},
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown command.enqueue kind", () => {
+    const result = CommandEnqueueSchema.safeParse({
+      type: "command.enqueue",
+      commandId: "cmd-x",
+      kind: "apply_patch",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("round-trips snapshot.push through a protocol envelope", () => {
+    const payload = {
+      type: "snapshot.push" as const,
+      tabId: "tab-9",
+      snapshotRev: 1,
+      snapshot: { snapshotRev: 1, tabId: "tab-9" },
+    };
+    const envelope = {
+      protocolVersion: PROTOCOL_VERSION,
+      messageId: "bridge-msg-001",
+      messageType: "snapshot.push",
+      tabId: "tab-9",
+      timestamp: 1_700_000_000_000,
+      payload,
+    };
+    const envResult = parseEnvelope(envelope);
+    expect(envResult.success).toBe(true);
+    if (!envResult.success) return;
+    const msgResult = parseMessage(envResult.data.payload);
+    expect(msgResult.success).toBe(true);
+    if (msgResult.success && msgResult.data.type === "snapshot.push") {
+      expect(msgResult.data.tabId).toBe("tab-9");
+      expect(msgResult.data.snapshotRev).toBe(1);
+    }
+  });
 });
 
 describe("end-to-end: 2.0.0 handshake + typed selection.changed", () => {

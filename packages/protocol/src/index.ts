@@ -1,4 +1,15 @@
 export {
+  type BridgeCommandKind,
+  BridgeCommandKindSchema,
+  bridgeSchemas,
+  type CommandAck,
+  CommandAckSchema,
+  type CommandEnqueue,
+  CommandEnqueueSchema,
+  type SnapshotPush,
+  SnapshotPushSchema,
+} from "./catalog/bridge.js";
+export {
   type ChangesetUpdated,
   ChangesetUpdatedSchema,
   type DiagnosticReported,

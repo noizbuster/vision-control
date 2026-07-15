@@ -27,6 +27,7 @@ import type Database from "better-sqlite3";
 import { type WebSocket, WebSocketServer } from "ws";
 import type { PageSessionStore, SelectionStore } from "./business-handlers.js";
 import { createDaemonMcpAdapters } from "./mcp-adapters.js";
+import { handleDaemonHttpRequest } from "./pair-page.js";
 import type { SourcePipeline } from "./source-pipeline.js";
 
 /** Hosts that count as loopback; the daemon refuses to bind anything else. */
@@ -151,15 +152,8 @@ export async function createDaemonServer(options: DaemonServerOptions): Promise<
   // closure so vision_get_active_session reflects live connection state.
   let activeSession: { readonly sessionId: string; readonly workspaceId: string } | undefined;
 
-  const httpServer: Server = createServer((req, res) => {
-    if (req.url === "/health") {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ status: "ok" }));
-      return;
-    }
-    res.writeHead(404);
-    res.end("not found");
-  });
+  // Health + /pair landing only. Never log req.url (pairing token may be in query).
+  const httpServer: Server = createServer(handleDaemonHttpRequest);
 
   const wss = new WebSocketServer({ noServer: true });
 

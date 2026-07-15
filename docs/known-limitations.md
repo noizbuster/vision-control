@@ -1,16 +1,34 @@
-# Known Limitations (v0.2.0)
+# Known Limitations (v0.2.0 + extension-SoT pivot)
 
-Scope boundaries for v0.2.0. Each limitation is bounded by an ADR or a documented
-diagnostic so the boundary is explicit, not silent.
+Scope boundaries for the product path after ADR-019/020. Each limitation is
+bounded by an ADR or a documented diagnostic so the boundary is explicit, not
+silent.
+
+## Extension SoT: no always-on daemon
+
+There is **no** always-on daemon product path for ordinary editing
+([ADR-019](./adr/ADR-019-extension-source-of-truth.md)). The Chromium extension
+owns selection, preview, and the tab journal. Select, preview, undo/redo, and
+panel context export work while agent-disconnected.
+
+An optional single-process MCP bridge
+([ADR-020](./adr/ADR-020-mcp-bridge-projection.md)) projects extension state to a
+coding agent when the user starts `vision-control mcp` and pairs. MCP is not the
+source of truth. Unpaired MCP tools return `not_paired` / empty and never a
+stale verification `passed: true`.
+
+Dropped from the product path (regression ledger in ADR-019): workspace index /
+workspace bind, marker HIGH as a product path, component-props AST, and the fat
+CLI surface (context/changes/verify/preview/status/sessions/doctor/share/codemod
+as product commands). Panel export and agent file tools remain.
 
 ## V2: Remote real-time collaboration (deferred)
 
-Remote collaboration is **not** shipped. The only collaboration surface is the
-local export/import share bundle from
-[ADR-015](./adr/ADR-015-share-bundles-collaboration-trust.md). There is no relay,
-no cloud sync, no peer-to-peer transport, and no remote session join. Remote
-collaboration requires a dedicated trust-model ADR approving identity,
-revocation, encryption, and transport policy before any remote surface exists
+Remote collaboration is **not** shipped. Local panel export is the share path
+after the ADR-015 CLI share supersession. There is no relay, no cloud sync, no
+peer-to-peer transport, and no remote session join. Remote collaboration requires
+a dedicated trust-model ADR approving identity, revocation, encryption, and
+transport policy before any remote surface exists
 ([ADR-018](./adr/ADR-018-remote-collaboration-deferred.md)).
 
 ## V2: Firefox parity (tested scope only)
@@ -43,8 +61,8 @@ source after HMR.
 
 ## V1: Panel-bound features (browser-driven e2e blocked by panel-automation harness)
 
-The V1 panel-bound editing features — group move (reorder/reparent), CSS Grid
-reorder/span, alignment + distribution, and Auto Layout (Hug/Fill/Fixed) — are
+The V1 panel-bound editing features  -  group move (reorder/reparent), CSS Grid
+reorder/span, alignment + distribution, and Auto Layout (Hug/Fill/Fixed)  -  are
 **fully wired into the content runtime and unit-tested end-to-end**, but their
 user-visible flows cannot be driven through a real Playwright browser e2e today.
 The blocking reasons are properties of the verification harness, not of the
@@ -66,11 +84,11 @@ implementation:
   `grid-reorder`, `grid-span`, alignment intents, `set-container-layout`) record
   to the change journal, which lives in the DevTools panel context.
 
-Consequence: the browser-driven e2e specs for these features —
+Consequence: the browser-driven e2e specs for these features  - 
 `apps/extension/e2e/group-move.spec.ts`,
 `apps/extension/e2e/css-grid-edit.spec.ts`,
 `apps/extension/e2e/alignment-distribution.spec.ts`, and
-`apps/extension/e2e/auto-layout.spec.ts` — carry their scenarios as
+`apps/extension/e2e/auto-layout.spec.ts`  -  carry their scenarios as
 `test.fixme` with an explicit `// OUT: panel-context` rationale. The full
 classify → build-op → `computeInverse` chain for each feature IS exercised by
 the `@... unit` describe blocks in those same spec files, and the emission-side
@@ -87,33 +105,19 @@ A future task that drives the panel via the Chrome DevTools Protocol
 `Runtime.evaluate` against the panel target would unblock these specs. That is
 not in v0.2.0 scope.
 
+## Origins: map + range only for HIGH
+
+Best-effort CSSOM + source-map origins live in `packages/map-origins`. HIGH
+confidence requires map + range. There is no marker HIGH product path and no
+workspace-index product path (ADR-019 C4 / C7). Origins may be empty; that is
+valid. Caps per selection compile: max 20 maps, max 1 MiB per map, max 2 MiB
+total, 500 ms per fetch, 2 s wall clock.
+
 ## V1: Dynamic CSS-in-JS class resolution (agent-required)
 
-CSS-in-JS adapters resolve statically-extractable class origins to HIGH
-confidence (literal string values, numeric literals, interpolation-free template
-literals, backed by AST origin + a source range). **Any** dynamic marker
-(template interpolation, computed keys, spreads, member access, function calls,
-bare-identifier values) downgrades the candidate to agent-required (MEDIUM,
-evidence `text-search`), because the class is generated at runtime and cannot be
-deterministically patched.
-
-v0.2.0 does **not** claim HIGH confidence for runtime-generated CSS-in-JS
-classes. An agent must resolve dynamic styles; the never-wrong-HIGH policy
-enforces this structurally.
-
-## V1: Tailwind v4 dynamic spacing scale
-
-The Tailwind v4 `@theme` parser (plan tasks 11–12) parses **explicit** `@theme`
-custom-property declarations (`--color-*`, `--spacing-*`, `--font-*`,
-`--text-*`). v4's dynamic spacing scale — a single `--spacing` base multiplier
-from which the synthesised `--spacing-N` scale is derived (`gap-2` →
-`calc(var(--spacing) * 2)`) — is **not** synthesised by the parser. A workspace
-that declares only `@theme { --spacing: 0.25rem; }` (no explicit `--spacing-N`)
-gets an empty v4 spacing registry from the parser; standard utilities (`gap-2`)
-still resolve via the baked-in v3 default scale. The narrow `TokenCategory` set
-also means `--radius-*`, `--shadow-*`, `--leading-*`, and `--font-weight-*`
-namespaces are recognised-but-skipped (those tokens reach the unified registry
-via plain CSS custom-property extraction, not the v4 parser).
+When dynamic class generation is present (template interpolation, computed keys,
+spreads, member access, function calls), resolution stays agent-required. The
+never-wrong-HIGH policy still applies: do not invent HIGH without map + range.
 
 ## Carry-over from v0.1.0
 

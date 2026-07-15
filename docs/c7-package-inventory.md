@@ -33,7 +33,7 @@ source-resolver, source-registry, marker/workspace integrations).
 | `packages/bridge-client` | **Keep** | Replaces daemon-client on the product path |
 | `integrations/vite-react`, `next-react` marker plugins | **Delete** if unused after unwire | Unwired from product path; packages remain until task 21 |
 | `integrations/tailwind`, `css-modules`, `vanilla-css`, `vue`, `svelte` | **Delete** if only workspace/daemon adapters remain | Unwired from product path |
-| `integrations/opencode`, `pi` | **Keep** | Config rewrite (no `VC_DAEMON_URL`) is task 22 |
+| `integrations/opencode`, `pi` | **Keep** | Config rewrite (no `VC_DAEMON_URL`) done in task 22 |
 | `apps/playground-*`, `visual-regression-lab` | **Keep** as fixtures | Root `pnpm dev` runs extension + playground-react-vite only |
 
 ## Product path rules after unwire

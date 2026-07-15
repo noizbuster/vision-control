@@ -45,6 +45,13 @@ export {
   NonLoopbackHostError,
 } from "./loopback.js";
 export {
+  type BuildEnvelopeOptions,
+  buildCommandAckPayload,
+  buildHeartbeatPayload,
+  buildSnapshotPushPayload,
+  wrapBridgeEnvelope,
+} from "./messages.js";
+export {
   type BridgePairingResult,
   type BridgeTarget,
   BridgeTargetSchema,

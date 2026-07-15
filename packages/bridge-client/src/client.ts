@@ -1,8 +1,14 @@
-import { PROTOCOL_VERSION, type ProtocolEnvelope } from "@vision-control/protocol";
+import type { ProtocolEnvelope } from "@vision-control/protocol";
 
 import { HEARTBEAT_INTERVAL_MS, PAIR_TOKEN_TTL_MS } from "./constants.js";
 import type { BridgeEndpoint } from "./endpoint-store.js";
 import { endpointFromTarget } from "./endpoint-store.js";
+import {
+  buildCommandAckPayload,
+  buildHeartbeatPayload,
+  buildSnapshotPushPayload,
+  wrapBridgeEnvelope,
+} from "./messages.js";
 import type { BridgeTarget } from "./pairing.js";
 import { toBridgeWebSocketUrl } from "./pairing.js";
 
@@ -133,19 +139,44 @@ export class BridgeClient {
   }
 
   /** Send a protocol envelope to the bridge. */
-  send(messageType: string, payload: unknown): void {
+  send(messageType: string, payload: unknown, tabId?: string): void {
     const socket = this.socket;
     if (socket === undefined || socket.readyState !== socket.OPEN) {
       throw new Error(`cannot send in state "${this.state}"`);
     }
-    const envelope: ProtocolEnvelope = {
-      protocolVersion: PROTOCOL_VERSION,
-      messageId: this.uuid(),
+    const envelope = wrapBridgeEnvelope(
       messageType,
       payload,
-      timestamp: this.now(),
-    };
+      tabId === undefined
+        ? { messageId: this.uuid(), timestamp: this.now() }
+        : { messageId: this.uuid(), timestamp: this.now(), tabId },
+    );
     socket.send(JSON.stringify(envelope));
+  }
+
+  /**
+   * Push a portable VisionContextSnapshot to the MCP projection cache.
+   * Background-only; never invents selection on the MCP side.
+   */
+  pushSnapshot(input: {
+    readonly tabId: string;
+    readonly snapshotRev: number;
+    readonly sessionId?: string;
+    readonly snapshot: unknown;
+  }): void {
+    const payload = buildSnapshotPushPayload(input);
+    this.send("snapshot.push", payload, input.tabId);
+  }
+
+  /** Acknowledge a command.enqueue from MCP. */
+  ackCommand(input: {
+    readonly commandId: string;
+    readonly ok: boolean;
+    readonly reason?: string;
+    readonly tabId?: string;
+  }): void {
+    const payload = buildCommandAckPayload(input);
+    this.send("command.ack", payload, input.tabId);
   }
 
   /** In-memory pair token (never persisted by this client). */
@@ -189,10 +220,7 @@ export class BridgeClient {
     }
     const socket = this.socket;
     if (socket !== undefined && socket.readyState === socket.OPEN) {
-      this.send("session.heartbeat", {
-        type: "session.heartbeat",
-        clientTime: this.now(),
-      });
+      this.send("session.heartbeat", buildHeartbeatPayload(this.now()));
     }
     this.heartbeatTimer = this.setTimeoutFn(() => {
       this.tickHeartbeat();

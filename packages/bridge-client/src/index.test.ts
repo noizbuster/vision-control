@@ -21,6 +21,11 @@ import {
 } from "./endpoint-store.js";
 import { isLoopbackHost } from "./loopback.js";
 import {
+  type buildCommandAckPayload,
+  buildSnapshotPushPayload,
+  wrapBridgeEnvelope,
+} from "./messages.js";
+import {
   resolveBridgePairingInput,
   synthesizeBridgePairingUrl,
   toBridgeWebSocketUrl,
@@ -414,5 +419,95 @@ describe("loopback guard", () => {
     expect(isLoopbackHost("::1")).toBe(true);
     expect(isLoopbackHost("0.0.0.0")).toBe(false);
     expect(isLoopbackHost("192.168.1.1")).toBe(false);
+  });
+});
+
+describe("bridge message helpers (snapshot.push / command.ack)", () => {
+  it("builds snapshot.push with monotonic snapshotRev", () => {
+    const payload = buildSnapshotPushPayload({
+      tabId: "tab-1",
+      snapshotRev: 7,
+      sessionId: "sess-1",
+      snapshot: { snapshotRev: 7, tabId: "tab-1" },
+    });
+    expect(payload).toEqual({
+      type: "snapshot.push",
+      tabId: "tab-1",
+      snapshotRev: 7,
+      sessionId: "sess-1",
+      snapshot: { snapshotRev: 7, tabId: "tab-1" },
+    });
+    const envelope = wrapBridgeEnvelope("snapshot.push", payload, {
+      messageId: "m1",
+      timestamp: 100,
+      tabId: "tab-1",
+    });
+    expect(envelope.messageType).toBe("snapshot.push");
+    expect(envelope.tabId).toBe("tab-1");
+  });
+
+  it("BridgeClient.pushSnapshot and ackCommand send typed envelopes", async () => {
+    const sent: string[] = [];
+    let readyState = 0;
+    const handlers: {
+      onopen: ((this: WebSocketLike) => void) | null;
+    } = { onopen: null };
+    const fake: WebSocketLike = {
+      get readyState() {
+        return readyState;
+      },
+      OPEN: 1,
+      close: () => {
+        readyState = 3;
+      },
+      send: (data: string) => {
+        sent.push(data);
+      },
+      get onopen() {
+        return handlers.onopen;
+      },
+      set onopen(handler) {
+        handlers.onopen = handler;
+      },
+      onmessage: null,
+      onclose: null,
+      onerror: null,
+    };
+    const client = new BridgeClient({
+      factory: () => fake,
+      uuid: () => "fixed-id",
+      now: () => 99,
+    });
+    const pairing = resolveBridgePairingInput("tok");
+    if (!pairing.success) return;
+    const p = client.connect(pairing.target);
+    readyState = 1;
+    handlers.onopen?.call(fake);
+    await p;
+
+    client.pushSnapshot({
+      tabId: "tab-x",
+      snapshotRev: 1,
+      snapshot: { snapshotRev: 1 },
+    });
+    client.ackCommand({ commandId: "c1", ok: true, tabId: "tab-x" });
+
+    expect(sent.length).toBeGreaterThanOrEqual(2);
+    const push = JSON.parse(sent[0] ?? "{}") as {
+      messageType: string;
+      payload: { type: string; snapshotRev: number; tabId: string };
+    };
+    expect(push.messageType).toBe("snapshot.push");
+    expect(push.payload.snapshotRev).toBe(1);
+    expect(push.payload.tabId).toBe("tab-x");
+
+    const ack = JSON.parse(sent[1] ?? "{}") as {
+      messageType: string;
+      payload: ReturnType<typeof buildCommandAckPayload>;
+    };
+    expect(ack.messageType).toBe("command.ack");
+    expect(ack.payload.commandId).toBe("c1");
+    expect(ack.payload.ok).toBe(true);
+    client.disconnect();
   });
 });

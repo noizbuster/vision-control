@@ -13,7 +13,8 @@
  *
  * Platform: isomorphic. No DOM or filesystem access. The inspector-core and
  * source-resolver types are consumed type-only (devDependencies); only
- * `@vision-control/security` and `@vision-control/change-ir` are runtime deps.
+ * isomorphic packages (`change-ir`, `security`, `verification-engine`) and
+ * `zod` are runtime deps. Portable snapshots compile without workspaceRoot.
  */
 
 export const PACKAGE_NAME = "@vision-control/context-compiler";
@@ -39,5 +40,20 @@ export {
 } from "./redaction-selectors.js";
 export { renderJson } from "./renderers/json-renderer.js";
 export { renderMarkdown } from "./renderers/markdown-renderer.js";
+export {
+  type CompileSnapshotInputs,
+  compileVisionContextSnapshot,
+} from "./snapshot-compiler.js";
+export {
+  EMPTY_JOURNAL_SUMMARY,
+  EMPTY_PRIVACY_REPORT,
+  type JournalSummary,
+  JournalSummarySchema,
+  type MapOrigin,
+  MapOriginSchema,
+  SNAPSHOT_FORMAT_VERSION,
+  type VisionContextSnapshot,
+  VisionContextSnapshotSchema,
+} from "./snapshot-schema.js";
 export { projectSelectionToTarget } from "./target-projection.js";
 export { TokenBudget } from "./token-budget.js";

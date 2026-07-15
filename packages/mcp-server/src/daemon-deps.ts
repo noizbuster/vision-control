@@ -28,7 +28,8 @@
  *
  * CRITICAL GUARDRAIL: none of these methods mutate source. Coordination tools
  * dispatch signals only. There is no apply/write/codemod path (PRD §17.1,
- * ADR-010, docs/agents/mcp-policy.md).
+ * ADR-010, docs/agents/mcp-policy.md). Capture/diagnostics are not product
+ * tools (ADR-020 C5).
  */
 
 import type {
@@ -36,12 +37,12 @@ import type {
   ChangesetPrivacyReport,
   ChangesetSummary,
   CoordinationResult,
-  Diagnostic,
   McpServerDeps,
   PatchCompletedInput,
   PatchStartedInput,
   SelectionSummary,
   SessionSummary,
+  VerificationPlanSummary,
 } from "./types.js";
 
 /** Read model: the active daemon session (a subset of `SessionSummary`). */
@@ -106,14 +107,6 @@ export interface ChangesetServiceRead {
   getCurrent(sessionId: string): Promise<CurrentChangesetRead | undefined>;
 }
 
-/** Source registry read port: resolve a source mapping for capture. */
-export interface SourceRegistryServiceRead {
-  resolve?(
-    sourceId: string,
-    sessionId: string,
-  ): Promise<{ readonly sourceId: string; readonly filePath?: string } | undefined>;
-}
-
 /** Context compiler port: assemble the agent-facing context. */
 export interface ContextCompilerRead {
   compile(input: ContextCompileInput): Promise<unknown> | unknown;
@@ -137,7 +130,6 @@ export interface ConnectionServiceDispatch {
 export interface DaemonMcpDepsServices {
   readonly sessionService?: SessionServiceRead;
   readonly changesetService?: ChangesetServiceRead;
-  readonly sourceRegistryService?: SourceRegistryServiceRead;
   readonly contextCompiler?: ContextCompilerRead;
   readonly verificationCoordinator?: VerificationCoordinatorRead;
   readonly connectionService?: ConnectionServiceDispatch;
@@ -146,7 +138,6 @@ export interface DaemonMcpDepsServices {
 const NO_SESSION_NOTE = "no active session — connect a browser panel for live data";
 const NO_COORDINATOR_NOTE = "no verification coordinator wired — plan unavailable";
 const NO_DISPATCH_NOTE = "no connection service wired — signal not dispatched";
-const NO_SOURCE_NOTE = "no source registry wired — capture unavailable";
 const PROTOCOL_VERSION_FALLBACK = "2.0.0";
 const DEFAULT_VERIFICATION_TIMEOUT_MS = 5000;
 const CLEAR_PREVIEW_REASON = "mcp coordination: vision_clear_preview";
@@ -237,7 +228,7 @@ export function createDaemonMcpDeps(services: DaemonMcpDepsServices): McpServerD
       });
     },
 
-    async getVerificationPlan() {
+    async getVerificationPlan(): Promise<VerificationPlanSummary> {
       if (services.verificationCoordinator === undefined) {
         return { assertions: [], notes: NO_COORDINATOR_NOTE };
       }
@@ -245,39 +236,6 @@ export function createDaemonMcpDeps(services: DaemonMcpDepsServices): McpServerD
       return services.verificationCoordinator.getPlan(
         active !== undefined ? { sessionId: active.sessionId } : {},
       );
-    },
-
-    async getDiagnostics(): Promise<readonly Diagnostic[]> {
-      return [];
-    },
-
-    async captureElement() {
-      const active = await resolveActiveSession();
-      if (active === undefined) {
-        return {
-          captured: false,
-          selector: undefined,
-          sourceId: undefined,
-          note: NO_SESSION_NOTE,
-        };
-      }
-      const resolved =
-        (await services.sourceRegistryService?.resolve?.(active.sessionId, active.sessionId)) ??
-        undefined;
-      if (resolved === undefined) {
-        return {
-          captured: false,
-          selector: undefined,
-          sourceId: undefined,
-          note: NO_SOURCE_NOTE,
-        };
-      }
-      return {
-        captured: true,
-        selector: undefined,
-        sourceId: resolved.sourceId,
-        note: "captured via source registry",
-      };
     },
 
     async requestVerification(): Promise<CoordinationResult> {

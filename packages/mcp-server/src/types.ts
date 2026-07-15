@@ -2,25 +2,23 @@
  * Dependency interface injected into the MCP server. Every tool handler calls
  * one of these methods to read state or signal a coordination event.
  *
- * The interface is deliberately transport-agnostic: the daemon wires a real
- * implementation (reading from storage/protocol), while tests inject a fake.
- * This keeps the MCP server free of daemon/runtime coupling and makes every
- * tool unit-testable without a running daemon.
+ * Transport-agnostic: projection cache (ADR-020), daemon adapters, or test
+ * fakes. Free of daemon/runtime coupling so every tool is unit-testable.
  *
- * CRITICAL: none of these methods mutate source code. The tools are read-only
- * context queries plus coordination signals (request verification, clear
- * preview, mark patch lifecycle). There is NO apply-patch method by design
- * (PRD section 17.1, ADR-008, docs/agents/mcp-policy.md).
+ * CRITICAL: none of these methods mutate source code. Tools are read-only
+ * context queries plus coordination signals. There is NO apply-patch method
+ * (PRD section 17.1, ADR-008, docs/agents/mcp-policy.md). Capture/diagnostics
+ * are not product tools (ADR-020 C5).
  */
 
-/** Active daemon session summary returned by `vision_get_active_session`. */
+/** Active session summary returned by `vision_get_active_session`. */
 export interface SessionSummary {
   readonly sessionId: string;
   readonly workspaceId: string;
   readonly connected: boolean;
   readonly clientVersion?: string;
   readonly protocolVersion: string;
-  /** Explanatory note when `connected` is false (e.g. no active session). */
+  /** Explanatory note when `connected` is false (e.g. not_paired). */
   readonly note?: string;
 }
 
@@ -75,32 +73,10 @@ export interface ChangesetOperationSummary {
   readonly targetCount?: number;
 }
 
-/** Diagnostic returned by `vision_get_diagnostics`. */
-export interface Diagnostic {
-  readonly code: string;
-  readonly message: string;
-  readonly severity: "info" | "warning" | "error";
-  readonly source: string | undefined;
-}
-
-/** Result of `vision_capture_element` (redacted, verification-only). */
-export interface CaptureResult {
-  readonly captured: boolean;
-  readonly selector: string | undefined;
-  readonly sourceId: string | undefined;
-  readonly note: string;
-}
-
 /**
  * V1 (inert): one deterministic patch suggestion surfaced through the
  * `vision_get_source_context` response as candidate DATA (ADR-012). The MCP
- * server NEVER applies it — there is no apply/write/codemod tool (ADR-010). An
- * agent reads the suggestion, decides whether to apply it through its own
- * file-writing mechanism, and then runs the verification loop.
- *
- * Mirrors the shape compiled by `@vision-control/context-compiler`
- * (`SuggestedDiffSummary`) and emitted by `@vision-control/source-resolver`'s
- * generator. Defined locally so this package's type surface stays decoupled.
+ * server NEVER applies it — there is no apply/write/codemod tool (ADR-010).
  */
 export interface SourceContextSuggestedDiff {
   readonly diff: string;
@@ -141,20 +117,30 @@ export interface PatchCompletedInput {
 }
 
 /**
- * Injected dependencies for the MCP server tools. Each method is async so the
- * implementation can read from storage, the protocol layer, or a remote daemon.
+ * Verification plan / last result projection (ADR-020 C5).
+ * Must never invent a stale `passed: true` when unpaired (ADR-019 C6).
+ */
+export interface VerificationPlanSummary {
+  readonly assertions: readonly { readonly description: string }[];
+  readonly notes: string;
+  /**
+   * Optional pass/fail when a real verification result is projected.
+   * Absent or false when unpaired / empty — never stale true.
+   */
+  readonly passed?: boolean;
+}
+
+/**
+ * Injected dependencies for the MCP server tools (ADR-020 C5 nine tools).
+ * Each method is async so the implementation can read from the projection
+ * cache, storage, or a remote adapter.
  */
 export interface McpServerDeps {
   getActiveSession(): Promise<SessionSummary>;
   getSelection(): Promise<SelectionSummary>;
   getChangeset(): Promise<ChangesetSummary>;
   getSourceContext(): Promise<unknown>;
-  getVerificationPlan(): Promise<{
-    readonly assertions: readonly { readonly description: string }[];
-    readonly notes: string;
-  }>;
-  getDiagnostics(): Promise<readonly Diagnostic[]>;
-  captureElement(): Promise<CaptureResult>;
+  getVerificationPlan(): Promise<VerificationPlanSummary>;
   requestVerification(): Promise<CoordinationResult>;
   clearPreview(): Promise<CoordinationResult>;
   markPatchStarted(input: PatchStartedInput): Promise<CoordinationResult>;

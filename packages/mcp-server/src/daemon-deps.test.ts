@@ -272,8 +272,6 @@ describe("createDaemonMcpDeps — graceful degradation with no services", () => 
     await expect(deps.getChangeset()).resolves.toMatchObject({ operationCount: 0 });
     await expect(deps.getSourceContext()).resolves.toBeUndefined();
     await expect(deps.getVerificationPlan()).resolves.toMatchObject({ assertions: [] });
-    await expect(deps.getDiagnostics()).resolves.toEqual([]);
-    await expect(deps.captureElement()).resolves.toMatchObject({ captured: false });
     await expect(deps.requestVerification()).resolves.toMatchObject({ acknowledged: false });
     await expect(deps.clearPreview()).resolves.toMatchObject({ acknowledged: false });
   });
@@ -283,11 +281,12 @@ describe("createDaemonMcpDeps — graceful degradation with no services", () => 
     const plan = await deps.getVerificationPlan();
     expect(plan.assertions).toEqual([]);
     expect(plan.notes).toBeTruthy();
+    expect(plan.passed).not.toBe(true);
   });
 });
 
-describe("createDaemonMcpDeps — McpServerDeps contract conformance", () => {
-  it("returns an object satisfying every McpServerDeps method", () => {
+describe("createDaemonMcpDeps — McpServerDeps contract conformance (C5)", () => {
+  it("returns an object satisfying every C5 McpServerDeps method", () => {
     const deps = createDaemonMcpDeps({});
     for (const method of [
       "getActiveSession",
@@ -295,8 +294,6 @@ describe("createDaemonMcpDeps — McpServerDeps contract conformance", () => {
       "getChangeset",
       "getSourceContext",
       "getVerificationPlan",
-      "getDiagnostics",
-      "captureElement",
       "requestVerification",
       "clearPreview",
       "markPatchStarted",
@@ -304,11 +301,7 @@ describe("createDaemonMcpDeps — McpServerDeps contract conformance", () => {
     ] as const) {
       expect(typeof deps[method]).toBe("function");
     }
-  });
-
-  it("getDiagnostics is an empty array (no diagnostic provider in scope)", async () => {
-    const deps = createDaemonMcpDeps(createLiveServices().services);
-    const diagnostics = await deps.getDiagnostics();
-    expect(diagnostics).toEqual([]);
+    expect(deps).not.toHaveProperty("getDiagnostics");
+    expect(deps).not.toHaveProperty("captureElement");
   });
 });

@@ -24,7 +24,7 @@ export function registerMarkPatchCompletedTool(server: McpServer, deps: McpServe
     "vision_mark_patch_completed",
     {
       description:
-        "Signal that a source patch has completed. Triggers verification of the source-patched state. Coordination signal only — does not modify source code.",
+        "Enqueue mark_patch_completed for the paired extension. Coordination signal only — does not modify source code.",
       inputSchema: markPatchCompletedInput,
     },
     async (args) => {

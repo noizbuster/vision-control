@@ -1,5 +1,5 @@
 /**
- * McpServerDeps backed by the projection cache (ADR-020).
+ * McpServerDeps backed by the projection cache (ADR-020 C5).
  *
  * Unpaired / heartbeat-stale → explicit not_paired / empty.
  * Never invents selection. Never returns stale verification pass.
@@ -9,15 +9,14 @@ import type { VisionContextSnapshot } from "@vision-control/context-compiler";
 import type { BridgeCommandKind, PROTOCOL_VERSION } from "@vision-control/protocol";
 
 import type {
-  CaptureResult,
   ChangesetSummary,
   CoordinationResult,
-  Diagnostic,
   McpServerDeps,
   PatchCompletedInput,
   PatchStartedInput,
   SelectionSummary,
   SessionSummary,
+  VerificationPlanSummary,
 } from "../types.js";
 import type { CommandQueue } from "./command-queue.js";
 import type { ProjectionCache } from "./projection-cache.js";
@@ -153,24 +152,12 @@ export function createProjectionDeps(options: ProjectionDepsOptions): McpServerD
       return gate.entry.snapshot;
     },
 
-    async getVerificationPlan() {
+    async getVerificationPlan(): Promise<VerificationPlanSummary> {
+      // Unpaired / stale: empty plan, never invent passed:true (ADR-019 C6).
       if (!cache.isLive(now())) {
         return { assertions: [], notes: NOT_PAIRED };
       }
       return { assertions: [], notes: "no verification result projected yet" };
-    },
-
-    async getDiagnostics(): Promise<readonly Diagnostic[]> {
-      return [];
-    },
-
-    async captureElement(): Promise<CaptureResult> {
-      return {
-        captured: false,
-        selector: undefined,
-        sourceId: undefined,
-        note: NOT_PAIRED,
-      };
     },
 
     async requestVerification(): Promise<CoordinationResult> {

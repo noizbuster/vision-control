@@ -24,7 +24,7 @@ export function registerMarkPatchStartedTool(server: McpServer, deps: McpServerD
     "vision_mark_patch_started",
     {
       description:
-        "Signal that a source patch has started being applied. Coordination signal only — does not apply or modify source code. Used by the daemon to track patch lifecycle.",
+        "Enqueue mark_patch_started for the paired extension. Coordination signal only — does not apply or modify source code.",
       inputSchema: markPatchStartedInput,
     },
     async (args) => {

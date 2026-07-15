@@ -2,8 +2,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   CompiledContextSchema,
   redactContext,
+  redactVisionContextSnapshot,
   renderJson,
   renderMarkdown,
+  renderSnapshotJson,
+  renderSnapshotMarkdown,
+  VisionContextSnapshotSchema,
 } from "@vision-control/context-compiler";
 import { z } from "zod";
 import { errorResult } from "../tool-helpers.js";
@@ -17,36 +21,45 @@ const getSourceContextInput = {
 };
 
 /**
- * Register the `vision_get_source_context` read-only tool.
+ * Register the `vision_get_source_context` read-only tool (ADR-020 C5).
  *
- * Returns the full compiled agent context (compiled by
- * `@vision-control/context-compiler`) as redacted JSON or Markdown. The context
- * includes the goal, target summary, operations, source candidates, layout,
- * verification plan, warnings, privacy report, and all V1 fields (multi-select
- * targets, breakpoint context, source confidence detail, suggested diffs as
- * inert data, screenshot metadata ref when opted in, layout/grid/auto-layout
- * context, adapter warnings, token registry, component props). Every field is
- * redacted before rendering (ADR-009). No screenshot image data is ever
- * exposed; only an opt-in metadata ref (ADR-011). No source-write/apply tool
- * exists (ADR-010, ADR-012).
+ * Product path: extension-pushed {@link VisionContextSnapshot} from the
+ * projection cache (origins may be empty). Legacy {@link CompiledContext}
+ * payloads remain accepted for daemon-era fixtures. Every response is redacted
+ * (ADR-009). No source-write/apply tool exists (ADR-010, ADR-012).
  */
 export function registerGetSourceContextTool(server: McpServer, deps: McpServerDeps): void {
   server.registerTool(
     "vision_get_source_context",
     {
       description:
-        "Return the compiled agent context for the current selection as redacted JSON or Markdown. Includes goal, target, operations, source candidates, layout, verification plan, V1 details (multi-select, breakpoint, confidence, suggested diffs, screenshot metadata ref, grid/auto-layout, adapter warnings), and a privacy report.",
+        "Return the compiled extension context snapshot for the current selection as redacted JSON or Markdown. Projection of extension-pushed state (origins may be empty). Unpaired returns not available.",
       inputSchema: getSourceContextInput,
     },
     async (args) => {
       const raw = await deps.getSourceContext();
-      const parsed = CompiledContextSchema.safeParse(raw);
-      if (!parsed.success) {
+      if (raw === undefined || raw === null) {
         return errorResult("source context is not available");
       }
-      const redacted = redactContext(parsed.data);
-      const text = args.format === "markdown" ? renderMarkdown(redacted) : renderJson(redacted);
-      return { content: [{ type: "text" as const, text }] };
+
+      const snapshot = VisionContextSnapshotSchema.safeParse(raw);
+      if (snapshot.success) {
+        const redacted = redactVisionContextSnapshot(snapshot.data);
+        const text =
+          args.format === "markdown"
+            ? renderSnapshotMarkdown(redacted)
+            : renderSnapshotJson(redacted);
+        return { content: [{ type: "text" as const, text }] };
+      }
+
+      const compiled = CompiledContextSchema.safeParse(raw);
+      if (compiled.success) {
+        const redacted = redactContext(compiled.data);
+        const text = args.format === "markdown" ? renderMarkdown(redacted) : renderJson(redacted);
+        return { content: [{ type: "text" as const, text }] };
+      }
+
+      return errorResult("source context is not available");
     },
   );
 }

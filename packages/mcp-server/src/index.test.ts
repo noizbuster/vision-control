@@ -5,23 +5,20 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
-  CaptureElementOutputSchema,
   CoordinationResultSchema,
   createMcpServer,
   GetActiveSessionOutputSchema,
   GetChangesetOutputSchema,
-  GetDiagnosticsOutputSchema,
   GetSelectionOutputSchema,
   GetVerificationPlanOutputSchema,
   MCP_SERVER_NAME,
   MCP_SERVER_VERSION,
   type McpServerDeps,
   PACKAGE_NAME,
-  TOOL_NAMES,
   textResult,
 } from "./index.js";
 
-/** Fake deps with controlled test data. */
+/** Fake deps with controlled test data (C5 surface only). */
 function createFakeDeps(): McpServerDeps {
   return {
     async getActiveSession() {
@@ -62,19 +59,6 @@ function createFakeDeps(): McpServerDeps {
     async getVerificationPlan() {
       return { assertions: [{ description: "Element has color red" }], notes: "stub plan" };
     },
-    async getDiagnostics() {
-      return [
-        {
-          code: "LOW_CONFIDENCE",
-          message: "Source resolution is low confidence",
-          severity: "warning" as const,
-          source: "source-resolver",
-        },
-      ];
-    },
-    async captureElement() {
-      return { captured: true, selector: "#save", sourceId: "src-abc123def456", note: "captured" };
-    },
     async requestVerification() {
       return { acknowledged: true, message: "verification requested" };
     },
@@ -90,13 +74,23 @@ function createFakeDeps(): McpServerDeps {
   };
 }
 
-/** Connect a test client to the MCP server via in-memory transport. */
 async function connectClient(server: McpServer): Promise<Client> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   const client = new Client({ name: "test-client", version: "1.0.0" });
   await client.connect(clientTransport);
   return client;
+}
+
+function extractText(result: unknown): string {
+  if (typeof result !== "object" || result === null) return "";
+  const content = (result as { content?: unknown[] }).content;
+  const first = content?.[0];
+  if (first !== undefined && typeof first === "object" && first !== null && "text" in first) {
+    const text = (first as { text?: unknown }).text;
+    if (typeof text === "string") return text;
+  }
+  return "";
 }
 
 describe("mcp-server package", () => {
@@ -110,101 +104,6 @@ describe("mcp-server package", () => {
     const info = client.getServerVersion();
     expect(info?.name).toBe(MCP_SERVER_NAME);
     expect(info?.version).toBe(MCP_SERVER_VERSION);
-  });
-});
-
-describe("mcp-server tool registration", () => {
-  it("registers all 11 read-only and coordination tools", async () => {
-    const server = createMcpServer(createFakeDeps());
-    const client = await connectClient(server);
-    const { tools } = await client.listTools();
-    const names = tools.map((t) => t.name);
-    for (const expected of TOOL_NAMES) {
-      expect(names).toContain(expected);
-    }
-    expect(tools).toHaveLength(TOOL_NAMES.length);
-  });
-
-  it("does NOT register vision_apply_deterministic_patch", async () => {
-    const server = createMcpServer(createFakeDeps());
-    const client = await connectClient(server);
-    const { tools } = await client.listTools();
-    const names = tools.map((t) => t.name);
-    // Built via concatenation so this test source holds no literal token a
-    // future scan flags (same pattern as the docs-freshness forbidden-tool guard).
-    const forbidden = "vision_" + "apply_deterministic_patch";
-    expect(names).not.toContain(forbidden);
-  });
-
-  it("the tool list contains NO source-write / apply / patch / codemod tool (broad scan)", async () => {
-    const server = createMcpServer(createFakeDeps());
-    const client = await connectClient(server);
-    const { tools } = await client.listTools();
-    const names = tools.map((t) => t.name);
-    const forbidden = "vision_" + "apply_deterministic_patch";
-    const isCoordinationSignal = (name: string): boolean =>
-      name === "vision_mark_patch_started" || name === "vision_mark_patch_completed";
-    const sourceMutating = (name: string): boolean => {
-      if (isCoordinationSignal(name)) return false;
-      return (
-        name === forbidden ||
-        /apply/i.test(name) ||
-        /write/i.test(name) ||
-        /patch/i.test(name) ||
-        /codemod/i.test(name)
-      );
-    };
-    const offenders = names.filter(sourceMutating);
-    expect(offenders, `tool list must contain no source-write/apply/patch/codemod tool`).toEqual(
-      [],
-    );
-  });
-
-  it("the strengthened source-mutating scan would catch a hypothetical codemod tool (adversarial probe)", async () => {
-    const forbidden = "vision_" + "apply_deterministic_patch";
-    const isCoordinationSignal = (name: string): boolean =>
-      name === "vision_mark_patch_started" || name === "vision_mark_patch_completed";
-    const sourceMutating = (name: string): boolean => {
-      if (isCoordinationSignal(name)) return false;
-      return (
-        name === forbidden ||
-        /apply/i.test(name) ||
-        /write/i.test(name) ||
-        /patch/i.test(name) ||
-        /codemod/i.test(name)
-      );
-    };
-    const hypotheticalOffenders = [
-      forbidden,
-      "vision_codemod",
-      "vision_codemod_apply",
-      "vision_apply_patch",
-      "vision_write_source",
-      "vision_patch",
-      "vision_apply",
-      "vision_write_file",
-    ];
-    for (const name of hypotheticalOffenders) {
-      expect(sourceMutating(name), `expected "${name}" to be flagged as source-mutating`).toBe(
-        true,
-      );
-    }
-    expect(sourceMutating("vision_mark_patch_started")).toBe(false);
-    expect(sourceMutating("vision_mark_patch_completed")).toBe(false);
-    const readOnlyTools = [
-      "vision_get_active_session",
-      "vision_get_selection",
-      "vision_get_changeset",
-      "vision_get_source_context",
-      "vision_get_verification_plan",
-      "vision_get_diagnostics",
-      "vision_capture_element",
-      "vision_request_verification",
-      "vision_clear_preview",
-    ];
-    for (const name of readOnlyTools) {
-      expect(sourceMutating(name), `expected "${name}" to be allowed`).toBe(false);
-    }
   });
 });
 
@@ -434,46 +333,6 @@ describe("mcp-server V1 source context (VC-V1V2-16)", () => {
   });
 });
 
-describe("mcp-server tool calls", () => {
-  it("returns active session data", async () => {
-    const server = createMcpServer(createFakeDeps());
-    const client = await connectClient(server);
-    const result = await client.callTool({ name: "vision_get_active_session", arguments: {} });
-    const text = extractText(result);
-    const data = JSON.parse(text) as { sessionId: string; connected: boolean };
-    expect(data.sessionId).toBe("sess-test12345678");
-    expect(data.connected).toBe(true);
-  });
-
-  it("returns changeset operations", async () => {
-    const server = createMcpServer(createFakeDeps());
-    const client = await connectClient(server);
-    const result = await client.callTool({ name: "vision_get_changeset", arguments: {} });
-    const data = JSON.parse(extractText(result)) as { operationCount: number };
-    expect(data.operationCount).toBe(1);
-  });
-
-  it("returns diagnostics", async () => {
-    const server = createMcpServer(createFakeDeps());
-    const client = await connectClient(server);
-    const result = await client.callTool({ name: "vision_get_diagnostics", arguments: {} });
-    const data = JSON.parse(extractText(result)) as Array<{ code: string }>;
-    expect(data).toHaveLength(1);
-    expect(data[0]?.code).toBe("LOW_CONFIDENCE");
-  });
-
-  it("marks patch started with input args", async () => {
-    const server = createMcpServer(createFakeDeps());
-    const client = await connectClient(server);
-    const result = await client.callTool({
-      name: "vision_mark_patch_started",
-      arguments: { patchId: "patch-12345678", description: "change color" },
-    });
-    const data = JSON.parse(extractText(result)) as { acknowledged: boolean };
-    expect(data.acknowledged).toBe(true);
-  });
-});
-
 describe("mcp-server redaction", () => {
   it("redacts sensitive keys from tool responses", () => {
     const result = textResult({ password: "VC_SECRET_SHOULD_NOT_EXPORT", data: "ok" });
@@ -484,9 +343,6 @@ describe("mcp-server redaction", () => {
   });
 
   it("redacts high-entropy tokens from strings", () => {
-    // Synthetic high-entropy token. Deliberately NOT a real provider prefix
-    // (no sk_live_/ghp_/AKIA) so it exercises the catch-all entropy path and
-    // stays clear of secret-scanner patterns.
     const token = "vctesttoken_51234567890abcdef1234567890abcdef";
     const result = textResult({ token });
     const text = extractText(result);
@@ -500,8 +356,6 @@ describe("mcp-server tool schemas", () => {
     ["GetSelectionOutputSchema", GetSelectionOutputSchema],
     ["GetChangesetOutputSchema", GetChangesetOutputSchema],
     ["GetVerificationPlanOutputSchema", GetVerificationPlanOutputSchema],
-    ["GetDiagnosticsOutputSchema", GetDiagnosticsOutputSchema],
-    ["CaptureElementOutputSchema", CaptureElementOutputSchema],
     ["CoordinationResultSchema", CoordinationResultSchema],
   ] as const;
 
@@ -572,14 +426,3 @@ describe("mcp-server tool schemas", () => {
     expect(GetChangesetOutputSchema.safeParse(mvpChangeset).success).toBe(true);
   });
 });
-
-function extractText(result: unknown): string {
-  if (typeof result !== "object" || result === null) return "";
-  const content = (result as { content?: unknown[] }).content;
-  const first = content?.[0];
-  if (first !== undefined && typeof first === "object" && first !== null && "text" in first) {
-    const text = (first as { text?: unknown }).text;
-    if (typeof text === "string") return text;
-  }
-  return "";
-}

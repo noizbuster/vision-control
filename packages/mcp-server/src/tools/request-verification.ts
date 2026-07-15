@@ -21,7 +21,7 @@ export function registerRequestVerificationTool(server: McpServer, deps: McpServ
     "vision_request_verification",
     {
       description:
-        "Request the daemon to run the verification engine against the current changeset. Non-source-changing: triggers read-only assertions after HMR.",
+        "Enqueue a request_verification command for the paired extension. Non-source-changing coordination signal; unpaired returns not_paired.",
     },
     async () => {
       const result = await deps.requestVerification();

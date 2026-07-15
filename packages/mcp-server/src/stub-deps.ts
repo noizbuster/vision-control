@@ -11,7 +11,7 @@
 
 import type { McpServerDeps } from "./types.js";
 
-const NOT_PAIRED_NOTE = "not paired — pair the extension to the MCP bridge for live data";
+const NOT_PAIRED_NOTE = "not_paired";
 
 export function createStubDeps(): McpServerDeps {
   return {
@@ -41,12 +41,6 @@ export function createStubDeps(): McpServerDeps {
     },
     async getVerificationPlan() {
       return { assertions: [], notes: NOT_PAIRED_NOTE };
-    },
-    async getDiagnostics() {
-      return [];
-    },
-    async captureElement() {
-      return { captured: false, selector: undefined, sourceId: undefined, note: NOT_PAIRED_NOTE };
     },
     async requestVerification() {
       return { acknowledged: false, message: NOT_PAIRED_NOTE };

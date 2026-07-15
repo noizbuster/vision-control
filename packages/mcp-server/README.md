@@ -54,12 +54,13 @@ secret from the extension pair token.
 
 ## Tools
 
-Seven read-only tools and four coordination signals (none mutate source). Slim
-product list is owned by ADR-020 C5 / task 16; current registration may still
-include legacy names until that task.
+Nine tools (ADR-020 C5): five read/projection + four coordination signals.
+None mutate source. Dropped from the product list: `vision_capture_element`,
+`vision_get_diagnostics` (absent from `TOOL_NAMES`, not empty stubs).
 
-Every tool response flows through `@vision-control/security#redactObject`
-before it leaves the server (ADR-009).
+Every tool response is redacted before it leaves the server (ADR-009). Tools
+read from the extension projection cache when paired; unpaired returns
+`not_paired` / empty and never a stale verification pass.
 
 ## Transports
 

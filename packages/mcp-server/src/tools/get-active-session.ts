@@ -19,7 +19,7 @@ export function registerGetActiveSessionTool(server: McpServer, deps: McpServerD
     "vision_get_active_session",
     {
       description:
-        "Return the current daemon session: session id, workspace, connection state, and protocol version. Read-only.",
+        "Return the active extension session projection: session id, workspace, connection state, and protocol version. Read-only. Unpaired returns connected:false with note not_paired.",
     },
     async () => {
       const session = await deps.getActiveSession();

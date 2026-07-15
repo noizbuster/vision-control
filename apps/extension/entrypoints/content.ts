@@ -1,6 +1,7 @@
+import { synthesizePairingUrlFromHttpPairPage } from "@vision-control/daemon-client";
 import type { ContentScriptDefinition } from "wxt";
 import { defineContentScript } from "wxt/utils/define-content-script";
-import { createRuntimeBus } from "../src/messaging/index.js";
+import { createDaemonConnectMessage, createRuntimeBus } from "../src/messaging/index.js";
 import {
   type ContentEditWiring,
   wireContentEditHandlers,
@@ -55,6 +56,31 @@ function createDefaultDependencies(): ContentEntrypointDependencies {
   };
 }
 
+function isMainFrame(win: Window): boolean {
+  return win.top === win.self;
+}
+
+function isLoopbackHttpPairPage(href: string): boolean {
+  try {
+    const parsed = new URL(href);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false;
+    }
+    const host = parsed.hostname.startsWith("[")
+      ? parsed.hostname.slice(1, -1)
+      : parsed.hostname;
+    if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
+      return false;
+    }
+    return parsed.pathname === "/pair";
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 function sendFrameHello(deps: ContentEntrypointDependencies, bus: ContentEntrypointBus): void {
   bus.send("background", {
     protocolVersion: "1.0.0",
@@ -68,6 +94,44 @@ function sendFrameHello(deps: ContentEntrypointDependencies, bus: ContentEntrypo
   });
 }
 
+function installContentRuntimeSlot(
+  deps: ContentEntrypointDependencies,
+  slot: ContentRuntimeSlot,
+): void {
+  deps.window.__visionControlContentRuntime = slot;
+  deps.window.addEventListener(
+    "pagehide",
+    () => {
+      slot.editHandlers?.dispose();
+      slot.runtime?.dispose();
+      slot.bus.dispose();
+      delete deps.window.__visionControlContentRuntime;
+    },
+    { once: true },
+  );
+}
+
+function tryAutoPairFromPairPage(
+  deps: ContentEntrypointDependencies,
+  bus: ContentEntrypointBus,
+): boolean {
+  if (!isMainFrame(deps.window)) {
+    return false;
+  }
+  const href = deps.window.location.href;
+  const synthesized = synthesizePairingUrlFromHttpPairPage(href);
+  if (synthesized.success) {
+    installContentRuntimeSlot(deps, { bus, runtime: null, editHandlers: null });
+    bus.send("background", createDaemonConnectMessage(synthesized.pairingUrl));
+    return true;
+  }
+  if (isLoopbackHttpPairPage(href)) {
+    installContentRuntimeSlot(deps, { bus, runtime: null, editHandlers: null });
+    return true;
+  }
+  return false;
+}
+
 export function runVisionControlContentScript(deps = createDefaultDependencies()): void {
   const existing = deps.window.__visionControlContentRuntime;
   if (existing !== undefined) {
@@ -76,6 +140,10 @@ export function runVisionControlContentScript(deps = createDefaultDependencies()
   }
 
   const bus = deps.createBus("content");
+  if (tryAutoPairFromPairPage(deps, bus)) {
+    return;
+  }
+
   let runtime: OverlayRuntime | null = null;
   let editHandlers: ContentEditWiring | null = null;
   if (deps.routeableFrame(deps.window)) {
@@ -84,18 +152,7 @@ export function runVisionControlContentScript(deps = createDefaultDependencies()
     editHandlers = deps.wireEditHandlers(bus, runtime);
   }
 
-  deps.window.__visionControlContentRuntime = { bus, runtime, editHandlers };
-  deps.window.addEventListener(
-    "pagehide",
-    () => {
-      editHandlers?.dispose();
-      runtime?.dispose();
-      bus.dispose();
-      delete deps.window.__visionControlContentRuntime;
-    },
-    { once: true },
-  );
-
+  installContentRuntimeSlot(deps, { bus, runtime, editHandlers });
   sendFrameHello(deps, bus);
 }
 

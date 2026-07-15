@@ -14,6 +14,7 @@ interface ReadyInfo {
   port: number;
   host: string;
   pairingUrl: string;
+  pairingHttpUrl: string;
   sessionId: string;
   token: string;
 }
@@ -69,13 +70,24 @@ async function startDaemon(
   workspace: string,
   expectReady = true,
 ): Promise<DaemonProc> {
-  const child = spawn("node", [DAEMON_BIN, "--workspace", workspace, "--port", "0", ...args], {
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  const child = spawn(
+    "node",
+    [DAEMON_BIN, "--workspace", workspace, "--port", "0", "--no-open", ...args],
+    {
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
   if (!expectReady) {
     return {
       child,
-      ready: { port: 0, host: "", pairingUrl: "", sessionId: "", token: "" },
+      ready: {
+        port: 0,
+        host: "",
+        pairingUrl: "",
+        pairingHttpUrl: "",
+        sessionId: "",
+        token: "",
+      },
       stop: async () => {
         child.kill();
         await new Promise<void>((r) => child.once("exit", () => r()));
@@ -87,6 +99,7 @@ async function startDaemon(
     port: number;
     host: string;
     pairingUrl: string;
+    pairingHttpUrl: string;
     sessionId: string;
   };
   const token = new URL(parsed.pairingUrl).searchParams.get("token") ?? "";
@@ -170,6 +183,19 @@ describe("daemon live server", () => {
     expect(proc.ready.host).toBe("127.0.0.1");
     expect(proc.ready.port).toBeGreaterThan(0);
     expect(proc.ready.token.length).toBeGreaterThan(0);
+  });
+
+  it("ready JSON includes pairingHttpUrl with same token and /pair path", () => {
+    expect(proc.ready.pairingHttpUrl.length).toBeGreaterThan(0);
+    expect(proc.ready.pairingUrl.length).toBeGreaterThan(0);
+    const http = new URL(proc.ready.pairingHttpUrl);
+    const deep = new URL(proc.ready.pairingUrl);
+    expect(http.pathname).toBe("/pair");
+    expect(http.hostname).toBe("127.0.0.1");
+    expect(http.port).toBe(String(proc.ready.port));
+    expect(http.searchParams.get("token")).toBe(proc.ready.token);
+    expect(deep.searchParams.get("token")).toBe(proc.ready.token);
+    expect(http.searchParams.get("token")).toBe(deep.searchParams.get("token"));
   });
 
   it("happy path: a valid token completes the handshake with a welcome", async () => {

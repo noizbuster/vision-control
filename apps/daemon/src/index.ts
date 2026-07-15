@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { exit } from "node:process";
 import { pathToFileURL } from "node:url";
+import { maybeOpenPairingPage, openUrl } from "./open-url.js";
 
 export interface ParsedArgs {
   readonly help: boolean;
@@ -104,6 +105,15 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 }
 
 export { shouldOpenBrowser, type OpenBrowserPolicyInput } from "./open-policy.js";
+export {
+  createDefaultOpenUrlRunner,
+  maybeOpenPairingPage,
+  openUrl,
+  resolveOpenCommand,
+  type MaybeOpenPairingPageInput,
+  type OpenUrlFn,
+  type OpenUrlRunner,
+} from "./open-url.js";
 
 /**
  * Daemon entry point. Returns a process exit code.
@@ -299,11 +309,22 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
             port: info.port,
             host: info.host,
             pairingUrl: info.pairingUrl,
+            pairingHttpUrl: info.pairingHttpUrl,
             sessionId: info.sessionId,
             ...(info.mcpUrl !== undefined ? { mcpUrl: info.mcpUrl } : {}),
             ...(info.mcpToken !== undefined ? { mcpToken: info.mcpToken } : {}),
           })}\n`,
         );
+        void maybeOpenPairingPage({
+          pairingHttpUrl: info.pairingHttpUrl,
+          policy: {
+            isTty: process.stdout.isTTY === true,
+            openFlag: parsed.open,
+            noOpenFlag: parsed.noOpen,
+            bindHost: info.host,
+          },
+          openUrl,
+        });
       },
     });
 

@@ -235,4 +235,66 @@ describe("buildPanelContextExport", () => {
     expect(exported.markdown).toContain("## Privacy Report");
     expect(exported.markdown).toContain("src-button-1");
   });
+
+  it("includes map origins and originsTruncated when provided (task 12)", () => {
+    const exported = buildPanelContextExport({
+      selection: makeSelection(),
+      journal: journalWithOps(styleEdit("16px")),
+      snapshotRev: 4,
+      compiledAt: BASE_TIME,
+      origins: [
+        {
+          relativePath: "src/Button.module.css",
+          sourceUrl: "http://localhost:5173/assets/index.css",
+          startLine: 10,
+          endLine: 14,
+          confidence: "high",
+          kind: "css",
+          warnings: [],
+        },
+        {
+          relativePath: "src/Button.tsx",
+          confidence: "medium",
+          kind: "js",
+          warnings: ["module-path-only"],
+        },
+      ],
+      originsTruncated: true,
+    });
+
+    expect(exported.snapshot.origins).toHaveLength(2);
+    expect(exported.snapshot.origins[0]?.relativePath).toBe("src/Button.module.css");
+    expect(exported.snapshot.origins[1]?.relativePath).toBe("src/Button.tsx");
+    expect(exported.snapshot.originsTruncated).toBe(true);
+    expect(exported.snapshot.operations).toHaveLength(1);
+
+    expect(exported.markdown).toContain("## Map Origins");
+    expect(exported.markdown).toContain("_Origins truncated by map caps (C4)._");
+    expect(exported.markdown).toContain("src/Button.module.css");
+    expect(exported.markdown).toContain("src/Button.tsx");
+    expect(exported.markdown).toContain("style-edit");
+
+    const asJson = JSON.parse(exported.json) as {
+      origins: Array<{ relativePath?: string }>;
+      originsTruncated: boolean;
+    };
+    expect(asJson.originsTruncated).toBe(true);
+    expect(asJson.origins.map((o) => o.relativePath)).toEqual([
+      "src/Button.module.css",
+      "src/Button.tsx",
+    ]);
+  });
+
+  it("exports empty origins without crash when omitted", () => {
+    const exported = buildPanelContextExport({
+      selection: makeSelection(),
+      journal: createJournal(),
+      snapshotRev: 0,
+      compiledAt: BASE_TIME,
+    });
+    expect(exported.snapshot.origins).toEqual([]);
+    expect(exported.snapshot.originsTruncated).toBe(false);
+    expect(exported.markdown).toContain("_No map origins resolved._");
+    expect(VisionContextSnapshotSchema.safeParse(exported.snapshot).success).toBe(true);
+  });
 });

@@ -208,12 +208,14 @@ describe("buildAgentPrompt", () => {
       selection: makeSelection(),
       journal: journalWithOps(styleEdit("16px")),
       origins: [origin],
+      originsTruncated: true,
       compiledAt: BASE_TIME,
     });
 
     expect(prompt).toContain("style-edit");
     expect(prompt).toContain("src/Button.tsx");
     expect(prompt).toContain("medium");
+    expect(prompt).toContain("_Origins truncated by map caps (C4)._");
   });
 
   it("redacts secrets in URL, selection, and operation detail via snapshot path", () => {

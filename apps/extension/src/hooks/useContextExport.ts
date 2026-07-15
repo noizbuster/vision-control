@@ -4,6 +4,7 @@
  */
 
 import type { Journal } from "@vision-control/change-journal";
+import type { MapOrigin } from "@vision-control/context-compiler";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -26,6 +27,12 @@ export interface UseContextExportOptions {
   readonly journal: Journal;
   readonly tabId?: string | number | null;
   readonly sessionId?: string;
+  /**
+   * Map origins from content-script resolve when available (task 12).
+   * Empty/omitted is valid — export still includes journal IR.
+   */
+  readonly origins?: readonly MapOrigin[];
+  readonly originsTruncated?: boolean;
 }
 
 export interface UseContextExportResult {
@@ -40,7 +47,7 @@ const JSON_MIME = "application/json;charset=utf-8";
 const MARKDOWN_MIME = "text/markdown;charset=utf-8";
 
 export function useContextExport(options: UseContextExportOptions): UseContextExportResult {
-  const { selection, journal, tabId, sessionId } = options;
+  const { selection, journal, tabId, sessionId, origins, originsTruncated } = options;
   const [status, setStatus] = useState<ContextExportStatus>("idle");
   const snapshotRevRef = useRef(0);
 
@@ -52,8 +59,10 @@ export function useContextExport(options: UseContextExportOptions): UseContextEx
       snapshotRev: snapshotRevRef.current,
       ...(tabId !== undefined && tabId !== null ? { tabId: String(tabId) } : {}),
       ...(sessionId !== undefined ? { sessionId } : {}),
+      ...(origins !== undefined ? { origins } : {}),
+      ...(originsTruncated !== undefined ? { originsTruncated } : {}),
     });
-  }, [selection, journal, tabId, sessionId]);
+  }, [selection, journal, tabId, sessionId, origins, originsTruncated]);
 
   const writeClipboard = useCallback((text: string, next: ContextExportStatus): void => {
     const clipboard = navigator.clipboard;

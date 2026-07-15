@@ -26,6 +26,7 @@
     "@vision-control/inspector-core": "workspace:*",
     "@vision-control/interaction-machine": "workspace:*",
     "@vision-control/layout-engine": "workspace:*",
+    "@vision-control/map-origins": "workspace:*",
     "@vision-control/overlay-ui": "workspace:*",
     "@vision-control/preview-engine": "workspace:*",
     "@vision-control/protocol": "workspace:*",

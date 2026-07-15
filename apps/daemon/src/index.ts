@@ -9,6 +9,8 @@ export interface ParsedArgs {
   readonly workspace?: string;
   readonly db?: string;
   readonly mcpPort?: number;
+  readonly open: boolean;
+  readonly noOpen: boolean;
 }
 
 export const DEFAULT_HOST = "127.0.0.1";
@@ -29,6 +31,11 @@ Options:
   --mcp-port <port>    MCP HTTP transport port. 0 = ephemeral. When set, serves the
                        read-only MCP server over loopback HTTP with a separate bearer
                        token (ADR-013). Default: MCP transport disabled.
+  --open               Force open the local pairing page in a browser after ready
+                       (even when stdout is not a TTY).
+  --no-open            Never open a browser after ready. Wins over --open.
+                       Default: open on interactive TTY when bound to 127.0.0.1;
+                       stay quiet in non-TTY (CI/scripts) and for ::1/localhost binds.
   --help               Print this help and exit without binding.
 
 Security:
@@ -46,6 +53,8 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   let workspace: string | undefined;
   let db: string | undefined;
   let mcpPort: number | undefined;
+  let open = false;
+  let noOpen = false;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? "";
     const next = argv[i + 1];
@@ -76,10 +85,16 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       i += 1;
     } else if (arg.startsWith("--mcp-port=")) {
       mcpPort = Number.parseInt(arg.slice("--mcp-port=".length), 10);
+    } else if (arg === "--open") {
+      open = true;
+    } else if (arg === "--no-open") {
+      noOpen = true;
     }
   }
   return {
     help,
+    open,
+    noOpen,
     ...(host !== undefined ? { host } : {}),
     ...(port !== undefined ? { port } : {}),
     ...(workspace !== undefined ? { workspace } : {}),
@@ -87,6 +102,8 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     ...(mcpPort !== undefined ? { mcpPort } : {}),
   };
 }
+
+export { shouldOpenBrowser, type OpenBrowserPolicyInput } from "./open-policy.js";
 
 /**
  * Daemon entry point. Returns a process exit code.

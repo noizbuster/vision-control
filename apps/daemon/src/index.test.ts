@@ -9,7 +9,14 @@ import { DEFAULT_HOST, HELP_TEXT, parseArgs } from "./index.js";
 describe("parseArgs", () => {
   it("parses space-separated options", () => {
     const parsed = parseArgs(["--host", "::1", "--port", "8080", "--workspace", "/tmp/ws"]);
-    expect(parsed).toEqual({ help: false, host: "::1", port: 8080, workspace: "/tmp/ws" });
+    expect(parsed).toEqual({
+      help: false,
+      open: false,
+      noOpen: false,
+      host: "::1",
+      port: 8080,
+      workspace: "/tmp/ws",
+    });
   });
 
   it("parses equals-form options", () => {
@@ -17,6 +24,8 @@ describe("parseArgs", () => {
     expect(parsed.host).toBe("localhost");
     expect(parsed.port).toBe(9);
     expect(parsed.db).toBe("/tmp/x.db");
+    expect(parsed.open).toBe(false);
+    expect(parsed.noOpen).toBe(false);
   });
 
   it("detects --help and -h", () => {
@@ -28,6 +37,32 @@ describe("parseArgs", () => {
   it("defaults host to loopback sentinel when absent", () => {
     expect(DEFAULT_HOST).toBe("127.0.0.1");
     expect(parseArgs([]).help).toBe(false);
+    expect(parseArgs([]).open).toBe(false);
+    expect(parseArgs([]).noOpen).toBe(false);
+  });
+
+  it("parses --open", () => {
+    expect(parseArgs(["--open"]).open).toBe(true);
+    expect(parseArgs(["--open"]).noOpen).toBe(false);
+  });
+
+  it("parses --no-open", () => {
+    expect(parseArgs(["--no-open"]).noOpen).toBe(true);
+    expect(parseArgs(["--no-open"]).open).toBe(false);
+  });
+
+  it("parses both --open and --no-open without dropping either flag", () => {
+    const parsed = parseArgs(["--open", "--no-open"]);
+    expect(parsed.open).toBe(true);
+    expect(parsed.noOpen).toBe(true);
+  });
+
+  it("parses open flags mixed with other options in any order", () => {
+    const parsed = parseArgs(["--port", "9", "--no-open", "--host", "127.0.0.1", "--open"]);
+    expect(parsed.port).toBe(9);
+    expect(parsed.host).toBe("127.0.0.1");
+    expect(parsed.open).toBe(true);
+    expect(parsed.noOpen).toBe(true);
   });
 });
 
@@ -35,6 +70,13 @@ describe("HELP_TEXT", () => {
   it("documents the loopback-only constraint", () => {
     expect(HELP_TEXT).toContain("loopback");
     expect(HELP_TEXT).toContain("0.0.0.0");
+  });
+
+  it("documents --open, --no-open, and the TTY default", () => {
+    expect(HELP_TEXT).toContain("--open");
+    expect(HELP_TEXT).toContain("--no-open");
+    expect(HELP_TEXT).toContain("TTY");
+    expect(HELP_TEXT).toContain("127.0.0.1");
   });
 });
 

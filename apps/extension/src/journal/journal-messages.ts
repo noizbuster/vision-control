@@ -11,7 +11,10 @@ export interface JournalStatePayload {
   readonly journal: Journal | null;
 }
 
-export function createJournalReplaceMessage(tabId: number | undefined, journal: Journal): BusMessage {
+export function createJournalReplaceMessage(
+  tabId: number | undefined,
+  journal: Journal,
+): BusMessage {
   return {
     protocolVersion: "1.0.0",
     messageId: `journal-replace-${tabId ?? "tab"}-${Date.now()}`,

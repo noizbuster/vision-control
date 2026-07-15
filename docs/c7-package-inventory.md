@@ -6,8 +6,11 @@ Hard-delete (task 21) may only remove rows marked **Delete** here. Do not
 reclassify Keep → Delete without a plan amendment.
 
 **Unwire status (task 20):** product entrypoints no longer require the daemon,
-workspace index, component-props AST, or marker HIGH path. Packages marked
-Delete may still exist on disk until task 21.
+workspace index, component-props AST, or marker HIGH path.
+
+**Hard-delete status (task 21):** all **Delete** rows removed from the workspace
+graph (apps/daemon, daemon-core, daemon-client, storage, workspace-index,
+source-resolver, source-registry, marker/workspace integrations).
 
 | Package / app | Disposition | Unwire notes (task 20) |
 |---|---|---|

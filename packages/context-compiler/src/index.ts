@@ -13,10 +13,10 @@
  * const snapshot = compileVisionContextSnapshot(inputs);
  * ```
  *
- * Platform: isomorphic. No DOM or filesystem access. The inspector-core and
- * source-resolver types are consumed type-only (devDependencies); only
- * isomorphic packages (`change-ir`, `security`, `verification-engine`) and
- * `zod` are runtime deps. Portable snapshots compile without workspaceRoot.
+ * Platform: isomorphic. No DOM or filesystem access. Inspector-core types are
+ * consumed type-only (devDependencies); only isomorphic packages (`change-ir`,
+ * `security`, `verification-engine`) and `zod` are runtime deps. Portable
+ * snapshots compile without workspaceRoot.
  */
 
 export const PACKAGE_NAME = "@vision-control/context-compiler";

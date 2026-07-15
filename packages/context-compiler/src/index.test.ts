@@ -1,7 +1,7 @@
 import type { ChangeSet, Operation } from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
-import type { SourceCandidate } from "@vision-control/source-resolver";
 import { describe, expect, it } from "vitest";
+import type { SourceCandidateSummary } from "./context-schema.js";
 
 import {
   type CompileContextInputs,
@@ -130,7 +130,7 @@ const makeChangeSet = (operations: readonly Operation[] = [styleEditOperation]):
   committed: false,
 });
 
-const makeCandidate = (overrides?: Partial<SourceCandidate>): SourceCandidate => ({
+const makeCandidate = (overrides?: Partial<SourceCandidateSummary>): SourceCandidateSummary => ({
   workspaceRelativePath: "src/components/Button.tsx",
   componentName: "Button",
   snippet: "export function Button() {\n  return <button>Click</button>;\n}",

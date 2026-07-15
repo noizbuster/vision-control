@@ -179,7 +179,9 @@ describe("VisionContextSnapshot portable schema", () => {
     ];
     const operations = [makeOperation()];
     const snapshot = compileVisionContextSnapshot(makeInputs({ origins, operations }));
-    origins[0]!.warnings.push("mutated");
+    const firstOrigin = origins[0];
+    if (firstOrigin === undefined) throw new Error("expected origin");
+    firstOrigin.warnings.push("mutated");
     operations.push({
       id: "op-extra",
       kind: "text-edit",

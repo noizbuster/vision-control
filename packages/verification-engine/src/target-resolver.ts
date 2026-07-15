@@ -19,7 +19,6 @@
  */
 
 import type { IdentityConfidence } from "@vision-control/element-identity";
-import type { SourceRegistry } from "@vision-control/source-registry";
 
 import type { VerificationDomAdapter } from "./dom-adapter.js";
 import type { ResolvedTarget, SourceCandidate } from "./types.js";
@@ -29,8 +28,6 @@ const SOURCE_ATTR = "data-vc-source";
 /** Options for {@link resolveTarget}. */
 export interface ResolveTargetOptions {
   readonly dom: VerificationDomAdapter;
-  /** Source registry for stable source-id → source-entry lookup. */
-  readonly registry?: SourceRegistry;
   /** Identity hints beyond the source id (used by fallback strategies). */
   readonly hints?: SourceCandidate;
   /**
@@ -46,7 +43,7 @@ export interface ResolveTargetOptions {
  * @param sourceId Opaque source id from the original selection. May be
  *   undefined for elements without a source marker (then only fallback
  *   strategies apply).
- * @param options DOM adapter, optional registry, identity hints, instance index.
+ * @param options DOM adapter, identity hints, instance index.
  * @returns The resolved target with confidence, or null when not found.
  */
 export async function resolveTarget(

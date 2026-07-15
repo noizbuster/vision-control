@@ -8,16 +8,17 @@ import type {
   GridSpanCandidate,
 } from "@vision-control/layout-engine";
 import type { InteractionMode } from "@vision-control/overlay-ui";
-// Type-only imports from source-resolver (platform:node) are boundary-safe: they
-// are erased at compile time and pull zero runtime code into the browser bundle.
-// The symmetric `browser-imports-node` checker (task 1) skips type-only imports.
-import type {
-  BoundaryKind,
-  OwnershipContext,
-  PropFlowWarningSeverity,
-} from "@vision-control/source-resolver";
 
 import type { BusMessage, ConnectionState, TabSession } from "./types.js";
+
+/** Local ownership context for component-props UI (legacy daemon path unwired). */
+export type OwnershipContext = "same-component" | "reparented-or-moved" | "cross-boundary";
+
+/** Local boundary kind for component-props UI (legacy daemon path unwired). */
+export type BoundaryKind = "server-to-client" | "client-to-server" | "context-provider" | "none";
+
+/** Local prop-flow warning severity for panel wire payloads. */
+export type PropFlowWarningSeverity = "info" | "warning" | "error";
 
 export {
   BRIDGE_CONNECT_MESSAGE_TYPE,

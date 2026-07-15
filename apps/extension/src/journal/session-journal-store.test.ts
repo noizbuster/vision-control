@@ -1,10 +1,10 @@
+import type { Operation } from "@vision-control/change-ir";
 import {
   appendEntry,
   createJournal,
   createJournalEntry,
   type Journal,
 } from "@vision-control/change-journal";
-import type { Operation } from "@vision-control/change-ir";
 import { describe, expect, it } from "vitest";
 
 import { journalStorageKey } from "./session-journal-keys.js";
@@ -63,9 +63,7 @@ function createMemorySessionStorage(): chrome.storage.StorageArea & {
         return Object.fromEntries(data.entries());
       }
       if (typeof keys === "string") {
-        return keys in Object.fromEntries(data) || data.has(keys)
-          ? { [keys]: data.get(keys) }
-          : {};
+        return keys in Object.fromEntries(data) || data.has(keys) ? { [keys]: data.get(keys) } : {};
       }
       if (Array.isArray(keys)) {
         const out: Record<string, unknown> = {};
@@ -99,7 +97,7 @@ function createMemorySessionStorage(): chrome.storage.StorageArea & {
 }
 
 describe("SessionJournalStore (C1 sole writer)", () => {
-  it("writes only journal:v1:${tabId} session keys", async () => {
+  it("writes only journal:v1:<tabId> session keys", async () => {
     const storage = createMemorySessionStorage();
     const store = new SessionJournalStore({ storage });
     const journal = journalWithOp("op-store-001");

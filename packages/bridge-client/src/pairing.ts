@@ -115,9 +115,7 @@ export type SynthesizePairingUrlResult =
  * Synthesize a `vision-control://pair?...` URL from a loopback HTTP(S) pair page.
  * Accepts only loopback hosts with path `/pair` (content-script auto-pair).
  */
-export function synthesizePairingUrlFromHttpPairPage(
-  input: string,
-): SynthesizePairingUrlResult {
+export function synthesizePairingUrlFromHttpPairPage(input: string): SynthesizePairingUrlResult {
   if (typeof input !== "string" || input.length === 0) {
     return { success: false, reason: "empty pair page URL" };
   }
@@ -178,9 +176,7 @@ export function synthesizePairingUrlFromHttpPairPage(
 }
 
 function normalizeHostname(hostname: string): string {
-  return hostname.startsWith("[") && hostname.endsWith("]")
-    ? hostname.slice(1, -1)
-    : hostname;
+  return hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
 }
 
 function looksLikeBareToken(input: string): boolean {

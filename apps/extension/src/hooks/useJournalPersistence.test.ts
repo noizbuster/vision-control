@@ -1,14 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
+import type { Operation } from "@vision-control/change-ir";
 import {
   appendEntry,
   createJournal,
   createJournalEntry,
   type Journal,
 } from "@vision-control/change-journal";
-import type { Operation } from "@vision-control/change-ir";
 import { describe, expect, it, vi } from "vitest";
 
-import type { BusMessage, BusMessageHandler, MessageBus } from "../messaging/index.js";
+import type { BusMessage, BusMessageHandler, BusRoute, MessageBus } from "../messaging/index.js";
 import { useJournalPersistence } from "./useJournalPersistence.js";
 
 const BASE_TIME = 1_700_000_000_000;
@@ -48,11 +48,11 @@ function createFakeBus(): MessageBus & {
   const handlers = new Map<string, Set<BusMessageHandler>>();
   const sent: BusMessage[] = [];
   return {
-    getRoute: () => "panel",
-    send: (_target, message) => {
-      sent.push(message);
+    getRoute: () => "panel" as const,
+    send: (_target: BusRoute, message: Omit<BusMessage, "sourceRoute" | "targetRoute">) => {
+      sent.push(message as BusMessage);
     },
-    on: (type, handler) => {
+    on: (type: string, handler: BusMessageHandler) => {
       const set = handlers.get(type) ?? new Set();
       set.add(handler);
       handlers.set(type, set);
@@ -62,12 +62,12 @@ function createFakeBus(): MessageBus & {
     get sent() {
       return sent;
     },
-    emit: (type, message) => {
+    emit: (type: string, message: BusMessage) => {
       for (const handler of handlers.get(type) ?? []) {
         void handler(message, { route: "background" });
       }
     },
-  } as MessageBus & {
+  } as unknown as MessageBus & {
     readonly sent: BusMessage[];
     readonly emit: (type: string, message: BusMessage) => void;
   };

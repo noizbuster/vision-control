@@ -9,7 +9,6 @@ import {
 
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { redactObject } from "@vision-control/security";
-import type { SourceCandidate } from "@vision-control/source-resolver";
 
 /**
  * Risk gate D.6: privacy export redaction.
@@ -86,7 +85,10 @@ const emptyChangeset: ChangeSet = {
   updatedAt: 1000,
 };
 
-const sourceCandidates: readonly SourceCandidate[] = [];
+const sourceCandidates: readonly {
+  readonly confidence: "high" | "medium" | "low";
+  readonly warnings: readonly string[];
+}[] = [];
 
 const compileInputs = {
   goal: "Edit the password field",

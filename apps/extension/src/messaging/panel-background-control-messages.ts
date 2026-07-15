@@ -1,6 +1,10 @@
-import type { BoundaryKind, OwnershipContext } from "@vision-control/source-resolver";
-
 import type { BusMessage } from "./types.js";
+
+/** Local ownership context for component-props request payloads. */
+export type OwnershipContext = "same-component" | "reparented-or-moved" | "cross-boundary";
+
+/** Local boundary kind for component-props request payloads. */
+export type BoundaryKind = "server-to-client" | "client-to-server" | "context-provider" | "none";
 
 export function createHostAccessChangedMessage(): BusMessage {
   return {
@@ -66,15 +70,12 @@ export type BridgeConnectMessageType = (typeof BRIDGE_CONNECT_MESSAGE_TYPES)[num
 export type BridgeDisconnectMessageType = (typeof BRIDGE_DISCONNECT_MESSAGE_TYPES)[number];
 
 export function isBridgeConnectMessageType(messageType: string): boolean {
-  return (
-    messageType === BRIDGE_CONNECT_MESSAGE_TYPE || messageType === DAEMON_CONNECT_MESSAGE_TYPE
-  );
+  return messageType === BRIDGE_CONNECT_MESSAGE_TYPE || messageType === DAEMON_CONNECT_MESSAGE_TYPE;
 }
 
 export function isBridgeDisconnectMessageType(messageType: string): boolean {
   return (
-    messageType === BRIDGE_DISCONNECT_MESSAGE_TYPE ||
-    messageType === DAEMON_DISCONNECT_MESSAGE_TYPE
+    messageType === BRIDGE_DISCONNECT_MESSAGE_TYPE || messageType === DAEMON_DISCONNECT_MESSAGE_TYPE
   );
 }
 

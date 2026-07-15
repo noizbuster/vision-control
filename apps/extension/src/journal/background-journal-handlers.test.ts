@@ -1,10 +1,10 @@
+import type { Operation } from "@vision-control/change-ir";
 import {
   appendEntry,
   createJournal,
   createJournalEntry,
   type Journal,
 } from "@vision-control/change-journal";
-import type { Operation } from "@vision-control/change-ir";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MessageBus } from "../messaging/bus.js";
@@ -95,16 +95,20 @@ function createFakeBus(): MessageBus & {
 } {
   const handlers = new Map<string, Set<(message: BusMessage, sender: MessageContext) => void>>();
   return {
-    getRoute: () => "background",
+    getRoute: () => "background" as const,
     send: () => {},
-    on: (type, handler) => {
+    on: (type: string, handler: (message: BusMessage, sender: MessageContext) => void) => {
       const set = handlers.get(type) ?? new Set();
       set.add(handler);
       handlers.set(type, set);
       return () => set.delete(handler);
     },
     dispose: () => handlers.clear(),
-    emit: (type, message, sender = { route: "panel", tabId: message.tabId }) => {
+    emit: (
+      type: string,
+      message: BusMessage,
+      sender: MessageContext = { route: "panel", tabId: message.tabId },
+    ) => {
       for (const handler of handlers.get(type) ?? []) {
         handler(message, sender);
       }
@@ -204,11 +208,10 @@ describe("background journal handlers (C1 bus mutations)", () => {
     });
 
     // Content sends mutation via bus (not storage).
-    bus.emit(
-      "journal-replace",
-      createJournalReplaceMessage(3, journalWithOp("op-from-content")),
-      { route: "content", tabId: 3 },
-    );
+    bus.emit("journal-replace", createJournalReplaceMessage(3, journalWithOp("op-from-content")), {
+      route: "content",
+      tabId: 3,
+    });
 
     await vi.waitFor(() => {
       expect(store.get(3).entries[0]?.operation.id).toBe("op-from-content");

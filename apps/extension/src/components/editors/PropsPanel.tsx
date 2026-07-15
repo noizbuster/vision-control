@@ -4,10 +4,10 @@ import {
   createSetComponentPropCommand,
   type SelectionSummary,
 } from "@vision-control/inspector-core";
-import type { BoundaryKind, OwnershipContext } from "@vision-control/source-resolver";
 import type { ReactElement } from "react";
 import { useCallback, useState } from "react";
 import type { ComponentPropEntry, PropFlowWarningEntry } from "../../messaging/index.js";
+import type { BoundaryKind, OwnershipContext } from "../../messaging/panel-messages.js";
 
 /**
  * Local mirror of `@vision-control/source-resolver`'s `propFlowWarnings`

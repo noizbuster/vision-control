@@ -1,15 +1,15 @@
 export {
+  type BackgroundCommandRouter,
+  type BackgroundCommandRouterOptions,
+  createBackgroundCommandRouter,
+} from "./background-command-router.js";
+export {
   type BridgeCommandPayload,
   type CommandDispatchResult,
   type CoordinationCommandKind,
   dispatchCommandKind,
   parseBridgeCommandPayload,
 } from "./bridge-command-kinds.js";
-export {
-  type BackgroundCommandRouter,
-  type BackgroundCommandRouterOptions,
-  createBackgroundCommandRouter,
-} from "./background-command-router.js";
 export {
   BRIDGE_COMMAND_MESSAGE_TYPE,
   BRIDGE_COMMAND_RESULT_MESSAGE_TYPE,

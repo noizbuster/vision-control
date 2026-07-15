@@ -18,7 +18,6 @@
 
 import type { BreakpointOperation, ChangeSet } from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
-import type { SourceCandidate } from "@vision-control/source-resolver";
 
 import {
   type BreakpointContext,
@@ -58,8 +57,8 @@ export interface CompileContextInputs {
   readonly selection: SelectionSummary;
   /** The change set under review (operations are reduced to summaries). */
   readonly changeset: ChangeSet;
-  /** Source candidates resolved for the selected element. */
-  readonly sourceCandidates: readonly SourceCandidate[];
+  /** Source candidates for the selected element (map origins / panel export). */
+  readonly sourceCandidates: readonly SourceCandidateSummary[];
   /** Warnings collected from every source. */
   readonly warnings: readonly Warning[];
   /** Max tokens for the compiled context (default {@link DEFAULT_TOKEN_BUDGET}). */
@@ -173,8 +172,8 @@ const projectTarget = (
 ): { readonly target: TargetSummary; readonly redactions: readonly PrivacyReportRedaction[] } =>
   redactTarget(projectSelectionToTarget(selection), rules);
 
-/** Project source-resolver candidates into the context source summary. */
-const projectSource = (candidates: readonly SourceCandidate[]): SourceSummary => {
+/** Project source candidates into the context source summary. */
+const projectSource = (candidates: readonly SourceCandidateSummary[]): SourceSummary => {
   const projected: SourceCandidateSummary[] = candidates.map(projectCandidate);
   const bestIndex = pickBestIndex(projected);
   return bestIndex !== undefined
@@ -182,7 +181,7 @@ const projectSource = (candidates: readonly SourceCandidate[]): SourceSummary =>
     : { candidates: projected };
 };
 
-const projectCandidate = (candidate: SourceCandidate): SourceCandidateSummary => ({
+const projectCandidate = (candidate: SourceCandidateSummary): SourceCandidateSummary => ({
   ...(candidate.workspaceRelativePath !== undefined
     ? { workspaceRelativePath: candidate.workspaceRelativePath }
     : {}),

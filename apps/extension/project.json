@@ -20,13 +20,6 @@
         "cwd": "apps/extension"
       }
     },
-    "dev-pair": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "node scripts/dev-with-pair.mjs",
-        "cwd": "apps/extension"
-      }
-    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
@@ -37,7 +30,7 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "vitest run && node --test scripts/dev-pair-helpers.test.mjs",
+        "command": "vitest run",
         "cwd": "apps/extension"
       }
     },

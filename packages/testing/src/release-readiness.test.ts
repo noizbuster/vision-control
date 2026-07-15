@@ -432,21 +432,25 @@ describe("release readiness: removed plan token is absent (Task 33)", () => {
   });
 });
 
-describe("release readiness: vanilla-css graduated from V1 stubs (Task 45)", () => {
-  it("VANILLA_CSS_ADAPTER is absent from V1_NOT_IMPLEMENTED_ADAPTERS", () => {
-    const source = readFileSync(
-      path.join(repoRoot, "packages", "source-resolver", "src", "v1-stubs.ts"),
-      "utf8",
-    );
-    const decl = source.indexOf("V1_NOT_IMPLEMENTED_ADAPTERS");
-    expect(decl, "V1_NOT_IMPLEMENTED_ADAPTERS must still be declared").toBeGreaterThan(-1);
-    const start = source.indexOf("[", decl);
-    const end = source.indexOf("];", start);
-    expect(end, "V1_NOT_IMPLEMENTED_ADAPTERS array must be terminated").toBeGreaterThan(-1);
-    const body = source.slice(start, end).toLowerCase();
-    expect(
-      body,
-      "V1_NOT_IMPLEMENTED_ADAPTERS must not list vanilla-css (Task 45 graduated it)",
-    ).not.toContain("vanilla");
+describe("release readiness: C7 Delete packages are gone (extension-sot task 21)", () => {
+  it("daemon and marker/workspace packages are not present on disk", () => {
+    const deleted = [
+      "apps/daemon",
+      "packages/daemon-core",
+      "packages/daemon-client",
+      "packages/storage",
+      "packages/workspace-index",
+      "packages/source-resolver",
+      "packages/source-registry",
+      "integrations/vite-react",
+      "integrations/next-react",
+      "integrations/tailwind",
+      "integrations/css-modules",
+      "integrations/vanilla-css",
+      "integrations/vue",
+      "integrations/svelte",
+    ];
+    const stillPresent = deleted.filter((rel) => existsSync(path.join(repoRoot, rel)));
+    expect(stillPresent, `C7 Delete rows must be removed:\n${stillPresent.join("\n")}`).toEqual([]);
   });
 });

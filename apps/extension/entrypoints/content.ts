@@ -69,9 +69,7 @@ function isLoopbackHttpPairPage(href: string): boolean {
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return false;
     }
-    const host = parsed.hostname.startsWith("[")
-      ? parsed.hostname.slice(1, -1)
-      : parsed.hostname;
+    const host = parsed.hostname.startsWith("[") ? parsed.hostname.slice(1, -1) : parsed.hostname;
     if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
       return false;
     }

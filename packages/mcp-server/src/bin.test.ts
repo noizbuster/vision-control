@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import {
-  formatPairingStderrLines,
-  mintPairToken,
-  NonLoopbackHostError,
-} from "./bridge/index.js";
 import { type StartedMcpProcess, startMcpProcess } from "./bin.js";
+import { formatPairingStderrLines, mintPairToken, NonLoopbackHostError } from "./bridge/index.js";
 import { createStubDeps } from "./stub-deps.js";
 
 describe("startMcpProcess — no daemon required (ADR-020 C2)", () => {

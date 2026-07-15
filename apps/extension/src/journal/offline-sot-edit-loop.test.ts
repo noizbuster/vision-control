@@ -8,6 +8,7 @@
  * Panel browser e2e is optional; this file is the non-fixme automated proof.
  */
 
+import { computeInverse, type Operation } from "@vision-control/change-ir";
 import {
   appendEntry,
   canRedoJournal,
@@ -18,11 +19,15 @@ import {
   redo,
   undo,
 } from "@vision-control/change-journal";
-import { computeInverse, type Operation } from "@vision-control/change-ir";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MessageBus } from "../messaging/bus.js";
-import type { BusMessage, BusMessageHandler, BusRoute, MessageContext } from "../messaging/types.js";
+import type {
+  BusMessage,
+  BusMessageHandler,
+  BusRoute,
+  MessageContext,
+} from "../messaging/types.js";
 import { wireContentEditHandlers } from "../overlay/content-edit-wiring.js";
 import {
   createOverlayRuntime,
@@ -129,21 +134,25 @@ function createOfflineBus(): MessageBus & {
 } {
   const handlers = new Map<string, Set<BusMessageHandler>>();
   return {
-    getRoute: () => "background",
+    getRoute: () => "background" as const,
     send: () => {},
-    on: (type, handler) => {
+    on: (type: string, handler: BusMessageHandler) => {
       const set = handlers.get(type) ?? new Set();
       set.add(handler);
       handlers.set(type, set);
       return () => set.delete(handler);
     },
     dispose: () => handlers.clear(),
-    emit: (type, message, sender = { route: "panel", tabId: message.tabId ?? TAB_ID }) => {
+    emit: (
+      type: string,
+      message: BusMessage,
+      sender: MessageContext = { route: "panel", tabId: message.tabId ?? TAB_ID },
+    ) => {
       for (const handler of handlers.get(type) ?? []) {
         handler(message, sender);
       }
     },
-    deliver: (_route, message) => {
+    deliver: (_route: BusRoute, message: BusMessage) => {
       for (const handler of handlers.get(message.messageType) ?? []) {
         handler(message, { route: "background", tabId: message.tabId });
       }
@@ -154,9 +163,7 @@ function createOfflineBus(): MessageBus & {
   };
 }
 
-function createContentBus(
-  onSendToBackground: (message: BusMessage) => void,
-): OverlayRuntimeBus & {
+function createContentBus(onSendToBackground: (message: BusMessage) => void): OverlayRuntimeBus & {
   readonly emit: (messageType: string, payload: unknown) => void;
   readonly deliver: (message: BusMessage) => void;
 } {
@@ -290,10 +297,14 @@ describe("@offline-sot offline edit loop (no daemon/MCP)", () => {
     contentStateMessages = [];
 
     contentBus = createContentBus((message) => {
-      bgBus.emit(message.messageType, { ...message, tabId: message.tabId ?? TAB_ID }, {
-        route: "content",
-        tabId: TAB_ID,
-      });
+      bgBus.emit(
+        message.messageType,
+        { ...message, tabId: message.tabId ?? TAB_ID },
+        {
+          route: "content",
+          tabId: TAB_ID,
+        },
+      );
     });
 
     journalHandlers = installBackgroundJournalHandlers({
@@ -478,11 +489,7 @@ describe("@offline-sot offline edit loop (no daemon/MCP)", () => {
       styleEdit("opofftabA", "rt-a", "blue", "red"),
       0,
     );
-    const journalB = appendCommitted(
-      createJournal(),
-      classAdd("opofftabB", "rt-b", "other"),
-      0,
-    );
+    const journalB = appendCommitted(createJournal(), classAdd("opofftabB", "rt-b", "other"), 0);
 
     bgBus.emit("journal-replace", createJournalReplaceMessage(tabA, journalA), {
       route: "panel",

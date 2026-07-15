@@ -19,7 +19,6 @@
     "@vision-control/change-ir": "workspace:*",
     "@vision-control/element-identity": "workspace:*",
     "@vision-control/geometry": "workspace:*",
-    "@vision-control/source-registry": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -34,17 +34,12 @@ const manifest: readonly GeneratePackageOptions[] = [
   iso("interaction-machine"),
   iso("layout-engine"),
   iso("preview-engine"),
-  iso("source-registry"),
-  iso("source-resolver"),
-  iso("workspace-index"),
   iso("context-compiler"),
   iso("map-origins"),
+  iso("bridge-client"),
   iso("verification-engine"),
-  iso("daemon-core"),
-  iso("daemon-client"),
   iso("mcp-server"),
   iso("security"),
-  iso("storage"),
   iso("logger"),
   iso("testing"),
   // Browser libraries (platform:browser, type:library)
@@ -54,21 +49,13 @@ const manifest: readonly GeneratePackageOptions[] = [
   browser("editor-core"),
   // Node library (platform:node, type:library)
   nodePackage("cli", "packages/cli"),
-  // Node app (platform:node, type:app)
-  nodePackage("daemon", "apps/daemon", { type: "app" }),
   // Browser app (platform:browser, type:app)
   browserPackage("extension", "apps/extension", { type: "app" }),
   // Fixture apps (platform:browser, type:fixture)
   fixtureApp("playground-react-vite", "apps/playground-react-vite"),
   fixtureApp("playground-next", "apps/playground-next"),
   fixtureApp("visual-regression-lab", "apps/visual-regression-lab"),
-  // Build-tool integrations (platform:node, type:integration)
-  integrationPackage("vite-react", "integrations/vite-react"),
-  integrationPackage("next-react", "integrations/next-react"),
-  integrationPackage("tailwind", "integrations/tailwind"),
-  integrationPackage("css-modules", "integrations/css-modules"),
-  integrationPackage("vue", "integrations/vue"),
-  integrationPackage("svelte", "integrations/svelte"),
+  // Agent config integrations (platform:node, type:integration)
   integrationPackage("opencode", "integrations/opencode"),
   integrationPackage("pi", "integrations/pi"),
 ];

@@ -26,14 +26,16 @@ describe("parseBridgeCommandPayload / dispatchCommandKind", () => {
       tabId: "7",
     });
     expect(clear?.kind).toBe("clear_preview");
-    expect(dispatchCommandKind(clear!)).toEqual({ kind: "clear_preview" });
+    if (clear === undefined) throw new Error("expected clear_preview payload");
+    expect(dispatchCommandKind(clear)).toEqual({ kind: "clear_preview" });
 
     const verify = parseBridgeCommandPayload({
       commandId: "c2",
       kind: "request_verification",
       operations: [{ id: "op-1", kind: "style-edit" }],
     });
-    expect(dispatchCommandKind(verify!).kind).toBe("request_verification");
+    if (verify === undefined) throw new Error("expected request_verification payload");
+    expect(dispatchCommandKind(verify).kind).toBe("request_verification");
   });
 
   it("rejects apply_patch kind", () => {

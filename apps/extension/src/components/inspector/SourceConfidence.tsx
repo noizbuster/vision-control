@@ -1,6 +1,30 @@
 import type { SourceConfidence as SourceConfidenceType } from "@vision-control/inspector-core";
-import type { ConfidenceCandidateView, ConfidenceUiData } from "@vision-control/source-resolver";
 import type { ReactElement, ReactNode } from "react";
+
+/** Local confidence UI candidate view (map-origins / panel export path). */
+export interface ConfidenceCandidateView {
+  readonly sourceId?: string;
+  readonly workspaceRelativePath?: string;
+  readonly startLine?: number;
+  readonly endLine?: number;
+  readonly componentName?: string;
+  readonly staticClassName?: string;
+  readonly cssFilePath?: string;
+  readonly snippet?: string;
+  readonly confidence: "high" | "medium" | "low";
+  readonly methodBadge: readonly string[];
+  readonly reasonBadges: readonly string[];
+  readonly ownershipRisk?: "none" | "low" | "medium" | "high";
+}
+
+/** Local confidence UI data shape for the inspector panel. */
+export interface ConfidenceUiData {
+  readonly selected?: ConfidenceCandidateView;
+  readonly alternatives: readonly ConfidenceCandidateView[];
+  readonly ambiguous: boolean;
+  readonly repeatedInstance: boolean;
+  readonly staleFingerprint: boolean;
+}
 
 interface SourceConfidenceProps {
   readonly confidence: SourceConfidenceType;

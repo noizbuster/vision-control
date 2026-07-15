@@ -1,8 +1,8 @@
 import type { ChangeSet, Operation } from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
-import type { SourceCandidate } from "@vision-control/source-resolver";
 import { describe, expect, it } from "vitest";
 
+import type { SourceCandidateSummary } from "./context-schema.js";
 import { type CompileContextInputs, CompiledContextSchema, compileContext } from "./index.js";
 
 const BASE_TIME = 1_700_000_000_000;
@@ -118,7 +118,7 @@ const makeChangeSet = (operations: readonly Operation[]): ChangeSet => ({
   committed: false,
 });
 
-const candidate: SourceCandidate = {
+const candidate: SourceCandidateSummary = {
   workspaceRelativePath: "src/Card.tsx",
   confidence: "high",
   warnings: [],

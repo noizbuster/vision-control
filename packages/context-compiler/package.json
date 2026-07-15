@@ -24,7 +24,6 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@vision-control/inspector-core": "workspace:*",
-    "@vision-control/source-resolver": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -1,8 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import type { ConfidenceUiData } from "@vision-control/source-resolver";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { SourceConfidence } from "./SourceConfidence.js";
+import { type ConfidenceUiData, SourceConfidence } from "./SourceConfidence.js";
 
 const detail: ConfidenceUiData = {
   selected: {

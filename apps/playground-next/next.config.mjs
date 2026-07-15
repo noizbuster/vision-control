@@ -1,14 +1,7 @@
-import { withVisionControlSourceMarkers } from "@vision-control/next-react";
-
-const nextConfig = withVisionControlSourceMarkers(
-  {
-    reactStrictMode: true,
-    ...(process.env.VC_TURBO_TEST_DISTDIR ? { distDir: process.env.VC_TURBO_TEST_DISTDIR } : {}),
-  },
-  {
-    include: ["**/*.{jsx,tsx}"],
-    exclude: ["node_modules/**", ".next/**"],
-  },
-);
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  ...(process.env.VC_TURBO_TEST_DISTDIR ? { distDir: process.env.VC_TURBO_TEST_DISTDIR } : {}),
+};
 
 export default nextConfig;

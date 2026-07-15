@@ -485,8 +485,11 @@ describe("App", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
     const copiedPrompt = writeText.mock.calls[0]?.[0];
     expect(copiedPrompt).toContain("URL: http://localhost:3000/");
-    expect(copiedPrompt).toContain("- Selector: #container");
-    expect(copiedPrompt).toContain('"kind": "reparent-element"');
+    expect(copiedPrompt).toContain("# Vision Context Snapshot");
+    expect(copiedPrompt).toContain("#container");
+    expect(copiedPrompt).toContain("reparent-element");
+    expect(copiedPrompt).toContain("## Operations");
+    expect(copiedPrompt).toContain("MCP pair is optional");
     await waitFor(() =>
       expect(screen.getByTestId("agent-prompt-copy-status").textContent).toBe(
         "Agent prompt copied",

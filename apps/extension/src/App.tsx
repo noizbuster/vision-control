@@ -104,9 +104,9 @@ export function App(): ReactElement {
       buildAgentPrompt({
         inspectedUrl: url ?? null,
         selection: summary,
-        entries: journal.entries,
+        journal: journal.journal,
       }),
-    [url, summary, journal.entries],
+    [url, summary, journal.journal],
   );
   const recordRemoteRef = useRef(journal.recordRemote);
   recordRemoteRef.current = journal.recordRemote;

@@ -6,6 +6,10 @@ export {
 } from "./BeforeAfterSummary.js";
 export { ChangeJournal } from "./ChangeJournal.js";
 export {
+  type AgentPromptInput,
+  buildAgentPrompt,
+} from "./agent-prompt.js";
+export {
   buildPanelContextExport,
   type PanelContextExport,
   type PanelContextExportInput,

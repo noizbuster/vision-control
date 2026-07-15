@@ -6,12 +6,13 @@
   "description": "Chromium extension for Vision Control (WXT + React).",
   "scripts": {
     "dev": "wxt",
+    "dev-pair": "node scripts/dev-with-pair.mjs",
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run && node --test scripts/dev-pair-helpers.test.mjs"
   },
   "dependencies": {
     "@vision-control/change-ir": "workspace:*",

@@ -1,5 +1,7 @@
 import { defineConfig } from "wxt";
 
+import { resolveStartUrlsFromEnv } from "./scripts/dev-pair-helpers.mjs";
+
 const LOOPBACK_HOST_PERMISSIONS = [
   "http://localhost/*",
   "http://127.0.0.1/*",
@@ -7,6 +9,8 @@ const LOOPBACK_HOST_PERMISSIONS = [
 ] as const;
 
 const OPTIONAL_CHROME_HOST_PERMISSIONS = ["http://*/*", "https://*/*"] as const;
+
+const startUrls = resolveStartUrlsFromEnv(process.env);
 
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
@@ -24,4 +28,8 @@ export default defineConfig({
   suppressWarnings: {
     firefoxDataCollection: true,
   },
+  // When extension:dev-pair sets VC_PAIRING_HTTP_URL (or VC_DEV_START_URLS),
+  // open those URLs in the WXT-launched Chromium so the content script can
+  // auto-pair. Plain `extension:dev` leaves this unset (no startUrls).
+  ...(startUrls !== undefined ? { webExt: { startUrls } } : {}),
 });

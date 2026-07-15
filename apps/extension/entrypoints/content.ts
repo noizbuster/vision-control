@@ -1,7 +1,7 @@
-import { synthesizePairingUrlFromHttpPairPage } from "@vision-control/daemon-client";
+import { synthesizePairingUrlFromHttpPairPage } from "@vision-control/bridge-client";
 import type { ContentScriptDefinition } from "wxt";
 import { defineContentScript } from "wxt/utils/define-content-script";
-import { createDaemonConnectMessage, createRuntimeBus } from "../src/messaging/index.js";
+import { createBridgeConnectMessage, createRuntimeBus } from "../src/messaging/index.js";
 import {
   type ContentEditWiring,
   wireContentEditHandlers,
@@ -153,7 +153,7 @@ function tryAutoPairFromPairPage(
       editHandlers: null,
       commandHandlers: null,
     });
-    bus.send("background", createDaemonConnectMessage(synthesized.pairingUrl));
+    bus.send("background", createBridgeConnectMessage(synthesized.pairingUrl));
     stripPairingTokenFromAddressBar(deps.window);
     setPairPageConnectedTitle(deps.document);
     return true;

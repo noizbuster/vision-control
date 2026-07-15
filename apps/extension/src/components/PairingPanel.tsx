@@ -1,4 +1,7 @@
-import { PAIRING_PROTOCOL, parsePairingUrl } from "@vision-control/daemon-client";
+import {
+  resolveBridgePairingInput,
+  synthesizeBridgePairingUrl,
+} from "@vision-control/bridge-client";
 import type { ReactElement } from "react";
 import { useState } from "react";
 
@@ -11,21 +14,8 @@ interface PairingPanelProps {
   readonly onDisconnect: () => void;
 }
 
-const DEFAULT_HOST = "127.0.0.1";
-/** MCP bridge fixed port (ADR-020 C2). Not the legacy daemon 4321. */
-const DEFAULT_PORT = 4322;
-
 function looksLikeBareToken(input: string): boolean {
   return input.length > 0 && !input.includes("://") && !input.includes("/");
-}
-
-function synthesizePairingUrl(token: string): string {
-  const params = new URLSearchParams({
-    token,
-    port: String(DEFAULT_PORT),
-    host: DEFAULT_HOST,
-  });
-  return `${PAIRING_PROTOCOL}//pair?${params.toString()}`;
 }
 
 export function PairingPanel({ status, onConnect, onDisconnect }: PairingPanelProps): ReactElement {
@@ -34,8 +24,8 @@ export function PairingPanel({ status, onConnect, onDisconnect }: PairingPanelPr
 
   const submit = (): void => {
     const trimmed = value.trim();
-    const candidate = looksLikeBareToken(trimmed) ? synthesizePairingUrl(trimmed) : trimmed;
-    const parsed = parsePairingUrl(candidate);
+    const candidate = looksLikeBareToken(trimmed) ? synthesizeBridgePairingUrl(trimmed) : trimmed;
+    const parsed = resolveBridgePairingInput(candidate);
     if (!parsed.success) {
       setError(parsed.reason);
       return;

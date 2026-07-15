@@ -1,4 +1,4 @@
-import { parsePairingUrl } from "@vision-control/daemon-client";
+import { resolveBridgePairingInput } from "@vision-control/bridge-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -221,7 +221,7 @@ describe("runVisionControlContentScript", () => {
   });
 
   it("auto-connects from a loopback /pair page without mounting the overlay", () => {
-    // Given: main-frame load of the daemon pair landing page with token params.
+    // Given: main-frame load of a loopback pair landing page with token params.
     const harness = createHarness({
       href: "http://127.0.0.1:1234/pair?token=abc&port=1234&host=127.0.0.1",
     });
@@ -229,20 +229,22 @@ describe("runVisionControlContentScript", () => {
     // When: the content entrypoint runs before any DevTools panel is open.
     runVisionControlContentScript(harness.deps);
 
-    // Then: one daemon-connect is emitted with a parseable vision-control pairing URL.
+    // Then: one bridge-connect is emitted with a parseable vision-control pairing URL.
     expect(harness.createBus).toHaveBeenCalledTimes(1);
     expect(harness.createRuntime).not.toHaveBeenCalled();
     expect(harness.wireEditHandlers).not.toHaveBeenCalled();
     expect(harness.bus.sent).toHaveLength(1);
     const connect = harness.bus.sent[0];
     expect(connect?.route).toBe("background");
-    expect(connect?.message.messageType).toBe("daemon-connect");
+    expect(connect?.message.messageType).toBe("bridge-connect");
     const payload = connect?.message.payload as { readonly pairingUrl?: string } | undefined;
     expect(payload?.pairingUrl).toMatch(/^vision-control:\/\//);
-    const parsed = parsePairingUrl(payload?.pairingUrl ?? "");
+    const parsed = resolveBridgePairingInput(payload?.pairingUrl ?? "");
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.target).toEqual({ token: "abc", port: 1234, host: "127.0.0.1" });
+      expect(parsed.target.token).toBe("abc");
+      expect(parsed.target.port).toBe(1234);
+      expect(parsed.target.host).toBe("127.0.0.1");
     }
   });
 
@@ -254,7 +256,7 @@ describe("runVisionControlContentScript", () => {
     });
     harness.deps.document.title = "Vision Control Pairing";
 
-    // When: auto-pair succeeds and daemon-connect is sent.
+    // When: auto-pair succeeds and bridge-connect is sent.
     runVisionControlContentScript(harness.deps);
 
     // Then: history.replaceState rewrites the current entry without token=; port/host remain.
@@ -275,7 +277,7 @@ describe("runVisionControlContentScript", () => {
     expect(harness.createRuntime).not.toHaveBeenCalled();
   });
 
-  it("does not emit daemon-connect when /pair is missing a token", () => {
+  it("does not emit bridge-connect when /pair is missing a token", () => {
     // Given: a loopback /pair page without a pairing token.
     const originalHref = "http://127.0.0.1:1234/pair?port=1234&host=127.0.0.1";
     const harness = createHarness({
@@ -287,7 +289,7 @@ describe("runVisionControlContentScript", () => {
 
     // Then: no connect is attempted, the overlay is not mounted, and the URL is left intact.
     expect(harness.createRuntime).not.toHaveBeenCalled();
-    expect(harness.bus.sent.some((entry) => entry.message.messageType === "daemon-connect")).toBe(
+    expect(harness.bus.sent.some((entry) => entry.message.messageType === "bridge-connect")).toBe(
       false,
     );
     expect(harness.pageWindow.history.replaceState).not.toHaveBeenCalled();
@@ -302,11 +304,11 @@ describe("runVisionControlContentScript", () => {
     // When: synthesis fails on the pair path.
     runVisionControlContentScript(harness.deps);
 
-    // Then: no replaceState, no createRuntime, no daemon-connect.
+    // Then: no replaceState, no createRuntime, no bridge-connect.
     expect(harness.createRuntime).not.toHaveBeenCalled();
     expect(harness.pageWindow.history.replaceState).not.toHaveBeenCalled();
     expect(harness.pageWindow.location.href).toBe(originalHref);
-    expect(harness.bus.sent.some((entry) => entry.message.messageType === "daemon-connect")).toBe(
+    expect(harness.bus.sent.some((entry) => entry.message.messageType === "bridge-connect")).toBe(
       false,
     );
   });
@@ -318,7 +320,7 @@ describe("runVisionControlContentScript", () => {
     // When: the content entrypoint runs.
     runVisionControlContentScript(harness.deps);
 
-    // Then: normal overlay startup occurs with no daemon-connect.
+    // Then: normal overlay startup occurs with no bridge-connect.
     expect(harness.createRuntime).toHaveBeenCalledTimes(1);
     expect(harness.bus.sent.map((entry) => entry.message.messageType)).toEqual(["frame-hello"]);
   });
@@ -333,8 +335,8 @@ describe("runVisionControlContentScript", () => {
     // When: the content entrypoint runs in that iframe.
     runVisionControlContentScript(harness.deps);
 
-    // Then: no daemon-connect is sent (main-frame only).
-    expect(harness.bus.sent.some((entry) => entry.message.messageType === "daemon-connect")).toBe(
+    // Then: no bridge-connect is sent (main-frame only).
+    expect(harness.bus.sent.some((entry) => entry.message.messageType === "bridge-connect")).toBe(
       false,
     );
   });

@@ -4,6 +4,7 @@ import {
   BRIDGE_WS_PATH,
   DEFAULT_BRIDGE_HOST,
   DEFAULT_BRIDGE_PORT,
+  PAIRING_PAIR_PATH,
   PAIRING_PROTOCOL,
 } from "./constants.js";
 import type { DiscoverResponse } from "./discover.js";
@@ -104,6 +105,82 @@ export function synthesizeBridgePairingUrl(
     host,
   });
   return `${PAIRING_PROTOCOL}//pair?${params.toString()}`;
+}
+
+export type SynthesizePairingUrlResult =
+  | { readonly success: true; readonly pairingUrl: string }
+  | { readonly success: false; readonly reason: string };
+
+/**
+ * Synthesize a `vision-control://pair?...` URL from a loopback HTTP(S) pair page.
+ * Accepts only loopback hosts with path `/pair` (content-script auto-pair).
+ */
+export function synthesizePairingUrlFromHttpPairPage(
+  input: string,
+): SynthesizePairingUrlResult {
+  if (typeof input !== "string" || input.length === 0) {
+    return { success: false, reason: "empty pair page URL" };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(input);
+  } catch {
+    return { success: false, reason: "not a valid URL" };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return {
+      success: false,
+      reason: `unsupported scheme "${parsed.protocol}" (expected http: or https:)`,
+    };
+  }
+  const pageHost = normalizeHostname(parsed.hostname);
+  if (!isLoopbackHost(pageHost)) {
+    return {
+      success: false,
+      reason: `host "${parsed.hostname}" is not loopback`,
+    };
+  }
+  if (parsed.pathname !== PAIRING_PAIR_PATH) {
+    return {
+      success: false,
+      reason: `path "${parsed.pathname}" is not ${PAIRING_PAIR_PATH}`,
+    };
+  }
+
+  const token = parsed.searchParams.get("token");
+  const portParam = parsed.searchParams.get("port");
+  const hostParam = parsed.searchParams.get("host") ?? pageHost;
+
+  if (token === null || token.length === 0) {
+    return { success: false, reason: "missing or empty token query parameter" };
+  }
+  if (portParam === null) {
+    return { success: false, reason: "missing port query parameter" };
+  }
+  const port = Number.parseInt(portParam, 10);
+  if (Number.isNaN(port) || port <= 0 || port > 65535) {
+    return { success: false, reason: `invalid port "${portParam}"` };
+  }
+  if (hostParam.length === 0) {
+    return { success: false, reason: "missing host" };
+  }
+  if (!isLoopbackHost(hostParam)) {
+    return {
+      success: false,
+      reason: `query host "${hostParam}" is not loopback`,
+    };
+  }
+
+  return {
+    success: true,
+    pairingUrl: synthesizeBridgePairingUrl(token, hostParam, port),
+  };
+}
+
+function normalizeHostname(hostname: string): string {
+  return hostname.startsWith("[") && hostname.endsWith("]")
+    ? hostname.slice(1, -1)
+    : hostname;
 }
 
 function looksLikeBareToken(input: string): boolean {

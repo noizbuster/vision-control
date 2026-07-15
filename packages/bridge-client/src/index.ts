@@ -57,7 +57,9 @@ export {
   type BridgeTarget,
   BridgeTargetSchema,
   resolveBridgePairingInput,
+  type SynthesizePairingUrlResult,
   synthesizeBridgePairingUrl,
+  synthesizePairingUrlFromHttpPairPage,
   toBridgeWebSocketUrl,
 } from "./pairing.js";
 export {

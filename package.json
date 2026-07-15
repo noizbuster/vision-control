@@ -10,7 +10,7 @@
     "pnpm": ">=11.0.0"
   },
   "scripts": {
-    "dev": "VC_OPEN_PAIRING=1 nx run-many -t dev --parallel=6",
+    "dev": "nx run-many -t dev --projects=extension,playground-react-vite --parallel=4",
     "build": "nx run-many -t build",
     "check": "biome check",
     "lint": "biome check",

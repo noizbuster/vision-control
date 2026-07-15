@@ -73,11 +73,6 @@ export {
   type RequestComponentPropsPayload,
 } from "./panel-messages.js";
 export {
-  connectionStateFromDaemonClient,
-  ReconnectManager,
-  type ReconnectManagerOptions,
-} from "./reconnect.js";
-export {
   createChromeRouterTransport,
   MessageRouter,
   type MessageRouterOptions,

@@ -28,6 +28,7 @@ import {
 import {
   resolveBridgePairingInput,
   synthesizeBridgePairingUrl,
+  synthesizePairingUrlFromHttpPairPage,
   toBridgeWebSocketUrl,
 } from "./pairing.js";
 import { decideSwWakeReconnect } from "./reconnect-policy.js";
@@ -128,6 +129,26 @@ describe("pairing resolve + WS URL", () => {
     const url = synthesizeBridgePairingUrl("tok");
     expect(url).toContain("port=4322");
     expect(url).toContain("host=127.0.0.1");
+  });
+
+  it("synthesizes vision-control pair URL from loopback HTTP pair page", () => {
+    const result = synthesizePairingUrlFromHttpPairPage(
+      "http://127.0.0.1:4322/pair?token=abc&port=4322&host=127.0.0.1",
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.pairingUrl).toContain("token=abc");
+      expect(result.pairingUrl).toContain("port=4322");
+      const resolved = resolveBridgePairingInput(result.pairingUrl);
+      expect(resolved.success).toBe(true);
+    }
+  });
+
+  it("refuses non-loopback HTTP pair page synthesis", () => {
+    const result = synthesizePairingUrlFromHttpPairPage(
+      "http://evil.com/pair?token=abc&port=4322&host=127.0.0.1",
+    );
+    expect(result.success).toBe(false);
   });
 
   it("uses discover host/port/wsPath when pairing after auto-detect", () => {

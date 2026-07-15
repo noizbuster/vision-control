@@ -102,8 +102,9 @@ export const VisionContextSnapshotSchema = z.object({
   /** Detail behind the confidence level when known. */
   sourceConfidenceDetail: SourceConfidenceDetailSchema.optional(),
   /**
-   * Redaction report hooks. May be empty until a redaction pass runs (task 7);
-   * always present so consumers have a stable field.
+   * Redaction report from the ADR-009 pass applied on every snapshot build.
+   * Always present (may be empty when nothing matched). Never carries secret
+   * values — only field paths, rule ids, and reasons.
    */
   privacyReport: PrivacyReportSchema,
   warnings: z.array(WarningSchema),

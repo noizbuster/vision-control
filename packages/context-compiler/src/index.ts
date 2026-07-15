@@ -9,6 +9,8 @@
  * const context = compileContext(inputs); // assemble + budget
  * const safe = redactContext(context);    // scrub secrets + privacy report
  * const json = renderJson(safe);          // or renderMarkdown(safe)
+ * // Portable snapshots redact inside compile (ADR-009):
+ * const snapshot = compileVisionContextSnapshot(inputs);
  * ```
  *
  * Platform: isomorphic. No DOM or filesystem access. The inspector-core and
@@ -25,7 +27,7 @@ export {
 } from "./changeset-privacy.js";
 export { type CompileContextInputs, compileContext } from "./compiler.js";
 export * from "./context-schema.js";
-export { redactContext } from "./redaction.js";
+export { redactContext, redactVisionContextSnapshot } from "./redaction.js";
 export {
   DEFAULT_REDACTION_SELECTORS,
   type ElementMatchDescriptor,

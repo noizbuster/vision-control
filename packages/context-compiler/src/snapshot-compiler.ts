@@ -4,6 +4,9 @@
  * Inputs are already JSON-safe projections (selection target, operation
  * summaries, journal summary, map origins). No workspace root, no filesystem,
  * and no platform:node APIs. Empty origins are valid.
+ *
+ * Every build runs through {@link redactVisionContextSnapshot} (ADR-009) so
+ * panel export and MCP projection never receive unredacted secrets.
  */
 
 import type {
@@ -14,6 +17,8 @@ import type {
   TargetSummary,
   Warning,
 } from "./context-schema.js";
+import { redactVisionContextSnapshot } from "./redaction.js";
+import type { RedactionConfig } from "./redaction-selectors.js";
 import {
   EMPTY_JOURNAL_SUMMARY,
   EMPTY_PRIVACY_REPORT,
@@ -57,11 +62,15 @@ export interface CompileSnapshotInputs {
   /** Detail behind the confidence level when known. */
   readonly sourceConfidenceDetail?: SourceConfidenceDetail;
   /**
-   * Privacy report hooks. Default empty report; redaction task fills later.
+   * Pre-existing privacy report entries to merge (e.g. upstream selector
+   * findings). Default empty; the compile path always runs ADR-009 redaction
+   * and rebuilds the report.
    */
   readonly privacyReport?: PrivacyReport;
   /** Warnings collected from any source (default empty). */
   readonly warnings?: readonly Warning[];
+  /** Optional DOM/selector redaction config (PRD §27.2). */
+  readonly redactionConfig?: RedactionConfig;
 }
 
 /**
@@ -71,6 +80,9 @@ export interface CompileSnapshotInputs {
  * part of the input contract. Empty `origins` is valid and produces a schema-
  * valid snapshot with `origins: []` and `originsTruncated: false` (unless the
  * caller sets the truncation flag).
+ *
+ * Always applies ADR-009 redaction before return — there is no unredacted
+ * product path from this compiler.
  */
 export const compileVisionContextSnapshot = (
   inputs: CompileSnapshotInputs,
@@ -84,7 +96,7 @@ export const compileVisionContextSnapshot = (
     totalRedacted: EMPTY_PRIVACY_REPORT.totalRedacted,
   };
 
-  return {
+  const raw: VisionContextSnapshot = {
     formatVersion: SNAPSHOT_FORMAT_VERSION,
     snapshotRev: inputs.snapshotRev,
     ...(inputs.tabId !== undefined ? { tabId: inputs.tabId } : {}),
@@ -119,6 +131,8 @@ export const compileVisionContextSnapshot = (
     },
     warnings: warnings.map((warning) => ({ ...warning })),
   };
+
+  return redactVisionContextSnapshot(raw, inputs.redactionConfig);
 };
 
 const cloneOrigin = (origin: MapOrigin): MapOrigin => ({

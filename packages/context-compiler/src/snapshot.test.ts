@@ -4,14 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { OperationSummary, TargetSummary } from "./context-schema.js";
-import {
-  type CompileSnapshotInputs,
-  compileVisionContextSnapshot,
-} from "./snapshot-compiler.js";
-import {
-  SNAPSHOT_FORMAT_VERSION,
-  VisionContextSnapshotSchema,
-} from "./snapshot-schema.js";
+import { type CompileSnapshotInputs, compileVisionContextSnapshot } from "./snapshot-compiler.js";
+import { SNAPSHOT_FORMAT_VERSION, VisionContextSnapshotSchema } from "./snapshot-schema.js";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 

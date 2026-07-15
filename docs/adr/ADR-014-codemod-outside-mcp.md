@@ -4,12 +4,27 @@
 
 Accepted (2026-07-03). Extends [ADR-010](./ADR-010-readonly-mcp.md) and
 [ADR-012](./ADR-012-deterministic-patch-suggestions.md) to the V2 codemod path.
+**Product CLI codemod path superseded (2026-07-15)** by the extension-SoT /
+MCP-bridge pivot ([ADR-019](./ADR-019-extension-source-of-truth.md),
+[ADR-020](./ADR-020-mcp-bridge-projection.md)).
+
+**Superseded for product CLI:** `vision-control codemod preview|apply` as a
+shipped product command. The product CLI surface becomes MCP launcher only
+(ADR-020 C2).
+
+**Retained:**
+
+- Codemod / patch apply is **never** an MCP tool (ADR-010).
+- Agents apply patches through their own file-writing tools, then verify after
+  HMR.
+- Inert `suggestedDiff` data may still exist (ADR-012); application stays
+  outside MCP.
 
 ## Context
 
 The PRD lists "optional direct codemod" as a V2 feature (PRD section 7.3, line
 309) and leaves "direct codemod in V1?" as an open question (section 40, line
-2695). The approved V1/V2 plan resolves this: codemod is a V2 capability track,
+2695). The approved V1/V2 plan resolved this: codemod is a V2 capability track,
 implemented as an explicit local action, never as an MCP tool.
 
 The risk is that a codemod path becomes a hidden source-write through MCP. PRD
@@ -17,41 +32,41 @@ Appendix D constraint 10 (line 2905) requires that after an agent changes source
 it must provide a runtime verification loop. A codemod that applied through MCP
 would bypass both the read-only contract (ADR-010) and the verification loop.
 
-The load-bearing guardrail from [AGENTS.md](../../AGENTS.md): **Do not add
-source-mutating MCP tools.** See [mcp-policy.md](../agents/mcp-policy.md).
+The extension-SoT pivot drops the fat product CLI (including codemod commands).
+Agent file tools replace the CLI codemod path. The load-bearing guardrail from
+[AGENTS.md](../../AGENTS.md) remains: **Do not add source-mutating MCP tools.**
+See [mcp-policy.md](../agents/mcp-policy.md).
 
 ## Decision
 
-V2 direct codemod is an explicit local CLI or agent action, performed outside
-the MCP server.
+Direct codemod / patch apply is an explicit local agent (or human) action,
+performed outside the MCP server. It is **not** a product CLI command under the
+extension-SoT pivot.
 
-- **Explicit local action.** The codemod runs through a CLI command (or an
-  agent-consumable patch flow) that reads a deterministic patch suggestion
-  (ADR-012), shows the diff and its preconditions, and requires an explicit
-  confirmation flag before writing. There is no implicit or background apply.
-- **Normal file-writing path.** The codemod writes source through the ordinary
-  file-writing path. It does not get a special write channel, and it never
-  routes through MCP.
-- **Mandatory verification.** After writing, the codemod always runs the
+- **Agent file tools.** The agent reads context (panel export or MCP projection),
+  writes source through its ordinary file-writing path, and runs verification.
+  There is no MCP apply tool and no required `vision-control codemod` product
+  command.
+- **Historical CLI path (v0.2.0).** A CLI codemod that showed a diff and required
+  `--confirm` existed outside MCP. That product CLI path is dropped; the
+  "outside MCP" rule remains.
+- **Mandatory verification.** After writing, the agent must run the
   source-after-HMR verification loop (PRD Appendix D constraint 10, line 2905).
-  A dry run is allowed as a preview but is never accepted as final evidence.
+  A dry run is never final evidence.
 - **MCP stays read-only.** The MCP tool list contains no apply, write, patch, or
   codemod tool. The forbidden-tool guard in the test suite asserts this.
 
 ## Consequences
 
-- An agent that wants automated application uses the local codemod flow, sees the
-  diff, confirms, and verifies. It cannot apply through MCP.
-- The MCP read-only contract (ADR-010) is unaffected. The suggestion data
-  (ADR-012) feeds the codemod; the codemod consumes it locally.
-- The codemod is opt-in and explicit, so a user who never invokes it is never
-  subject to automatic source mutation.
+- An agent that wants automated application uses its own file tools, sees the
+  diff in its workflow, and verifies. It cannot apply through MCP.
+- The MCP read-only contract (ADR-010) is unaffected.
+- Product CLI no longer ships codemod commands (ADR-020). Users who never pair
+  an agent still edit in the panel without any CLI codemod.
 
 ## MVP Guardrail
 
-This ADR protects the V2 direct-codemod feature (PRD 7.3, line 309) from
-becoming a source-mutating MCP tool. It restates the AGENTS.md guardrail: no
-source-mutating MCP tool exists, and the codemod stays an explicit local action
-with a confirmation flag and a mandatory verification loop. It deliberately
-keeps the codemod off the MCP surface so the read-only contract cannot be
-weakened by adding a "convenience" apply tool.
+This ADR protects against source-mutating MCP tools. The extension-SoT pivot
+removes the product CLI codemod surface but does **not** move apply into MCP.
+No source-mutating MCP tool exists. Patch application stays an explicit local
+agent/human action with a mandatory verification loop.

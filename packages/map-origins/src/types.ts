@@ -6,7 +6,11 @@
  * is a lower-level producer; the compiler consumes origins as pure data).
  */
 
-/** Confidence that a map origin points at real source (never-wrong-HIGH later). */
+/**
+ * Confidence that a map origin points at real source.
+ * HIGH only with map+range (ADR-019 C4 never-wrong-HIGH).
+ * Absent maps yield no origin (policy confidence `none`).
+ */
 export type OriginConfidence = "high" | "medium" | "low";
 
 /** Kind of resource the origin was resolved from. */

@@ -34,15 +34,26 @@ Missing maps yield empty origins for that rule/script (never throw).
 | `resolveCssOrigins` | CSS pipeline entry point |
 | `resolveJsOrigins` | JS map systematic collection (module candidates) |
 | `scriptsFromElements` | Enumerate page scripts into `ScriptInput` |
+| `assignMapOriginConfidence` | Never-wrong-HIGH policy matrix |
+| `enforceMapOriginNeverWrongHigh` | Downgrade lying HIGH origins |
 | `normalizeMapSourcePath` | Strip `webpack://` and similar virtual schemes |
 | `MAP_CAPS` / `DEFAULT_MAP_CAPS` | C4 cap constants |
 | `parseSourceMap` / `CssSourceMap` | Source-map v3 parse + selector range |
 | `extractSourceMappingUrl` | Discover map URL from CSS/JS text |
 | `MapOrigin` | Origin shape (compatible with context-compiler) |
 
-JS module candidates use confidence `medium` and warning `module-path-only`.
-HIGH requires map+range (never DOM→JSX HIGH). Formal never-wrong-HIGH matrix is
-task 11.
+## Confidence policy (never-wrong-HIGH)
+
+| Evidence | Confidence |
+| --- | --- |
+| map + concrete range | `high` |
+| module path only (JS) | `medium` + `module-path-only` |
+| map without range | `medium` + `map-present-without-range` |
+| map / origin absent | no origin (`none`) |
+
+Forbidden: text-search HIGH, marker HIGH product path, DOM→JSX HIGH without
+map+range. Policy lives in `assignMapOriginConfidence` /
+`enforceMapOriginNeverWrongHigh`.
 
 Nx tags: `platform:isomorphic`, `type:library`, `scope:map-origins`.
 

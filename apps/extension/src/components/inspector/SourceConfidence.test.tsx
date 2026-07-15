@@ -66,6 +66,57 @@ describe("SourceConfidence — level-only rendering (backward compat)", () => {
   });
 });
 
+describe("SourceConfidence — map-origin confidence policy (ADR-019 C4)", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders HIGH for map+range source-map evidence", () => {
+    const mapHigh: ConfidenceUiData = {
+      selected: {
+        workspaceRelativePath: "src/Button.module.css",
+        startLine: 1,
+        endLine: 3,
+        confidence: "high",
+        methodBadge: ["source-map"],
+        reasonBadges: [],
+      },
+      alternatives: [],
+      ambiguous: false,
+      repeatedInstance: false,
+      staleFingerprint: false,
+    };
+    render(<SourceConfidence confidence="high" detail={mapHigh} />);
+    expect(screen.getByTestId("source-confidence").textContent).toMatch(/high/i);
+    expect(screen.getByText("source-map")).toBeDefined();
+    expect(screen.getByText("src/Button.module.css")).toBeDefined();
+  });
+
+  it("renders medium for module-path-only (never HIGH without range)", () => {
+    const modulePath: ConfidenceUiData = {
+      selected: {
+        workspaceRelativePath: "src/App.tsx",
+        confidence: "medium",
+        methodBadge: ["source-map"],
+        reasonBadges: ["module-path-only"],
+      },
+      alternatives: [],
+      ambiguous: false,
+      repeatedInstance: false,
+      staleFingerprint: false,
+    };
+    const { container } = render(<SourceConfidence confidence="medium" detail={modulePath} />);
+    expect(container.querySelector(".inspector-confidence--medium")).not.toBeNull();
+    expect(screen.getByText("module-path-only")).toBeDefined();
+    expect(screen.queryByText("high")).toBeNull();
+  });
+
+  it("never hides low when map origin is absent (none → low identity fallback)", () => {
+    render(<SourceConfidence confidence="low" />);
+    expect(screen.getByText("low")).toBeDefined();
+  });
+});
+
 describe("SourceConfidence — full detail rendering (VC-V1V2-10)", () => {
   afterEach(() => {
     cleanup();

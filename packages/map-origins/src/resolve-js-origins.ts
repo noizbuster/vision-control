@@ -3,11 +3,12 @@
  *
  * Systematic JS map collection for the content script. Missing maps yield no
  * origins for that script (never throw). Cap exhaustion sets
- * `originsTruncated` and skips the remainder. Does not claim HIGH confidence
- * (no DOM→JSX HIGH; map+range HIGH is task 11 / CSS range path).
+ * `originsTruncated` and skips the remainder. Module candidates are medium
+ * only (module-path-only); never-wrong-HIGH forbids DOM→JSX HIGH.
  */
 
 import { createCapBudget, resolveCaps } from "./caps.js";
+import { assignMapOriginConfidence, enforceMapOriginNeverWrongHigh } from "./confidence-policy.js";
 import { fetchTextCapped } from "./fetch-text.js";
 import { normalizeMapSourcePath } from "./normalize-source-path.js";
 import { parseSourceMap } from "./source-map.js";
@@ -104,16 +105,23 @@ export const resolveJsOrigins = async (
       if (seenPaths.has(relativePath)) continue;
       seenPaths.add(relativePath);
 
-      const origin: MapOrigin = {
+      const decision = assignMapOriginConfidence({
+        hasMap: true,
+        hasRange: false,
+        modulePathOnly: true,
+      });
+      if (decision.confidence === "none") {
+        continue;
+      }
+
+      const origin: MapOrigin = enforceMapOriginNeverWrongHigh({
         ...(sourceUrl !== undefined ? { sourceUrl } : {}),
         mapUrl,
         relativePath,
-        // Module path only — no generated→original range. Task 11 formalizes
-        // never-wrong-HIGH; systematic collection stays medium.
-        confidence: "medium",
+        confidence: decision.confidence,
         kind: "js",
-        warnings: ["module-path-only"],
-      };
+        warnings: [...decision.warnings],
+      });
       origins.push(origin);
     }
   }

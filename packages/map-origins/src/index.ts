@@ -14,6 +14,17 @@ export {
   MAP_CAPS,
   resolveCaps,
 } from "./caps.js";
+export {
+  assignMapOriginConfidence,
+  enforceMapOriginNeverWrongHigh,
+  hasMapOriginRange,
+  MAP_POLICY_WARNINGS,
+  type MapConfidenceDecision,
+  type MapConfidenceEvidence,
+  type MapConfidenceFacts,
+  type MapPolicyConfidence,
+  qualifiesMapHigh,
+} from "./confidence-policy.js";
 export { type FetchTextResult, fetchTextCapped } from "./fetch-text.js";
 export {
   isBundlerRuntimeNoise,

@@ -7,6 +7,7 @@
  */
 
 import { createCapBudget, resolveCaps } from "./caps.js";
+import { assignMapOriginConfidence, enforceMapOriginNeverWrongHigh } from "./confidence-policy.js";
 import { fetchTextCapped } from "./fetch-text.js";
 import { parseSourceMap } from "./source-map.js";
 import { extractSourceMappingUrl, resolveMapUrl } from "./source-mapping-url.js";
@@ -74,12 +75,15 @@ export const resolveCssOrigins = async (
     }
 
     const range = cached.parsed.findSelectorRange(rule.selectorText);
-    const warnings: string[] = [];
-    if (range === undefined) {
-      warnings.push("map-present-without-range");
+    const decision = assignMapOriginConfidence({
+      hasMap: true,
+      hasRange: range !== undefined,
+    });
+    if (decision.confidence === "none") {
+      continue;
     }
 
-    const origin: MapOrigin = {
+    const origin: MapOrigin = enforceMapOriginNeverWrongHigh({
       ...(sourceUrl !== undefined ? { sourceUrl } : {}),
       mapUrl,
       ...(range !== undefined
@@ -92,11 +96,10 @@ export const resolveCssOrigins = async (
             ...(range.snippet !== undefined ? { snippet: range.snippet } : {}),
           }
         : firstSourceAsRelative(cached.parsed.sources)),
-      // map+range qualifies for high; formal never-wrong-HIGH matrix is task 11.
-      confidence: range !== undefined ? "high" : "medium",
+      confidence: decision.confidence,
       kind: "css",
-      warnings,
-    };
+      warnings: [...decision.warnings],
+    });
     origins.push(origin);
   }
 

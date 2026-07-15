@@ -5,10 +5,10 @@
  *
  * `mcp-server` stays free of any daemon-core / storage / source-resolver runtime
  * dependency (Task 10 design): it defines PORT interfaces
- * (`ChangesetServiceRead`, `SourceRegistryServiceRead`, `ContextCompilerRead`,
- * `VerificationCoordinatorRead`); the daemon app writes the adapters that map
- * the concrete services + pipeline onto those ports. This module is that glue —
- * the only place that knows both shapes.
+ * (`ChangesetServiceRead`, `ContextCompilerRead`, `VerificationCoordinatorRead`);
+ * the daemon app writes the adapters that map the concrete services + pipeline
+ * onto those ports. This module is that glue — the only place that knows both
+ * shapes. Capture/diagnostics MCP tools are not product tools (ADR-020 C5).
  *
  * The adapters are read-only and `any`-free: stored JSON is narrowed through
  * type guards before reaching the MCP surface. The context-compiler adapter
@@ -28,7 +28,6 @@ import type {
   CurrentChangesetRead,
   DaemonMcpDepsServices,
   SelectionChangedRead,
-  SourceRegistryServiceRead,
   VerificationCoordinatorRead,
   VerificationPlanRead,
 } from "@vision-control/mcp-server";
@@ -219,9 +218,9 @@ function minimalSelectionSummary(selection: SelectionChangedRead | undefined) {
 
 /**
  * Build the {@link DaemonMcpDepsServices} slice the daemon supplies: the
- * changeset + source-registry read ports plus the context-compiler and
- * verification-coordinator ports wired to the source-resolution pipeline. The
- * compiler adapter injects a REAL verification plan (never the STUB).
+ * changeset read port plus the context-compiler and verification-coordinator
+ * ports wired to the source-resolution pipeline. The compiler adapter injects
+ * a REAL verification plan (never the STUB). C5 has no capture/diagnostics port.
  */
 export function createDaemonMcpAdapters(deps: McpAdapterDeps): DaemonMcpDepsServices {
   const changesetServiceRead: ChangesetServiceRead = {
@@ -235,19 +234,6 @@ export function createDaemonMcpAdapters(deps: McpAdapterDeps): DaemonMcpDepsServ
         changesetId: latest.id,
         operations: parseOperationsJson(latest.operations_json).map(summarizeOperation),
       };
-    },
-  };
-
-  const sourceRegistryServiceRead: SourceRegistryServiceRead = {
-    async resolve(
-      sourceId: string,
-      sessionId: string,
-    ): Promise<{ readonly sourceId: string; readonly filePath?: string } | undefined> {
-      const row = deps.sourceRegistryService.getBySourceId(sourceId, sessionId);
-      if (row === undefined) {
-        return undefined;
-      }
-      return { sourceId: row.source_id, filePath: row.file_path };
     },
   };
 
@@ -309,7 +295,6 @@ export function createDaemonMcpAdapters(deps: McpAdapterDeps): DaemonMcpDepsServ
 
   return {
     changesetService: changesetServiceRead,
-    sourceRegistryService: sourceRegistryServiceRead,
     contextCompiler: contextCompilerRead,
     verificationCoordinator: verificationCoordinatorRead,
   };

@@ -1,15 +1,43 @@
 import type { ReactElement } from "react";
 
+import type { ContextExportStatus } from "../../hooks/useContextExport.js";
+
 interface JournalToolbarProps {
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   readonly canCopyAgentPrompt: boolean;
   readonly agentPromptCopyState: "idle" | "copied" | "error";
+  readonly contextExportStatus: ContextExportStatus;
   readonly pendingCount: number;
   readonly onUndo: () => void;
   readonly onRedo: () => void;
   readonly onClear: () => void;
   readonly onCopyAgentPrompt: () => void;
+  readonly onCopyContextJson: () => void;
+  readonly onCopyContextMarkdown: () => void;
+  readonly onDownloadContextJson: () => void;
+  readonly onDownloadContextMarkdown: () => void;
+}
+
+function exportStatusLabel(status: ContextExportStatus): string {
+  switch (status) {
+    case "idle":
+      return "";
+    case "copied-json":
+      return "JSON copied";
+    case "copied-md":
+      return "Markdown copied";
+    case "downloaded-json":
+      return "JSON downloaded";
+    case "downloaded-md":
+      return "Markdown downloaded";
+    case "error":
+      return "Export failed";
+    default: {
+      const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
 }
 
 export function JournalToolbar({
@@ -17,11 +45,16 @@ export function JournalToolbar({
   canRedo,
   canCopyAgentPrompt,
   agentPromptCopyState,
+  contextExportStatus,
   pendingCount,
   onUndo,
   onRedo,
   onClear,
   onCopyAgentPrompt,
+  onCopyContextJson,
+  onCopyContextMarkdown,
+  onDownloadContextJson,
+  onDownloadContextMarkdown,
 }: JournalToolbarProps): ReactElement {
   const transactionStatus = pendingCount > 0 ? `${pendingCount} pending` : "idle";
   const promptStatus =
@@ -30,6 +63,7 @@ export function JournalToolbar({
       : agentPromptCopyState === "error"
         ? "Copy failed"
         : "";
+  const exportStatus = exportStatusLabel(contextExportStatus);
 
   return (
     <div className="journal-toolbar">
@@ -71,6 +105,42 @@ export function JournalToolbar({
         >
           Copy Agent Prompt
         </button>
+        <button
+          type="button"
+          className="journal-toolbar__button"
+          onClick={onCopyContextJson}
+          aria-label="Copy context as JSON"
+          data-testid="copy-context-json"
+        >
+          Copy JSON
+        </button>
+        <button
+          type="button"
+          className="journal-toolbar__button"
+          onClick={onCopyContextMarkdown}
+          aria-label="Copy context as Markdown"
+          data-testid="copy-context-markdown"
+        >
+          Copy Markdown
+        </button>
+        <button
+          type="button"
+          className="journal-toolbar__button"
+          onClick={onDownloadContextJson}
+          aria-label="Download context as JSON"
+          data-testid="download-context-json"
+        >
+          Download JSON
+        </button>
+        <button
+          type="button"
+          className="journal-toolbar__button"
+          onClick={onDownloadContextMarkdown}
+          aria-label="Download context as Markdown"
+          data-testid="download-context-markdown"
+        >
+          Download Markdown
+        </button>
       </div>
       <div className="journal-toolbar__status-group">
         <span
@@ -87,6 +157,14 @@ export function JournalToolbar({
           aria-live="polite"
         >
           {promptStatus}
+        </span>
+        <span
+          className="journal-toolbar__export-status"
+          data-state={contextExportStatus}
+          data-testid="context-export-status"
+          aria-live="polite"
+        >
+          {exportStatus}
         </span>
       </div>
     </div>

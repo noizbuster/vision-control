@@ -13,6 +13,7 @@ import { ChangeJournal } from "./components/journal/ChangeJournal.js";
 import { PairingPanel } from "./components/PairingPanel.js";
 import { useComponentProps } from "./hooks/useComponentProps.js";
 import { useConnectionState } from "./hooks/useConnectionState.js";
+import { useContextExport } from "./hooks/useContextExport.js";
 import type { EditorMode } from "./hooks/useEditor.js";
 import { useEditor } from "./hooks/useEditor.js";
 import { useFrameTree } from "./hooks/useFrameTree.js";
@@ -89,6 +90,12 @@ export function App(): ReactElement {
     bus.send("background", createClearPreviewMessage(tabId ?? undefined));
   }, [bus, tabId]);
   const journal = useJournal({ connectionState, dispatchOperation, dispatchClear });
+  const contextExport = useContextExport({
+    selection: summary,
+    journal: journal.journal,
+    ...(tabId !== undefined && tabId !== null ? { tabId } : {}),
+    ...(session?.sessionId !== undefined ? { sessionId: session.sessionId } : {}),
+  });
   const [agentPromptCopyState, setAgentPromptCopyState] = useState<"idle" | "copied" | "error">(
     "idle",
   );
@@ -292,11 +299,16 @@ export function App(): ReactElement {
             canRedo={journal.canRedo}
             canCopyAgentPrompt={agentPrompt.length > 0}
             agentPromptCopyState={agentPromptCopyState}
+            contextExportStatus={contextExport.status}
             pendingCount={journal.pendingCount}
             onUndo={journal.undo}
             onRedo={journal.redo}
             onClear={journal.clear}
             onCopyAgentPrompt={handleCopyAgentPrompt}
+            onCopyContextJson={contextExport.onCopyJson}
+            onCopyContextMarkdown={contextExport.onCopyMarkdown}
+            onDownloadContextJson={contextExport.onDownloadJson}
+            onDownloadContextMarkdown={contextExport.onDownloadMarkdown}
           />
         </main>
       </div>

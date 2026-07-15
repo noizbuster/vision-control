@@ -106,6 +106,24 @@
   color: var(--vc-error);
 }
 
+.journal-toolbar__export-status {
+  min-width: 96px;
+  font-size: var(--vc-text-xs);
+  color: var(--vc-text-3);
+  text-align: right;
+}
+
+.journal-toolbar__export-status[data-state="copied-json"],
+.journal-toolbar__export-status[data-state="copied-md"],
+.journal-toolbar__export-status[data-state="downloaded-json"],
+.journal-toolbar__export-status[data-state="downloaded-md"] {
+  color: var(--vc-success);
+}
+
+.journal-toolbar__export-status[data-state="error"] {
+  color: var(--vc-error);
+}
+
 .journal-entry {
   display: flex;
   align-items: flex-start;

@@ -1,6 +1,7 @@
 import type { JournalEntry } from "@vision-control/change-journal";
 import type { ReactElement } from "react";
 
+import type { ContextExportStatus } from "../../hooks/useContextExport.js";
 import { JournalEntryView } from "./JournalEntry.js";
 import { JournalToolbar } from "./JournalToolbar.js";
 
@@ -10,11 +11,16 @@ interface ChangeJournalProps {
   readonly canRedo: boolean;
   readonly canCopyAgentPrompt: boolean;
   readonly agentPromptCopyState: "idle" | "copied" | "error";
+  readonly contextExportStatus: ContextExportStatus;
   readonly pendingCount: number;
   readonly onUndo: () => void;
   readonly onRedo: () => void;
   readonly onClear: () => void;
   readonly onCopyAgentPrompt: () => void;
+  readonly onCopyContextJson: () => void;
+  readonly onCopyContextMarkdown: () => void;
+  readonly onDownloadContextJson: () => void;
+  readonly onDownloadContextMarkdown: () => void;
 }
 
 export function ChangeJournal({
@@ -23,11 +29,16 @@ export function ChangeJournal({
   canRedo,
   canCopyAgentPrompt,
   agentPromptCopyState,
+  contextExportStatus,
   pendingCount,
   onUndo,
   onRedo,
   onClear,
   onCopyAgentPrompt,
+  onCopyContextJson,
+  onCopyContextMarkdown,
+  onDownloadContextJson,
+  onDownloadContextMarkdown,
 }: ChangeJournalProps): ReactElement {
   return (
     <section className="change-journal" aria-label="Change journal">
@@ -39,11 +50,16 @@ export function ChangeJournal({
         canRedo={canRedo}
         canCopyAgentPrompt={canCopyAgentPrompt}
         agentPromptCopyState={agentPromptCopyState}
+        contextExportStatus={contextExportStatus}
         pendingCount={pendingCount}
         onUndo={onUndo}
         onRedo={onRedo}
         onClear={onClear}
         onCopyAgentPrompt={onCopyAgentPrompt}
+        onCopyContextJson={onCopyContextJson}
+        onCopyContextMarkdown={onCopyContextMarkdown}
+        onDownloadContextJson={onDownloadContextJson}
+        onDownloadContextMarkdown={onDownloadContextMarkdown}
       />
       {entries.length === 0 ? (
         <p className="change-journal__empty" data-testid="change-journal-empty">

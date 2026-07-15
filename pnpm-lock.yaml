@@ -216,6 +216,9 @@ importers:
       '@vision-control/change-journal':
         specifier: workspace:*
         version: link:../../packages/change-journal
+      '@vision-control/context-compiler':
+        specifier: workspace:*
+        version: link:../../packages/context-compiler
       '@vision-control/daemon-client':
         specifier: workspace:*
         version: link:../../packages/daemon-client
@@ -277,9 +280,6 @@ importers:
       '@types/ws':
         specifier: 'catalog:'
         version: 8.18.1
-      '@vision-control/context-compiler':
-        specifier: workspace:*
-        version: link:../../packages/context-compiler
       '@vision-control/source-registry':
         specifier: workspace:*
         version: link:../../packages/source-registry

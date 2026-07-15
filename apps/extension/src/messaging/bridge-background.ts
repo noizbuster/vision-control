@@ -25,6 +25,8 @@ export type BridgeBackgroundController = {
 export type CreateBridgeBackgroundControllerOptions = {
   readonly storage: BridgeStorageArea | undefined;
   readonly onStateChange: (state: ConnectionState) => void;
+  /** Called after a successful pair so the command router can attach. */
+  readonly onClientReady?: (client: BridgeClient) => void;
 };
 
 export function createBridgeBackgroundController(
@@ -62,6 +64,7 @@ export function createBridgeBackgroundController(
         await persistBridgeEndpoint(options.storage, endpoint);
       }
       setState("connected");
+      options.onClientReady?.(client);
     } catch {
       bridgeClient = undefined;
       setState("disconnected");

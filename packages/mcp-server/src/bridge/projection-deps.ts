@@ -157,7 +157,19 @@ export function createProjectionDeps(options: ProjectionDepsOptions): McpServerD
       if (!cache.isLive(now())) {
         return { assertions: [], notes: NOT_PAIRED };
       }
-      return { assertions: [], notes: "no verification result projected yet" };
+      const result = cache.getVerificationResult();
+      if (result === undefined) {
+        return { assertions: [], notes: "no verification result projected yet" };
+      }
+      return {
+        assertions: assertionsFromDetails(result.details),
+        notes: result.passed ? "content verification passed" : "content verification failed",
+        passed: result.passed,
+        tabId: result.tabId,
+        sessionId: result.sessionId,
+        ts: result.ts,
+        details: result.details,
+      };
     },
 
     async requestVerification(): Promise<CoordinationResult> {
@@ -192,6 +204,28 @@ function emptySelection(): SelectionSummary {
     sourceId: undefined,
     textPreview: undefined,
   };
+}
+
+function assertionsFromDetails(details: unknown): readonly { readonly description: string }[] {
+  if (typeof details !== "object" || details === null) {
+    return [];
+  }
+  const assertions = (details as { assertions?: unknown }).assertions;
+  if (!Array.isArray(assertions)) {
+    return [];
+  }
+  const out: { description: string }[] = [];
+  for (const entry of assertions) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const name = (entry as { name?: unknown; description?: unknown }).name;
+    const description = (entry as { description?: unknown }).description;
+    if (typeof name === "string") {
+      out.push({ description: name });
+    } else if (typeof description === "string") {
+      out.push({ description });
+    }
+  }
+  return out;
 }
 
 function selectionFromSnapshot(

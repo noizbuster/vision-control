@@ -8,6 +8,8 @@ export {
   CommandEnqueueSchema,
   type SnapshotPush,
   SnapshotPushSchema,
+  type VerificationResult,
+  VerificationResultSchema,
 } from "./catalog/bridge.js";
 export {
   type ChangesetUpdated,

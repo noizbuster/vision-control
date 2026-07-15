@@ -117,17 +117,22 @@ export interface PatchCompletedInput {
 }
 
 /**
- * Verification plan / last result projection (ADR-020 C5).
- * Must never invent a stale `passed: true` when unpaired (ADR-019 C6).
+ * Verification plan / last result projection (ADR-020 C5 / ADR-019 C6).
+ * Must never invent a stale `passed: true` when unpaired.
+ * When a real content-owned result is projected: tabId, sessionId, ts, passed, details.
  */
 export interface VerificationPlanSummary {
   readonly assertions: readonly { readonly description: string }[];
   readonly notes: string;
   /**
    * Optional pass/fail when a real verification result is projected.
-   * Absent or false when unpaired / empty — never stale true.
+   * Absent when unpaired / empty — never stale true.
    */
   readonly passed?: boolean;
+  readonly tabId?: string;
+  readonly sessionId?: string;
+  readonly ts?: number;
+  readonly details?: unknown;
 }
 
 /**

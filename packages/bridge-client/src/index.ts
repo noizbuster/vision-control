@@ -49,6 +49,7 @@ export {
   buildCommandAckPayload,
   buildHeartbeatPayload,
   buildSnapshotPushPayload,
+  buildVerificationResultPayload,
   wrapBridgeEnvelope,
 } from "./messages.js";
 export {

@@ -21,6 +21,12 @@ import {
   TabSessionStore,
 } from "../src/messaging/index.js";
 import type { BusMessage, TabSession } from "../src/messaging/types.js";
+import {
+  BRIDGE_COMMAND_RESULT_MESSAGE_TYPE,
+  createBackgroundCommandRouter,
+  LOCAL_VERIFY_MESSAGE_TYPE,
+  LOCAL_VERIFY_RESULT_MESSAGE_TYPE,
+} from "../src/verification/index.js";
 
 function broadcastToPanel(message: BusMessage): void {
   if (typeof chrome === "undefined" || chrome.runtime?.sendMessage === undefined) {
@@ -135,14 +141,51 @@ const background: BackgroundDefinition = defineBackground(() => {
     },
   });
 
+  const sendToTabContent = (tabId: number, message: BusMessage): void => {
+    if (typeof chrome === "undefined" || chrome.tabs?.sendMessage === undefined) {
+      return;
+    }
+    void chrome.tabs.sendMessage(tabId, message).catch(() => {
+      // no-excuse-ok: catch — content script may not be loaded yet.
+    });
+  };
+
+  let bridgeRef: ReturnType<typeof createBridgeBackgroundController> | undefined;
+
+  const commandRouter = createBackgroundCommandRouter({
+    getClient: () => bridgeRef?.getClient(),
+    getActiveTabId: () => activeSessions.getActiveTabId() ?? activeSessions.getPairedTabIds()[0],
+    getJournal: (tabId) => journalStore.get(tabId),
+    getSessionId: (tabId) => store.get(tabId)?.sessionId,
+    sendToTabContent,
+    broadcastToPanel,
+  });
+
   const bridge = createBridgeBackgroundController({
     storage: localStorage,
     onStateChange: (state) => {
       broadcastToPanel(createConnectionStateMessage(state));
     },
+    onClientReady: (client) => {
+      commandRouter.attachClient(client);
+    },
   });
+  bridgeRef = bridge;
 
   void bridge.runSwWakePolicy().catch(reportBackgroundError("bridge SW wake policy failed"));
+
+  backgroundBus.on(BRIDGE_COMMAND_RESULT_MESSAGE_TYPE, (message) => {
+    commandRouter.handleContentResult(message);
+  });
+  backgroundBus.on(LOCAL_VERIFY_RESULT_MESSAGE_TYPE, (message) => {
+    commandRouter.handleContentResult(message);
+  });
+  backgroundBus.on(LOCAL_VERIFY_MESSAGE_TYPE, (message, sender) => {
+    const tabId = message.tabId ?? sender?.tabId;
+    if (tabId !== undefined) {
+      commandRouter.requestLocalVerify(tabId);
+    }
+  });
 
   backgroundBus.on("frame-hello", (message, sender) => {
     handleFrameHello(message, sender, {

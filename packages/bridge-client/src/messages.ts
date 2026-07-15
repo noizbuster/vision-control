@@ -9,6 +9,7 @@ import {
   type ProtocolEnvelope,
   type SessionHeartbeat,
   type SnapshotPush,
+  type VerificationResult,
 } from "@vision-control/protocol";
 
 export interface BuildEnvelopeOptions {
@@ -62,6 +63,28 @@ export function buildCommandAckPayload(input: {
 
 export function buildHeartbeatPayload(clientTime: number): SessionHeartbeat {
   return { type: "session.heartbeat", clientTime };
+}
+
+export function buildVerificationResultPayload(input: {
+  readonly tabId: string;
+  readonly sessionId?: string;
+  readonly ts: number;
+  readonly passed: boolean;
+  readonly details: unknown;
+  readonly commandId?: string;
+}): VerificationResult {
+  const payload: VerificationResult = {
+    type: "verification.result",
+    tabId: input.tabId,
+    ts: input.ts,
+    passed: input.passed,
+    details: input.details,
+  };
+  return {
+    ...payload,
+    ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
+    ...(input.commandId !== undefined ? { commandId: input.commandId } : {}),
+  };
 }
 
 export function wrapBridgeEnvelope(

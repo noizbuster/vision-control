@@ -63,6 +63,7 @@ function createFakeRuntime(): OverlayRuntime {
     getInteractionMode: unexpectedCall,
     applyOperation: () => {},
     clearPreviews: () => {},
+    getPreviewClearer: () => ({ activeCount: 0, clearAll: () => {} }) as never,
   };
 }
 

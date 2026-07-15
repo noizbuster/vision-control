@@ -95,6 +95,7 @@ export interface OverlayRuntime {
    */
   readonly applyOperation: (operation: Operation) => void;
   readonly clearPreviews: () => void;
+  readonly getPreviewClearer: () => PreviewManager;
 }
 
 /**
@@ -347,6 +348,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     getInteractionMode,
     applyOperation,
     clearPreviews,
+    getPreviewClearer: () => previewManager,
   };
 }
 

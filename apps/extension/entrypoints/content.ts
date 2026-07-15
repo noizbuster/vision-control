@@ -12,6 +12,8 @@ import {
   type OverlayRuntime,
   type OverlayRuntimeBus,
 } from "../src/overlay/overlay-runtime.js";
+import type { ContentCommandWiring } from "../src/verification/content-command-wiring.js";
+import { wireContentCommandHandlers } from "../src/verification/content-command-wiring.js";
 
 const LOOPBACK_MATCHES = ["http://localhost/*", "http://127.0.0.1/*", "http://[::1]/*"] as const;
 
@@ -36,6 +38,7 @@ interface ContentRuntimeSlot {
   readonly bus: ContentEntrypointBus;
   readonly runtime: OverlayRuntime | null;
   readonly editHandlers: ContentEditWiring | null;
+  readonly commandHandlers: ContentCommandWiring | null;
 }
 
 declare global {
@@ -102,6 +105,7 @@ function installContentRuntimeSlot(
   deps.window.addEventListener(
     "pagehide",
     () => {
+      slot.commandHandlers?.dispose();
       slot.editHandlers?.dispose();
       slot.runtime?.dispose();
       slot.bus.dispose();
@@ -143,14 +147,24 @@ function tryAutoPairFromPairPage(
   const href = deps.window.location.href;
   const synthesized = synthesizePairingUrlFromHttpPairPage(href);
   if (synthesized.success) {
-    installContentRuntimeSlot(deps, { bus, runtime: null, editHandlers: null });
+    installContentRuntimeSlot(deps, {
+      bus,
+      runtime: null,
+      editHandlers: null,
+      commandHandlers: null,
+    });
     bus.send("background", createDaemonConnectMessage(synthesized.pairingUrl));
     stripPairingTokenFromAddressBar(deps.window);
     setPairPageConnectedTitle(deps.document);
     return true;
   }
   if (isLoopbackHttpPairPage(href)) {
-    installContentRuntimeSlot(deps, { bus, runtime: null, editHandlers: null });
+    installContentRuntimeSlot(deps, {
+      bus,
+      runtime: null,
+      editHandlers: null,
+      commandHandlers: null,
+    });
     return true;
   }
   return false;
@@ -170,13 +184,18 @@ export function runVisionControlContentScript(deps = createDefaultDependencies()
 
   let runtime: OverlayRuntime | null = null;
   let editHandlers: ContentEditWiring | null = null;
+  let commandHandlers: ContentCommandWiring | null = null;
   if (deps.routeableFrame(deps.window)) {
     runtime = deps.createRuntime({ document: deps.document, bus });
     runtime.start();
     editHandlers = deps.wireEditHandlers(bus, runtime);
+    commandHandlers = wireContentCommandHandlers({
+      bus,
+      preview: runtime.getPreviewClearer(),
+    });
   }
 
-  installContentRuntimeSlot(deps, { bus, runtime, editHandlers });
+  installContentRuntimeSlot(deps, { bus, runtime, editHandlers, commandHandlers });
   sendFrameHello(deps, bus);
 }
 

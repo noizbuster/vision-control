@@ -7,6 +7,7 @@ import {
   buildCommandAckPayload,
   buildHeartbeatPayload,
   buildSnapshotPushPayload,
+  buildVerificationResultPayload,
   wrapBridgeEnvelope,
 } from "./messages.js";
 import type { BridgeTarget } from "./pairing.js";
@@ -177,6 +178,18 @@ export class BridgeClient {
   }): void {
     const payload = buildCommandAckPayload(input);
     this.send("command.ack", payload, input.tabId);
+  }
+
+  pushVerificationResult(input: {
+    readonly tabId: string;
+    readonly sessionId?: string;
+    readonly ts: number;
+    readonly passed: boolean;
+    readonly details: unknown;
+    readonly commandId?: string;
+  }): void {
+    const payload = buildVerificationResultPayload(input);
+    this.send("verification.result", payload, input.tabId);
   }
 
   /** In-memory pair token (never persisted by this client). */

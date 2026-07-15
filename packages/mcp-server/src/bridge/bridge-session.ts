@@ -81,6 +81,16 @@ export function createBridgeSession(options: BridgeSessionOptions): BridgeSessio
       case "command.ack":
         commands.ack(msg.commandId, msg.ok, msg.reason);
         return;
+      case "verification.result":
+        cache.setVerificationResult({
+          tabId: msg.tabId,
+          sessionId: msg.sessionId,
+          ts: msg.ts,
+          passed: msg.passed,
+          details: msg.details,
+          commandId: msg.commandId,
+        });
+        return;
       default:
         return;
     }

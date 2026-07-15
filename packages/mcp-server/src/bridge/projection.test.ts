@@ -95,12 +95,44 @@ describe("projection cache (ADR-020)", () => {
     const plan = await deps.getVerificationPlan();
     expect(plan.notes).toBe("not_paired");
     expect(plan.assertions).toEqual([]);
+    expect(plan.passed).not.toBe(true);
 
     const clear = await deps.clearPreview();
     expect(clear.acknowledged).toBe(false);
     expect(clear.message).toBe("not_paired");
 
     expect(await deps.getSourceContext()).toBeUndefined();
+  });
+
+  it("projects verification.result and never returns stale passed when unpaired (C6)", async () => {
+    const cache = createProjectionCache();
+    const commands = createCommandQueue();
+    cache.markPaired(1_000);
+    cache.setVerificationResult({
+      tabId: "tab-v",
+      sessionId: "sess-v",
+      ts: 1_500,
+      passed: true,
+      details: {
+        assertions: [{ name: "preview-cleared", passed: true }],
+      },
+      commandId: "cmd-v",
+    });
+    const live = createProjectionDeps({ cache, commands, now: () => 1_000 });
+    const plan = await live.getVerificationPlan();
+    expect(plan.passed).toBe(true);
+    expect(plan.tabId).toBe("tab-v");
+    expect(plan.sessionId).toBe("sess-v");
+    expect(plan.ts).toBe(1_500);
+    expect(plan.assertions.some((a) => a.description === "preview-cleared")).toBe(true);
+
+    cache.markUnpaired();
+    const dead = createProjectionDeps({ cache, commands, now: () => 1_000 });
+    const unpaired = await dead.getVerificationPlan();
+    expect(unpaired.notes).toBe("not_paired");
+    expect(unpaired.passed).not.toBe(true);
+    expect(unpaired.assertions).toEqual([]);
+    expect(JSON.stringify(unpaired)).not.toMatch(/"passed"\s*:\s*true/);
   });
 
   it("closed tab is not stale — clearTab drops projection", async () => {

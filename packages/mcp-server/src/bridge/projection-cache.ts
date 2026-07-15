@@ -18,6 +18,16 @@ export interface ProjectionEntry {
   readonly ingestedAt: number;
 }
 
+/** Content-owned verification result projected for MCP tools (ADR-019 C6). */
+export interface ProjectedVerificationResult {
+  readonly tabId: string;
+  readonly sessionId: string | undefined;
+  readonly ts: number;
+  readonly passed: boolean;
+  readonly details: unknown;
+  readonly commandId: string | undefined;
+}
+
 export interface ProjectionCacheState {
   /** Last snapshot per tabId. */
   readonly byTab: ReadonlyMap<string, ProjectionEntry>;
@@ -27,11 +37,16 @@ export interface ProjectionCacheState {
   readonly paired: boolean;
   /** Epoch-ms of last session.heartbeat from the extension. */
   readonly lastHeartbeatAt: number | undefined;
+  /** Last verification.result per tab (never invented when unpaired). */
+  readonly verificationByTab: ReadonlyMap<string, ProjectedVerificationResult>;
 }
 
 export interface ProjectionCache {
   /** Ingest a validated snapshot push. Stale (lower) revs for the same tab are ignored. */
   ingest(entry: ProjectionEntry): boolean;
+  /** Store a content-owned verification result (C6). */
+  setVerificationResult(result: ProjectedVerificationResult): void;
+  getVerificationResult(tabId?: string): ProjectedVerificationResult | undefined;
   /** Remove a tab's projection (tab closed). */
   clearTab(tabId: string): void;
   /** Clear all projections (disconnect / unpair). */
@@ -55,6 +70,7 @@ export function createProjectionCache(options?: {
 }): ProjectionCache {
   const heartbeatMaxGapMs = options?.heartbeatMaxGapMs ?? HEARTBEAT_MAX_GAP_MS;
   const byTab = new Map<string, ProjectionEntry>();
+  const verificationByTab = new Map<string, ProjectedVerificationResult>();
   let activeTabId: string | undefined;
   let paired = false;
   let lastHeartbeatAt: number | undefined;
@@ -70,8 +86,20 @@ export function createProjectionCache(options?: {
       return true;
     },
 
+    setVerificationResult(result: ProjectedVerificationResult): void {
+      verificationByTab.set(result.tabId, result);
+      activeTabId = result.tabId;
+    },
+
+    getVerificationResult(tabId?: string): ProjectedVerificationResult | undefined {
+      const key = tabId ?? activeTabId;
+      if (key === undefined) return undefined;
+      return verificationByTab.get(key);
+    },
+
     clearTab(tabId: string): void {
       byTab.delete(tabId);
+      verificationByTab.delete(tabId);
       if (activeTabId === tabId) {
         activeTabId = byTab.keys().next().value;
       }
@@ -79,6 +107,7 @@ export function createProjectionCache(options?: {
 
     clearAll(): void {
       byTab.clear();
+      verificationByTab.clear();
       activeTabId = undefined;
     },
 
@@ -91,6 +120,7 @@ export function createProjectionCache(options?: {
       paired = false;
       lastHeartbeatAt = undefined;
       byTab.clear();
+      verificationByTab.clear();
       activeTabId = undefined;
     },
 
@@ -99,7 +129,7 @@ export function createProjectionCache(options?: {
     },
 
     setActiveTab(tabId: string): void {
-      if (byTab.has(tabId)) {
+      if (byTab.has(tabId) || verificationByTab.has(tabId)) {
         activeTabId = tabId;
       }
     },
@@ -125,6 +155,7 @@ export function createProjectionCache(options?: {
         activeTabId,
         paired,
         lastHeartbeatAt,
+        verificationByTab: new Map(verificationByTab),
       };
     },
   };

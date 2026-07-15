@@ -50,6 +50,7 @@ export {
 export {
   createProjectionCache,
   HEARTBEAT_MAX_GAP_MS,
+  type ProjectedVerificationResult,
   type ProjectionCache,
   type ProjectionCacheState,
   type ProjectionEntry,

@@ -255,6 +255,9 @@ importers:
       '@vision-control/security':
         specifier: workspace:*
         version: link:../../packages/security
+      '@vision-control/verification-engine':
+        specifier: workspace:*
+        version: link:../../packages/verification-engine
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -292,9 +295,6 @@ importers:
       '@vision-control/testing':
         specifier: workspace:*
         version: link:../../packages/testing
-      '@vision-control/verification-engine':
-        specifier: workspace:*
-        version: link:../../packages/verification-engine
       '@vision-control/workspace-index':
         specifier: workspace:*
         version: link:../../packages/workspace-index

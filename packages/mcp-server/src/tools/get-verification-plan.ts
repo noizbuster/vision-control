@@ -7,6 +7,11 @@ import type { McpServerDeps } from "../types.js";
 export const GetVerificationPlanOutputSchema = z.object({
   assertions: z.array(z.object({ description: z.string() })),
   notes: z.string(),
+  passed: z.boolean().optional(),
+  tabId: z.string().optional(),
+  sessionId: z.string().optional(),
+  ts: z.number().optional(),
+  details: z.unknown().optional(),
 });
 
 /** Register the `vision_get_verification_plan` read-only tool. */

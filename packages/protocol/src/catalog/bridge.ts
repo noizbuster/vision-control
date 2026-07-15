@@ -70,7 +70,31 @@ export const CommandAckSchema = z.object({
 export type CommandAck = z.infer<typeof CommandAckSchema>;
 
 /**
+ * Extension → MCP: content-owned verification result (ADR-019 C6).
+ * Projected into the MCP cache as { tabId, sessionId, ts, passed, details }.
+ * Must never be invented when unpaired — only real content runs produce this.
+ */
+export const VerificationResultSchema = z.object({
+  type: z.literal("verification.result"),
+  tabId: z.string().min(1),
+  sessionId: z.string().min(1).optional(),
+  /** Epoch-ms when content finished the verification run. */
+  ts: z.number().int().nonnegative(),
+  passed: z.boolean(),
+  /** Assertion details / report summary (opaque at the protocol layer). */
+  details: z.unknown(),
+  /** Optional command.enqueue id that triggered this run. */
+  commandId: z.string().min(1).optional(),
+});
+export type VerificationResult = z.infer<typeof VerificationResultSchema>;
+
+/**
  * Bridge catalog schemas (excluding session.heartbeat, which lives in the
  * browser→daemon catalog and is reused on the bridge wire).
  */
-export const bridgeSchemas = [SnapshotPushSchema, CommandEnqueueSchema, CommandAckSchema] as const;
+export const bridgeSchemas = [
+  SnapshotPushSchema,
+  CommandEnqueueSchema,
+  CommandAckSchema,
+  VerificationResultSchema,
+] as const;

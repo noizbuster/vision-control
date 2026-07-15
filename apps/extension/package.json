@@ -31,6 +31,7 @@
     "@vision-control/preview-engine": "workspace:*",
     "@vision-control/protocol": "workspace:*",
     "@vision-control/security": "workspace:*",
+    "@vision-control/verification-engine": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
@@ -44,7 +45,6 @@
     "@vision-control/source-registry": "workspace:*",
     "@vision-control/source-resolver": "workspace:*",
     "@vision-control/testing": "workspace:*",
-    "@vision-control/verification-engine": "workspace:*",
     "@vision-control/workspace-index": "workspace:*",
     "@wxt-dev/module-react": "catalog:",
     "jsdom": "29.1.1",

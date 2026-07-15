@@ -21,8 +21,8 @@ import {
 } from "./endpoint-store.js";
 import { isLoopbackHost } from "./loopback.js";
 import {
-  type buildCommandAckPayload,
   buildSnapshotPushPayload,
+  buildVerificationResultPayload,
   wrapBridgeEnvelope,
 } from "./messages.js";
 import {
@@ -422,7 +422,7 @@ describe("loopback guard", () => {
   });
 });
 
-describe("bridge message helpers (snapshot.push / command.ack)", () => {
+describe("bridge message helpers (snapshot.push / command.ack / verification.result)", () => {
   it("builds snapshot.push with monotonic snapshotRev", () => {
     const payload = buildSnapshotPushPayload({
       tabId: "tab-1",
@@ -444,6 +444,26 @@ describe("bridge message helpers (snapshot.push / command.ack)", () => {
     });
     expect(envelope.messageType).toBe("snapshot.push");
     expect(envelope.tabId).toBe("tab-1");
+  });
+
+  it("builds verification.result with tabId/sessionId/ts/passed/details", () => {
+    const payload = buildVerificationResultPayload({
+      tabId: "tab-v",
+      sessionId: "sess-v",
+      ts: 99,
+      passed: false,
+      details: { assertions: [] },
+      commandId: "cmd-v",
+    });
+    expect(payload).toEqual({
+      type: "verification.result",
+      tabId: "tab-v",
+      sessionId: "sess-v",
+      ts: 99,
+      passed: false,
+      details: { assertions: [] },
+      commandId: "cmd-v",
+    });
   });
 
   it("BridgeClient.pushSnapshot and ackCommand send typed envelopes", async () => {
@@ -491,8 +511,15 @@ describe("bridge message helpers (snapshot.push / command.ack)", () => {
       snapshot: { snapshotRev: 1 },
     });
     client.ackCommand({ commandId: "c1", ok: true, tabId: "tab-x" });
+    client.pushVerificationResult({
+      tabId: "tab-x",
+      ts: 99,
+      passed: true,
+      details: { verdict: "pass" },
+      commandId: "c1",
+    });
 
-    expect(sent.length).toBeGreaterThanOrEqual(2);
+    expect(sent.length).toBeGreaterThanOrEqual(3);
     const push = JSON.parse(sent[0] ?? "{}") as {
       messageType: string;
       payload: { type: string; snapshotRev: number; tabId: string };
@@ -503,11 +530,19 @@ describe("bridge message helpers (snapshot.push / command.ack)", () => {
 
     const ack = JSON.parse(sent[1] ?? "{}") as {
       messageType: string;
-      payload: ReturnType<typeof buildCommandAckPayload>;
+      payload: { commandId: string; ok: boolean };
     };
     expect(ack.messageType).toBe("command.ack");
     expect(ack.payload.commandId).toBe("c1");
     expect(ack.payload.ok).toBe(true);
+
+    const verify = JSON.parse(sent[2] ?? "{}") as {
+      messageType: string;
+      payload: { type: string; passed: boolean; tabId: string };
+    };
+    expect(verify.messageType).toBe("verification.result");
+    expect(verify.payload.passed).toBe(true);
+    expect(verify.payload.tabId).toBe("tab-x");
     client.disconnect();
   });
 });

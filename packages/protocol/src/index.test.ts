@@ -13,6 +13,7 @@ import {
   CommandAckSchema,
   CommandEnqueueSchema,
   SnapshotPushSchema,
+  VerificationResultSchema,
 } from "./catalog/bridge.js";
 import {
   browserToDaemonSchemas,
@@ -488,8 +489,8 @@ describe("§25.2 daemon→browser catalog (7 messages)", () => {
 });
 
 describe("ADR-020 bridge catalog (snapshot.push / command.enqueue / command.ack)", () => {
-  it("exactly 3 bridge schemas (heartbeat reuses session.heartbeat)", () => {
-    expect(bridgeSchemas).toHaveLength(3);
+  it("exactly 4 bridge schemas (heartbeat reuses session.heartbeat)", () => {
+    expect(bridgeSchemas).toHaveLength(4);
   });
 
   const cases: Array<{ name: string; schema: z.ZodType; sample: unknown }> = [
@@ -540,6 +541,19 @@ describe("ADR-020 bridge catalog (snapshot.push / command.enqueue / command.ack)
         commandId: "cmd-1",
         ok: true,
         tabId: "tab-7",
+      },
+    },
+    {
+      name: "verification.result",
+      schema: VerificationResultSchema,
+      sample: {
+        type: "verification.result",
+        tabId: "tab-7",
+        sessionId: "sess-1",
+        ts: 1_700_000_000_100,
+        passed: false,
+        details: { assertions: [{ name: "preview-cleared", passed: true }] },
+        commandId: "cmd-1",
       },
     },
   ];

@@ -42,9 +42,9 @@ there is no tool that writes source.
 5. Apply the diff from the suggestion to the file it names. Use your own
    file-editing tools. Do not call any tool that applies a patch; none exists.
 6. Save the file so HMR runs.
-7. Call vision_request_verification. Read vision_get_verification_plan and
-   vision_get_diagnostics.
-8. Call vision_mark_patch_completed with the same patchId and success set to
+  7. Call vision_request_verification. Read vision_get_verification_plan.
+  8. Call vision_mark_patch_completed with the same patchId and success set to
+
    whether every assertion passed.
 9. Report which assertions passed and which failed. If any failed, name the DOM
    property that diverges. Do not edit anything else.
@@ -61,7 +61,7 @@ You are connected to the vision-control MCP server.
 I just edited src/components/Button.tsx by hand.
 
 1. Call vision_request_verification.
-2. Call vision_get_diagnostics and vision_get_verification_plan.
+2. Call vision_get_verification_plan.
 3. Tell me whether the post-HMR DOM matches the preview. If any assertion
    failed, name the property and the expected vs actual value. Do not edit any
    files.

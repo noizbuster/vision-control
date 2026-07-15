@@ -128,9 +128,10 @@ VC_MCP_URL=http://127.0.0.1:4322/mcp VC_MCP_TOKEN=change-me \
 
 ## Tools
 
-Seven read-only tools and four coordination signals. None of them write source.
+Five read/projection tools and four coordination signals (ADR-020 C5). None of
+them write source. Capture and diagnostics are not product tools.
 
-**Read-only**
+**Read / projection**
 
 | Tool | What it returns |
 | --- | --- |
@@ -139,15 +140,13 @@ Seven read-only tools and four coordination signals. None of them write source.
 | `vision_get_changeset` | the current changeset with per-operation summaries |
 | `vision_get_source_context` | the compiled, redacted agent context (JSON or Markdown) |
 | `vision_get_verification_plan` | the assertions planned for the current changeset |
-| `vision_get_diagnostics` | preview-specificity conflicts and layout warnings |
-| `vision_capture_element` | capture an element's source context by selector or id |
 
 **Coordination (signals, not source writes)**
 
 | Tool | What it does |
 | --- | --- |
-| `vision_request_verification` | ask the runtime to verify the current changeset after HMR |
 | `vision_clear_preview` | clear all runtime preview mutations |
+| `vision_request_verification` | ask the runtime to verify the current changeset after HMR |
 | `vision_mark_patch_started` | signal that an external patch cycle began |
 | `vision_mark_patch_completed` | signal that an external patch cycle ended (also triggers verification) |
 
@@ -221,11 +220,10 @@ gives you the coordination signals; you do the writing. The lifecycle:
 frame the cycle. They never apply, revert, or modify a file. Use a stable
 `patchId` across the pair so the runtime can correlate them.
 
-Read the result with `vision_get_verification_plan` and `vision_get_diagnostics`
-to see which assertions passed and where the patched DOM diverges from the
-preview. A green verification means the source you wrote produces the visual
-state the user asked for. A red one means it does not, and you fix the source,
-not the preview.
+Read the result with `vision_get_verification_plan` to see which assertions
+passed and where the patched DOM diverges from the preview. A green verification
+means the source you wrote produces the visual state the user asked for. A red
+one means it does not, and you fix the source, not the preview.
 
 ## Programmatic config
 
@@ -307,7 +305,7 @@ and report whether every assertion passed.
 
 ```
 I edited src/Button.tsx by hand. Call vision_request_verification, then read
-vision_get_diagnostics. If any assertion failed, tell me which DOM property
+vision_get_verification_plan. If any assertion failed, tell me which DOM property
 diverges and do not edit anything else.
 ```
 

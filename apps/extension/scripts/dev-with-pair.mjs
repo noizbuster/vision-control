@@ -255,7 +255,10 @@ async function main() {
   }
 
   log(`daemon ready on ${ready.host}:${ready.port}`);
-  log(`pairing page will open in WXT browser: ${ready.pairingHttpUrl}`);
+  // Log only the host/port/path; pairingHttpUrl carries the one-time token and
+  // is already forwarded once via the ready JSON on stdout (the intentional
+  // token surface). Keep it out of stderr.
+  log(`pairing page will open in WXT browser: http://${ready.host}:${ready.port}/pair`);
 
   wxt = startWxt(ready.pairingHttpUrl);
 

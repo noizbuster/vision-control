@@ -27,6 +27,7 @@ export {
 } from "./changeset-privacy.js";
 export { type CompileContextInputs, compileContext } from "./compiler.js";
 export * from "./context-schema.js";
+export { summarizeOperation } from "./operation-summary.js";
 export { redactContext, redactVisionContextSnapshot } from "./redaction.js";
 export {
   DEFAULT_REDACTION_SELECTORS,
@@ -42,6 +43,8 @@ export {
 } from "./redaction-selectors.js";
 export { renderJson } from "./renderers/json-renderer.js";
 export { renderMarkdown } from "./renderers/markdown-renderer.js";
+export { renderSnapshotJson } from "./renderers/snapshot-json-renderer.js";
+export { renderSnapshotMarkdown } from "./renderers/snapshot-markdown-renderer.js";
 export {
   type CompileSnapshotInputs,
   compileVisionContextSnapshot,

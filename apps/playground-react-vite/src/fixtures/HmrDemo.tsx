@@ -5,10 +5,10 @@ import type { ReactElement } from "react";
  *
  * Renders a card carrying an explicit `data-vc-source` marker — the same
  * attribute the vite-react source-marker plugin injects in production. The
- * real-HMR e2e (`e2e/hmr-demo.spec.ts`) edits this file through the codemod's
- * `applySuggestion` (`confirm: true`), waits for Vite HMR to re-render the
- * component, and asserts the verification engine re-identifies the card by its
- * source id and verifies the post-HMR computed style.
+ * real-HMR e2e (`e2e/hmr-demo.spec.ts`) edits this file with a direct source
+ * write (agent file-tool style; product codemod removed), waits for Vite HMR
+ * to re-render the component, and asserts the verification engine re-identifies
+ * the card by its source id and verifies the post-HMR computed style.
  *
  * The inline `style` object is the edit target: a source-level change to the
  * padding value here flows through Vite HMR into the live DOM, where the

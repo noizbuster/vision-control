@@ -2,21 +2,19 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { expect, test } from "@playwright/test";
 
-import { applySuggestion } from "../../../packages/cli/dist/codemod/apply-suggestion.js";
 import {
   type AssertionResult,
   createPlan,
 } from "../../../packages/verification-engine/dist/index.js";
 
 import {
+  applyPaddingSourcePatch,
   armHmrObserver,
-  buildPaddingSuggestion,
   buildSnapshotTarget,
   FIXTURE_ABSOLUTE,
   INITIAL_PADDING,
   PATCHED_PADDING,
   paddingEdit,
-  REPO_ROOT,
   SOURCE_ID,
   SOURCE_SELECTOR,
   snapshotTarget,
@@ -30,9 +28,10 @@ import {
  * flow:
  *
  *   1. The playground Vite dev server serves the HmrDemo fixture (§42 step 1).
- *   2. A REAL source-file edit is applied through the codemod's
- *      `applySuggestion` (`confirm: true` — the `--confirm` gate is NOT
- *      bypassed). This writes the actual `.tsx` file on disk (§42 step 10).
+ *   2. A REAL source-file edit is applied the way an agent would (direct file
+ *      write). Product CLI codemod is removed (ADR-014 supersession); patch
+ *      apply is never an MCP tool (ADR-020). Writes the actual `.tsx` on disk
+ *      (§42 step 10).
  *   3. Vite's file watcher detects the change and pushes an HMR update via
  *      WebSocket. React Fast Refresh re-renders the component (§42 step 11).
  *   4. A MutationObserver in the page detects the HMR-driven DOM mutation
@@ -73,18 +72,9 @@ test.describe("@hmr-demo real Vite HMR (PRD §42 steps 10-12)", () => {
     // Arm the HMR observer BEFORE the file write so it catches the mutation.
     const hmrDetectedPromise = armHmrObserver(page);
 
-    // REAL source-file edit via codemod (confirm: true). NOT a page.evaluate swap.
-    const suggestion = await buildPaddingSuggestion(INITIAL_PADDING, PATCHED_PADDING);
-    const applyResult = await applySuggestion(suggestion, {
-      confirm: true,
-      workspaceRoot: REPO_ROOT,
-    });
-    expect(applyResult.kind, "codemod must accept the confirmed suggestion").toBe("applied");
-    if (applyResult.kind !== "applied") return;
-    expect(
-      applyResult.verification.sourceVerified,
-      "codemod source-after-write verification must pass",
-    ).toBe(true);
+    // REAL source-file edit (agent file-tool style). NOT a page.evaluate swap.
+    const applyResult = await applyPaddingSourcePatch(INITIAL_PADDING, PATCHED_PADDING);
+    expect(applyResult.sourceVerified, "source-after-write verification must pass").toBe(true);
 
     const hmrDetected = await hmrDetectedPromise;
     expect(hmrDetected, "HMR must produce a real DOM mutation detected by the observer").toBe(true);
@@ -141,12 +131,8 @@ test.describe("@hmr-demo real Vite HMR (PRD §42 steps 10-12)", () => {
     expect(baseline.padding).toBe(INITIAL_PADDING);
 
     const hmrDetectedPromise = armHmrObserver(page);
-    const suggestion = await buildPaddingSuggestion(INITIAL_PADDING, PATCHED_PADDING);
-    const applyResult = await applySuggestion(suggestion, {
-      confirm: true,
-      workspaceRoot: REPO_ROOT,
-    });
-    expect(applyResult.kind).toBe("applied");
+    const applyResult = await applyPaddingSourcePatch(INITIAL_PADDING, PATCHED_PADDING);
+    expect(applyResult.sourceVerified).toBe(true);
 
     await hmrDetectedPromise;
     await expect

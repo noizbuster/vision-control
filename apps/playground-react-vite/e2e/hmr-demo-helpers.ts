@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,10 +13,11 @@ import type {
  * Helpers for the real-Vite-HMR demo e2e (`hmr-demo.spec.ts`).
  *
  * Split out of the spec to stay under the 250 pure-LOC ceiling. These helpers
- * own the HMR-demo mechanics: codemod suggestion construction, HMR mutation
- * observation, post-HMR DOM snapshotting, and the snapshot-backed
- * `ResolvedTarget` that lets the verification engine read the real post-HMR
- * browser DOM from the Node test process.
+ * own the HMR-demo mechanics: agent-style source file patch (no product
+ * codemod — ADR-014 supersession / ADR-020), HMR mutation observation,
+ * post-HMR DOM snapshotting, and the snapshot-backed `ResolvedTarget` that
+ * lets the verification engine read the real post-HMR browser DOM from the
+ * Node test process.
  */
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
@@ -57,58 +58,24 @@ export function paddingEdit(value: string, previousValue: string, id: string): P
 }
 
 /**
- * Build a `SuggestedDiff` for the inline-style padding edit by finding the
- * line dynamically. The diff's removal (old) line must match the current file
- * content at the source range — the codemod's staleness check enforces this,
- * so the line number is computed at runtime, never hardcoded.
+ * Apply a real source-file padding edit the way an agent would: write the
+ * fixture on disk. Product CLI codemod is removed (ADR-014 supersession);
+ * patch apply is an agent file-tool action, never an MCP tool (ADR-020).
  */
-export async function buildPaddingSuggestion(
+export async function applyPaddingSourcePatch(
   fromPadding: string,
   toPadding: string,
-): Promise<{
-  readonly kind: "inline-style-object-edit";
-  readonly filePath: string;
-  readonly diff: string;
-  readonly sourceRanges: readonly [
-    {
-      readonly startLine: number;
-      readonly startColumn: number;
-      readonly endLine: number;
-      readonly endColumn: number;
-    },
-  ];
-  readonly confidence: "high";
-  readonly preconditions: readonly string[];
-}> {
+): Promise<{ readonly sourceVerified: boolean }> {
   const content = await readFile(FIXTURE_ABSOLUTE, "utf-8");
-  const lines = content.split("\n");
   const needle = `padding: "${fromPadding}"`;
-  const lineIdx = lines.findIndex((l) => l.includes(needle));
-  if (lineIdx < 0) {
-    throw new Error(`buildPaddingSuggestion: cannot find line containing "${needle}"`);
+  const replacement = `padding: "${toPadding}"`;
+  if (!content.includes(needle)) {
+    throw new Error(`applyPaddingSourcePatch: cannot find "${needle}" in ${FIXTURE_RELATIVE}`);
   }
-  const oldLine = lines[lineIdx];
-  if (oldLine === undefined) throw new Error("unexpected undefined line");
-  const newLine = oldLine.replace(`padding: "${fromPadding}"`, `padding: "${toPadding}"`);
-  const startLine = lineIdx + 1;
-
-  return {
-    kind: "inline-style-object-edit",
-    filePath: FIXTURE_RELATIVE,
-    diff: [
-      `--- a/${FIXTURE_RELATIVE}`,
-      `+++ b/${FIXTURE_RELATIVE}`,
-      `@@ -${startLine},1 +${startLine},1 @@`,
-      `-${oldLine}`,
-      `+${newLine}`,
-    ].join("\n"),
-    sourceRanges: [{ startLine, startColumn: 0, endLine: startLine, endColumn: 0 }],
-    confidence: "high",
-    preconditions: [
-      `Element with data-vc-source="${SOURCE_ID}" must re-render after HMR`,
-      `Computed padding must change from ${fromPadding} to ${toPadding}`,
-    ],
-  };
+  const next = content.replace(needle, replacement);
+  await writeFile(FIXTURE_ABSOLUTE, next, "utf-8");
+  const after = await readFile(FIXTURE_ABSOLUTE, "utf-8");
+  return { sourceVerified: after.includes(replacement) && !after.includes(needle) };
 }
 
 /**

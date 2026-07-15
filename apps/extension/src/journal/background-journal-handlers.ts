@@ -26,6 +26,8 @@ export interface BackgroundJournalHandlersOptions {
   readonly broadcastToPanel: (message: BusMessage) => void;
   /** Deliver journal-state to content frames of a tab. */
   readonly sendToTabContent: (tabId: number, message: BusMessage) => void;
+  /** After SoT write (journal-replace). Used for MCP snapshot projection. */
+  readonly onJournalChanged?: (tabId: number, journal: Journal) => void;
 }
 
 export interface BackgroundJournalHandlers {
@@ -52,7 +54,7 @@ function resolveTabId(message: BusMessage, sender: MessageContext): number | und
 export function installBackgroundJournalHandlers(
   options: BackgroundJournalHandlersOptions,
 ): BackgroundJournalHandlers {
-  const { store, bus, broadcastToPanel, sendToTabContent } = options;
+  const { store, bus, broadcastToPanel, sendToTabContent, onJournalChanged } = options;
 
   const publishState = (tabId: number, journal: Journal | null): void => {
     broadcastToPanel(createJournalStateMessage(tabId, journal, "panel"));
@@ -70,6 +72,7 @@ export function installBackgroundJournalHandlers(
     }
     void store.set(tabId, journal).then(() => {
       publishState(tabId, journal);
+      onJournalChanged?.(tabId, journal);
     });
   });
 

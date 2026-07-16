@@ -23,6 +23,7 @@ import { useJournal } from "./hooks/useJournal.js";
 import { useJournalPersistence } from "./hooks/useJournalPersistence.js";
 import { useMultiSelect } from "./hooks/useMultiSelect.js";
 import { usePanelBus } from "./hooks/usePanelBus.js";
+import { useSelectionCopyContext } from "./hooks/useSelectionCopyContext.js";
 import { useSelectionSummary } from "./hooks/useSelectionSummary.js";
 import { useSession } from "./hooks/useSession.js";
 import { useTheme } from "./hooks/useTheme.js";
@@ -65,7 +66,7 @@ export function App(): ReactElement {
   const connectionState = useConnectionState(bus);
   const session = useSession(bus, tabId);
   const frames = useFrameTree(bus, tabId);
-  const { summary, selectElement } = useSelectionSummary(bus);
+  const { summary, originState, selectElement } = useSelectionSummary(bus);
   const { group: multiSelectGroup } = useMultiSelect(bus);
   const { state: gridPlacementState } = useGridPlacement(bus);
   const { componentProps } = useComponentProps(bus, summary);
@@ -108,6 +109,12 @@ export function App(): ReactElement {
       }),
     [url, summary, journal.journal],
   );
+  const { canCopySelectionContext, selectionCopyStatus, handleCopySelectionContext } =
+    useSelectionCopyContext({
+      summary,
+      originState,
+      pageUrl: url,
+    });
   const recordRemoteRef = useRef(journal.recordRemote);
   recordRemoteRef.current = journal.recordRemote;
   useEffect(() => {
@@ -284,6 +291,9 @@ export function App(): ReactElement {
             gridA11yWarning={gridPlacementState?.a11yWarning ?? null}
             onChooseGridPlacement={handleGridChoosePlacement}
             onResizeGridSpan={handleGridResizeSpan}
+            canCopySelectionContext={canCopySelectionContext}
+            onCopySelectionContext={handleCopySelectionContext}
+            selectionCopyStatus={selectionCopyStatus}
             {...(alignmentPanel !== undefined ? { alignmentPanel } : {})}
             {...(autoLayoutPanel !== undefined ? { autoLayoutPanel } : {})}
           />

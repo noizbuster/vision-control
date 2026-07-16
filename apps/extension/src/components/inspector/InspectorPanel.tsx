@@ -21,6 +21,8 @@ import { SemanticSummary } from "./SemanticSummary.js";
 import { SiblingSummary } from "./SiblingSummary.js";
 import { SourceConfidence } from "./SourceConfidence.js";
 
+type SelectionCopyStatus = "idle" | "resolving" | "copied" | "error";
+
 interface InspectorPanelProps {
   readonly summary: SelectionSummary | null;
   readonly onSelectElement: (selector: string) => void;
@@ -51,6 +53,26 @@ interface InspectorPanelProps {
   readonly onChooseGridPlacement?: (choice: "dom-order" | "grid-area") => void;
   readonly onResizeGridSpan?: (axis: "column" | "row", toSpan: number) => void;
   readonly autoLayoutPanel?: React.ReactNode;
+  readonly canCopySelectionContext?: boolean;
+  readonly onCopySelectionContext?: () => void;
+  readonly selectionCopyStatus?: SelectionCopyStatus;
+}
+
+function selectionCopyStatusLabel(status: SelectionCopyStatus): string {
+  switch (status) {
+    case "idle":
+      return "";
+    case "resolving":
+      return "Resolving source hints";
+    case "copied":
+      return "Selection context copied";
+    case "error":
+      return "Copy failed";
+    default: {
+      const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
 }
 
 interface SectionProps {
@@ -84,6 +106,9 @@ export function InspectorPanel({
   onChooseGridPlacement,
   onResizeGridSpan,
   autoLayoutPanel,
+  canCopySelectionContext = false,
+  onCopySelectionContext,
+  selectionCopyStatus = "idle",
 }: InspectorPanelProps): ReactElement {
   if (summary === null && multiSelectGroup === null) {
     return (
@@ -95,6 +120,8 @@ export function InspectorPanel({
       </div>
     );
   }
+
+  const copyStatusLabel = selectionCopyStatusLabel(selectionCopyStatus);
 
   return (
     <div className="inspector-panel">
@@ -116,7 +143,23 @@ export function InspectorPanel({
                 <span className="inspector-semantic__value">
                   {summary.identity.selector ?? "none"}
                 </span>
+                <button
+                  type="button"
+                  className="inspector-selection-copy"
+                  onClick={onCopySelectionContext}
+                  disabled={!canCopySelectionContext}
+                  aria-label="Copy for agent"
+                >
+                  Copy for agent
+                </button>
               </div>
+              <p
+                className="inspector-selection-copy__status"
+                data-testid="selection-copy-status"
+                aria-live="polite"
+              >
+                {copyStatusLabel}
+              </p>
               <div className="inspector-semantic__row">
                 <span className="inspector-semantic__label">Confidence</span>
                 <SourceConfidence confidence={summary.sourceConfidence} />

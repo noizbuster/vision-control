@@ -4,6 +4,7 @@ import type { MultiSelectGroup } from "@vision-control/editor-core";
 import { createMultiSelectGroupId } from "@vision-control/element-identity";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { SelectionOriginState } from "./hooks/useSelectionSummary.js";
 import type {
   BusMessage,
   BusMessageHandler,
@@ -15,6 +16,7 @@ import type {
 const { slotState } = vi.hoisted(() => ({
   slotState: {
     summary: null as SelectionSummary | null,
+    originState: { status: "idle" } as SelectionOriginState,
     group: null as MultiSelectGroup | null,
     gridPlacement: null as GridPlacementMessage | null,
     componentProps: [] as readonly ComponentPropEntry[],
@@ -30,7 +32,11 @@ vi.mock("./hooks/usePanelBus.js", () => ({
   usePanelBus: () => slotState.bus,
 }));
 vi.mock("./hooks/useSelectionSummary.js", () => ({
-  useSelectionSummary: () => ({ summary: slotState.summary, selectElement: () => {} }),
+  useSelectionSummary: () => ({
+    summary: slotState.summary,
+    originState: slotState.originState,
+    selectElement: () => {},
+  }),
 }));
 vi.mock("./hooks/useFrameTree.js", () => ({
   useFrameTree: () => slotState.frames,
@@ -142,6 +148,31 @@ function makeSummary(display: string): SelectionSummary {
   };
 }
 
+function makeReadyOriginState(runtimeId = "runtime-1"): SelectionOriginState {
+  return {
+    status: "ready",
+    revision: 1,
+    runtimeId,
+    origins: [
+      {
+        relativePath: "src/components/Checkout.tsx",
+        startLine: 12,
+        confidence: "high",
+        kind: "js",
+        warnings: [],
+      },
+      {
+        relativePath: "src/styles/checkout.css",
+        startLine: 8,
+        confidence: "medium",
+        kind: "css",
+        warnings: [],
+      },
+    ],
+    originsTruncated: true,
+  };
+}
+
 function makeGroup(memberCount = 2): MultiSelectGroup {
   const members = Array.from({ length: memberCount }, (_, i) => ({
     runtimeId: `runtime-${i}`,
@@ -195,6 +226,7 @@ function deliverPanelMessage(messageType: string, message: BusMessage): void {
 
 function resetSlotState(): void {
   slotState.summary = null;
+  slotState.originState = { status: "idle" };
   slotState.group = null;
   slotState.gridPlacement = null;
   slotState.componentProps = [];
@@ -494,6 +526,101 @@ describe("App", () => {
       expect(screen.getByTestId("agent-prompt-copy-status").textContent).toBe(
         "Agent prompt copied",
       ),
+    );
+  });
+
+  it("does not copy selection context while source hints are pending or for a different runtime", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    slotState.summary = makeSummary("inline");
+    slotState.originState = { status: "pending", revision: 1, runtimeId: "runtime-1" };
+    const { rerender } = render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
+    );
+
+    const copyButton = screen.getByRole("button", { name: "Copy for agent" });
+    expect(copyButton).toHaveProperty("disabled", true);
+    copyButton.click();
+    expect(writeText).not.toHaveBeenCalled();
+
+    slotState.originState = makeReadyOriginState("runtime-2");
+    rerender(<App />);
+
+    expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty("disabled", true);
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("copies matching ready selection context with every origin and reports success", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    slotState.summary = makeSummary("inline");
+    slotState.originState = makeReadyOriginState();
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty(
+        "disabled",
+        false,
+      ),
+    );
+
+    screen.getByRole("button", { name: "Copy for agent" }).click();
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const copiedContext = writeText.mock.calls[0]?.[0];
+    expect(copiedContext).toContain('page_url: "http://localhost:3000/"');
+    expect(copiedContext).toContain('selector: "#container"');
+    expect(copiedContext).toContain("semantic:");
+    expect(copiedContext).toContain('"tagName":"div"');
+    expect(copiedContext).toContain("breadcrumb:");
+    expect(copiedContext).toContain('"selector":"#container"');
+    expect(copiedContext).toContain("src/components/Checkout.tsx");
+    expect(copiedContext).toContain("src/styles/checkout.css");
+    expect(copiedContext).toContain("origins_truncated: true");
+    await waitFor(() =>
+      expect(screen.getByTestId("selection-copy-status").textContent).toBe(
+        "Selection context copied",
+      ),
+    );
+  });
+
+  it("reports a failed selection context copy", async () => {
+    const writeText = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockRejectedValue(new Error("clipboard unavailable"));
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    slotState.summary = makeSummary("inline");
+    slotState.originState = makeReadyOriginState();
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty(
+        "disabled",
+        false,
+      ),
+    );
+
+    screen.getByRole("button", { name: "Copy for agent" }).click();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("selection-copy-status").textContent).toBe("Copy failed"),
     );
   });
 

@@ -82,6 +82,9 @@ function makeProps(
     onChangeEditorMode?: (mode: EditorMode) => void;
     onEditorCommand?: (command: Operation) => void;
     onValidationError?: (error: string | null) => void;
+    canCopySelectionContext?: boolean;
+    onCopySelectionContext?: () => void;
+    selectionCopyStatus?: "idle" | "resolving" | "copied" | "error";
   } = {},
 ) {
   return {
@@ -91,6 +94,9 @@ function makeProps(
     onChangeEditorMode: overrides.onChangeEditorMode ?? vi.fn(),
     onEditorCommand: overrides.onEditorCommand ?? vi.fn(),
     onValidationError: overrides.onValidationError ?? vi.fn(),
+    canCopySelectionContext: overrides.canCopySelectionContext ?? false,
+    onCopySelectionContext: overrides.onCopySelectionContext ?? vi.fn(),
+    selectionCopyStatus: overrides.selectionCopyStatus ?? "idle",
   };
 }
 
@@ -123,6 +129,56 @@ describe("InspectorPanel", () => {
     render(<InspectorPanel {...makeProps()} />);
 
     expect(screen.getAllByText("high").length).toBeGreaterThan(0);
+  });
+
+  it("places an accessible disabled copy action beside the selector while source hints resolve", () => {
+    render(
+      <InspectorPanel
+        {...makeProps({ canCopySelectionContext: false, selectionCopyStatus: "resolving" })}
+      />,
+    );
+
+    const selector = screen.getByText("#submit");
+    const copyButton = screen.getByRole("button", { name: "Copy for agent" });
+    const status = screen.getByTestId("selection-copy-status");
+
+    expect(selector.closest(".inspector-semantic__row")?.contains(copyButton)).toBe(true);
+    expect(copyButton).toHaveProperty("disabled", true);
+    expect(status.getAttribute("aria-live")).toBe("polite");
+    expect(status.textContent).toBe("Resolving source hints");
+  });
+
+  it("keeps the copy action disabled when source hints are unavailable", () => {
+    render(<InspectorPanel {...makeProps({ canCopySelectionContext: false })} />);
+
+    expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty("disabled", true);
+  });
+
+  it("enables the copy action and invokes its callback when context is ready", () => {
+    const onCopySelectionContext = vi.fn();
+    render(
+      <InspectorPanel {...makeProps({ canCopySelectionContext: true, onCopySelectionContext })} />,
+    );
+
+    const copyButton = screen.getByRole("button", { name: "Copy for agent" });
+    expect(copyButton).toHaveProperty("disabled", false);
+    copyButton.click();
+
+    expect(onCopySelectionContext).toHaveBeenCalledOnce();
+  });
+
+  it("announces copied and failed copy outcomes politely", () => {
+    const { rerender } = render(
+      <InspectorPanel {...makeProps({ selectionCopyStatus: "copied" })} />,
+    );
+
+    expect(screen.getByTestId("selection-copy-status").textContent).toBe(
+      "Selection context copied",
+    );
+
+    rerender(<InspectorPanel {...makeProps({ selectionCopyStatus: "error" })} />);
+
+    expect(screen.getByTestId("selection-copy-status").textContent).toBe("Copy failed");
   });
 
   it("renders the breadcrumb and calls onSelectElement when clicked", () => {

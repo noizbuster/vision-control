@@ -227,6 +227,7 @@
 
 .inspector-semantic__row {
   display: flex;
+  align-items: center;
   gap: var(--vc-space-2);
   font-size: var(--vc-text-sm);
 }
@@ -239,6 +240,39 @@
 .inspector-semantic__value {
   color: var(--vc-text-1);
   font-weight: 500;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.inspector-selection-copy {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: var(--vc-space-1) var(--vc-space-2);
+  border: 1px solid var(--vc-border);
+  border-radius: var(--vc-radius-sm);
+  background: var(--vc-bg-1);
+  color: var(--vc-text-2);
+  font-size: var(--vc-text-xs);
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.inspector-selection-copy:hover:not(:disabled) {
+  border-color: var(--vc-accent);
+  color: var(--vc-accent);
+}
+
+.inspector-selection-copy:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.inspector-selection-copy__status {
+  margin: 0;
+  min-height: 1em;
+  font-size: var(--vc-text-xs);
+  color: var(--vc-text-3);
 }
 
 .inspector-text-preview {

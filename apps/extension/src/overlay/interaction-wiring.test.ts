@@ -1,4 +1,4 @@
-import type { Operation } from "@vision-control/change-ir";
+import { computeInverse, type Operation } from "@vision-control/change-ir";
 import type {
   CandidateContainer,
   ReparentElementDescriptor,
@@ -103,6 +103,25 @@ function setRect(element: Element, x: number, y: number, width: number, height: 
   } as DOMRect);
 }
 
+function dispatchPointer(target: EventTarget, type: string, init: PointerEventInit): void {
+  target.dispatchEvent(
+    new PointerEvent(type, {
+      ...init,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+}
+
+function getReorderDropIndicator(overlayContainer: HTMLElement): HTMLElement {
+  const indicators = overlayContainer.querySelectorAll<HTMLElement>(".vc-drop-indicator");
+  const indicator = indicators.item(indicators.length - 1);
+  if (indicator === null) {
+    throw new Error("reorder drop indicator was not mounted");
+  }
+  return indicator;
+}
+
 function flushRaf(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
@@ -148,6 +167,7 @@ describe("interaction wiring", () => {
   let previewManager: PreviewManager;
   let overlay: ReturnType<typeof createOverlayFixture>;
   let controllers: InteractionControllers;
+  let operationAppliedObserver: ((operation: Operation) => void) | null;
 
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -156,11 +176,13 @@ describe("interaction wiring", () => {
     bus = createFakeBus();
     previewManager = createPreviewManager({ dom: createBrowserPreviewDomAdapter() });
     overlay = createOverlayFixture(document);
+    operationAppliedObserver = null;
     controllers = createInteractionControllers({
       overlayElement: overlay.overlayElement,
       overlayContainer: overlay.overlayContainer,
       previewManager,
       bus,
+      onOperationApplied: (operation) => operationAppliedObserver?.(operation),
     });
   });
 
@@ -293,7 +315,7 @@ describe("interaction wiring", () => {
     assertNoPositionElement(operations);
   });
 
-  it("records reparent-element when a selected element is dragged into another container", () => {
+  it("defers reparent DOM mutation and journaling until release", () => {
     const source = document.createElement("section");
     const target = document.createElement("section");
     const child = document.createElement("div");
@@ -306,34 +328,39 @@ describe("interaction wiring", () => {
 
     controllers.attach();
     controllers.onSelectionChange(buildSelectionContext(child));
+    const sequence: string[] = [];
+    const synchronizedOperations: Operation[] = [];
+    const applyOperation = previewManager.applyOperation;
+    const send = bus.send;
+    operationAppliedObserver = (operation) => {
+      synchronizedOperations.push(operation);
+      sequence.push("sync");
+    };
+    vi.spyOn(previewManager, "applyOperation").mockImplementation((operation) => {
+      sequence.push("apply");
+      return applyOperation(operation);
+    });
+    vi.spyOn(bus, "send").mockImplementation((route, message) => {
+      if (message.messageType === "interaction-operation") {
+        sequence.push("record");
+      }
+      send(route, message);
+    });
 
-    child.dispatchEvent(
-      new PointerEvent("pointerdown", {
-        clientX: 20,
-        clientY: 20,
-        pointerId: 9,
-        bubbles: true,
-        cancelable: true,
-      }),
+    dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 9 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 50, pointerId: 9 });
+
+    const highlight = overlay.root.shadowRoot.querySelector<HTMLElement>(
+      ".vc-drop-target-highlight",
     );
-    document.dispatchEvent(
-      new PointerEvent("pointermove", {
-        clientX: 240,
-        clientY: 50,
-        pointerId: 9,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
-    document.dispatchEvent(
-      new PointerEvent("pointerup", {
-        clientX: 240,
-        clientY: 50,
-        pointerId: 9,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+    expect(highlight?.style.display).toBe("block");
+    expect(previewManager.applyOperation).not.toHaveBeenCalled();
+    expect(child.parentElement).toBe(source);
+    expect(controllers.getRecordedOperations()).toHaveLength(0);
+    expect(controllers.getJournal().entries).toHaveLength(0);
+    expect(interactionOperationMessages(bus)).toHaveLength(0);
+
+    dispatchPointer(document, "pointerup", { clientX: 240, clientY: 50, pointerId: 9 });
 
     const operations = controllers.getRecordedOperations();
     const reparentOp = operations.find((op) => op.kind === "reparent-element");
@@ -341,6 +368,12 @@ describe("interaction wiring", () => {
     expect(child.parentElement, "committed reparent preview should remain in the drop target").toBe(
       target,
     );
+    expect(controllers.getJournal().entries).toHaveLength(1);
+    expect(interactionOperationMessages(bus)).toHaveLength(1);
+    expect(synchronizedOperations).toHaveLength(1);
+    expect(synchronizedOperations[0]?.kind).toBe("reparent-element");
+    expect(sequence).toEqual(["apply", "sync", "record"]);
+    expect(highlight?.style.display).toBe("none");
     document.body.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     expect(child.parentElement, "clicking elsewhere must not roll back the reparent").toBe(target);
     assertNoPositionElement(operations);
@@ -415,39 +448,229 @@ describe("interaction wiring", () => {
 
     controllers.attach();
     controllers.onSelectionChange(buildSelectionContext(first));
+    vi.spyOn(previewManager, "applyOperation");
 
-    first.dispatchEvent(
-      new PointerEvent("pointerdown", {
-        clientX: 10,
-        clientY: 20,
-        pointerId: 10,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
-    document.dispatchEvent(
-      new PointerEvent("pointermove", {
-        clientX: 100,
-        clientY: 20,
-        pointerId: 10,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
-    document.dispatchEvent(
-      new PointerEvent("pointerup", {
-        clientX: 100,
-        clientY: 20,
-        pointerId: 10,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+    dispatchPointer(first, "pointerdown", { clientX: 10, clientY: 20, pointerId: 10 });
+    dispatchPointer(document, "pointermove", { clientX: 120, clientY: 20, pointerId: 10 });
+
+    const indicator = getReorderDropIndicator(overlay.overlayContainer);
+    expect(indicator.style.display).toBe("block");
+    expect([...parent.children]).toEqual([first, second]);
+    expect(previewManager.applyOperation).not.toHaveBeenCalled();
+    expect(controllers.getRecordedOperations()).toHaveLength(0);
+    expect(controllers.getJournal().entries).toHaveLength(0);
+    expect(interactionOperationMessages(bus)).toHaveLength(0);
+
+    dispatchPointer(document, "pointerup", { clientX: 120, clientY: 20, pointerId: 10 });
 
     const operations = controllers.getRecordedOperations();
     expect(operations.some((op) => op.kind === "reorder-child")).toBe(true);
     expect(operations.some((op) => op.kind === "reparent-element")).toBe(false);
+    expect([...parent.children]).toEqual([second, first]);
+    expect(previewManager.applyOperation).toHaveBeenCalledTimes(1);
+    expect(indicator.style.display).toBe("none");
     assertNoPositionElement(operations);
+  });
+
+  it("records a trailing reorder index that round-trips through the preview manager", () => {
+    const parent = document.createElement("div");
+    parent.style.display = "flex";
+    parent.style.flexDirection = "row";
+    const first = document.createElement("div");
+    const second = document.createElement("div");
+    const third = document.createElement("div");
+    parent.append(first, second, third);
+    document.body.appendChild(parent);
+    setRect(parent, 0, 0, 300, 60);
+    setRect(first, 0, 0, 60, 40);
+    setRect(second, 100, 0, 60, 40);
+    setRect(third, 200, 0, 60, 40);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(first));
+
+    dispatchPointer(first, "pointerdown", { clientX: 10, clientY: 20, pointerId: 21 });
+    dispatchPointer(document, "pointermove", { clientX: 290, clientY: 20, pointerId: 21 });
+    dispatchPointer(document, "pointerup", { clientX: 290, clientY: 20, pointerId: 21 });
+
+    const operation = controllers.getRecordedOperations()[0];
+    expect(operation?.kind).toBe("reorder-child");
+    if (operation?.kind !== "reorder-child") return;
+    expect(operation.fromIndex).toBe(0);
+    expect(operation.toIndex).toBe(2);
+    expect([...parent.children]).toEqual([second, third, first]);
+
+    previewManager.applyOperation(computeInverse(operation));
+
+    expect([...parent.children]).toEqual([first, second, third]);
+  });
+
+  it("reorders immediately after reparenting without another selection update", () => {
+    const source = document.createElement("section");
+    const target = document.createElement("section");
+    const child = document.createElement("div");
+    const sibling = document.createElement("div");
+    source.appendChild(child);
+    target.appendChild(sibling);
+    document.body.append(source, target);
+    setRect(source, 0, 0, 120, 120);
+    setRect(target, 200, 0, 160, 160);
+    setRect(child, 210, 70, 60, 30);
+    setRect(sibling, 210, 10, 60, 30);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(child));
+
+    dispatchPointer(child, "pointerdown", { clientX: 220, clientY: 80, pointerId: 22 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 100, pointerId: 22 });
+    dispatchPointer(document, "pointerup", { clientX: 240, clientY: 100, pointerId: 22 });
+
+    expect([...target.children]).toEqual([sibling, child]);
+
+    dispatchPointer(child, "pointerdown", { clientX: 220, clientY: 80, pointerId: 23 });
+    dispatchPointer(document, "pointermove", { clientX: 220, clientY: 10, pointerId: 23 });
+    dispatchPointer(document, "pointerup", { clientX: 220, clientY: 10, pointerId: 23 });
+
+    const operations = controllers.getRecordedOperations();
+    expect(operations).toHaveLength(2);
+    const reorderOperation = operations[1];
+    expect(reorderOperation?.kind).toBe("reorder-child");
+    if (reorderOperation?.kind !== "reorder-child") return;
+    expect(reorderOperation.fromIndex).toBe(1);
+    expect(reorderOperation.toIndex).toBe(0);
+    expect([...target.children]).toEqual([child, sibling]);
+  });
+
+  it("does not mutate or record a same-parent pointer no-op", () => {
+    const parent = document.createElement("div");
+    parent.style.display = "flex";
+    const first = document.createElement("div");
+    const second = document.createElement("div");
+    parent.append(first, second);
+    document.body.appendChild(parent);
+    setRect(parent, 0, 0, 180, 60);
+    setRect(first, 0, 0, 60, 40);
+    setRect(second, 70, 0, 60, 40);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(first));
+    vi.spyOn(previewManager, "applyOperation");
+
+    dispatchPointer(first, "pointerdown", { clientX: 10, clientY: 20, pointerId: 16 });
+    dispatchPointer(document, "pointerup", { clientX: 10, clientY: 20, pointerId: 16 });
+
+    expect([...parent.children]).toEqual([first, second]);
+    expect(previewManager.applyOperation).not.toHaveBeenCalled();
+    expect(controllers.getRecordedOperations()).toHaveLength(0);
+    expect(controllers.getJournal().entries).toHaveLength(0);
+    expect(interactionOperationMessages(bus)).toHaveLength(0);
+  });
+
+  it("clears a stale reparent target and rejects release outside a candidate", () => {
+    const source = document.createElement("section");
+    const target = document.createElement("section");
+    const child = document.createElement("div");
+    source.appendChild(child);
+    document.body.append(source, target);
+    setRect(source, 0, 0, 120, 120);
+    setRect(target, 200, 0, 160, 160);
+    setRect(child, 10, 10, 60, 30);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(child));
+    vi.spyOn(previewManager, "applyOperation");
+
+    dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 17 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 50, pointerId: 17 });
+
+    const highlight = overlay.root.shadowRoot.querySelector<HTMLElement>(
+      ".vc-drop-target-highlight",
+    );
+    expect(highlight?.style.display).toBe("block");
+
+    dispatchPointer(document, "pointermove", { clientX: 20, clientY: 20, pointerId: 17 });
+
+    expect(highlight?.style.display).toBe("none");
+    dispatchPointer(document, "pointerup", { clientX: 20, clientY: 20, pointerId: 17 });
+
+    expect(child.parentElement).toBe(source);
+    expect(previewManager.applyOperation).not.toHaveBeenCalled();
+    expect(controllers.getRecordedOperations()).toHaveLength(0);
+    expect(controllers.getJournal().entries).toHaveLength(0);
+    expect(interactionOperationMessages(bus)).toHaveLength(0);
+  });
+
+  it("cancels reparent without mutation and resumes reorder for the next drag", () => {
+    const source = document.createElement("section");
+    source.style.display = "flex";
+    source.style.flexDirection = "row";
+    const target = document.createElement("section");
+    const child = document.createElement("div");
+    const sibling = document.createElement("div");
+    source.append(child, sibling);
+    document.body.append(source, target);
+    setRect(source, 0, 0, 180, 60);
+    setRect(target, 200, 0, 160, 160);
+    setRect(child, 0, 0, 60, 40);
+    setRect(sibling, 70, 0, 60, 40);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(child));
+    vi.spyOn(previewManager, "applyOperation");
+
+    dispatchPointer(child, "pointerdown", { clientX: 10, clientY: 20, pointerId: 18 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 50, pointerId: 18 });
+
+    const highlight = overlay.root.shadowRoot.querySelector<HTMLElement>(
+      ".vc-drop-target-highlight",
+    );
+    expect(highlight?.style.display).toBe("block");
+
+    dispatchPointer(document, "pointercancel", { clientX: 240, clientY: 50, pointerId: 18 });
+
+    expect(highlight?.style.display).toBe("none");
+    expect(child.parentElement).toBe(source);
+    expect(previewManager.applyOperation).not.toHaveBeenCalled();
+    expect(controllers.getRecordedOperations()).toHaveLength(0);
+    expect(controllers.getJournal().entries).toHaveLength(0);
+    expect(interactionOperationMessages(bus)).toHaveLength(0);
+
+    dispatchPointer(child, "pointerdown", { clientX: 10, clientY: 20, pointerId: 19 });
+    dispatchPointer(document, "pointermove", { clientX: 120, clientY: 20, pointerId: 19 });
+    dispatchPointer(document, "pointerup", { clientX: 120, clientY: 20, pointerId: 19 });
+
+    expect([...source.children]).toEqual([sibling, child]);
+    expect(controllers.getRecordedOperations()).toHaveLength(1);
+    expect(controllers.getRecordedOperations()[0]?.kind).toBe("reorder-child");
+    expect(previewManager.applyOperation).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the reparent highlight when move interactions detach", () => {
+    const source = document.createElement("section");
+    const target = document.createElement("section");
+    const child = document.createElement("div");
+    source.appendChild(child);
+    document.body.append(source, target);
+    setRect(source, 0, 0, 120, 120);
+    setRect(target, 200, 0, 160, 160);
+    setRect(child, 10, 10, 60, 30);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(child));
+
+    dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 20 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 50, pointerId: 20 });
+
+    const highlight = overlay.root.shadowRoot.querySelector<HTMLElement>(
+      ".vc-drop-target-highlight",
+    );
+    expect(highlight?.style.display).toBe("block");
+
+    controllers.detachMove();
+
+    expect(highlight?.style.display).toBe("none");
+    expect(child.parentElement).toBe(source);
+    expect(controllers.getRecordedOperations()).toHaveLength(0);
   });
 
   it("never emits position-element for a normal-flow drag (PRD constraint 2 / D41)", () => {

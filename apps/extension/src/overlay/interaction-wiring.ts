@@ -32,7 +32,7 @@ import type { MultiSelectGroup } from "@vision-control/editor-core";
 import type { ElementRef } from "@vision-control/element-identity";
 import type { Rect } from "@vision-control/geometry";
 import type { LayoutComputedStyle } from "@vision-control/layout-engine";
-import type { OverlayElement } from "@vision-control/overlay-ui";
+import { createDropTargetHighlighter, type OverlayElement } from "@vision-control/overlay-ui";
 import { PREVIEW_ID_ATTR, type PreviewManager } from "@vision-control/preview-engine";
 import {
   createReparentController,
@@ -68,6 +68,7 @@ export interface InteractionWiringOptions {
   readonly document?: Document;
   readonly onDiagnostic?: (diagnostic: ReorderDiagnostic) => void;
   readonly onReparentStateChange?: ReparentControllerCallbacks["onStateChange"];
+  readonly onOperationApplied?: (operation: Operation) => void;
 }
 
 export interface InteractionBus {
@@ -101,6 +102,11 @@ export function createInteractionControllers(
   options: InteractionWiringOptions,
 ): InteractionControllers {
   const { overlayElement, overlayContainer, previewManager, bus } = options;
+  const overlayRoot = overlayContainer.getRootNode();
+  if (!(overlayRoot instanceof ShadowRoot)) {
+    throw new Error("Interaction overlay container must be attached to a shadow root");
+  }
+  const dropTargetHighlighter = createDropTargetHighlighter(overlayRoot);
 
   const changeSetId = createOperationId();
   let journal: Journal = createJournal();
@@ -145,6 +151,7 @@ export function createInteractionControllers(
   bus.send("background", createJournalRequestMessage());
 
   const recordOperation = (operation: Operation): void => {
+    options.onOperationApplied?.(operation);
     recorded.push(operation);
     journal = appendEntry(
       journal,
@@ -168,6 +175,7 @@ export function createInteractionControllers(
 
   const reorder = new ReorderController({
     overlayContainer,
+    previewManager,
     recordOperation,
     onDiagnostic: options.onDiagnostic ?? (() => {}),
   });
@@ -181,7 +189,17 @@ export function createInteractionControllers(
 
   const reparentCallbacks: ReparentControllerCallbacks = {
     onStateChange: options.onReparentStateChange ?? (() => {}),
-    onHighlight: () => {},
+    onHighlight: (state) => {
+      if (state === null) {
+        dropTargetHighlighter.clear();
+        return;
+      }
+      dropTargetHighlighter.highlight({
+        rect: state.rect,
+        validity: state.validity === "valid" ? "valid" : "invalid",
+        ...(state.warning !== null ? { warning: state.warning } : {}),
+      });
+    },
   };
   const reparent = createReparentController({
     callbacks: reparentCallbacks,
@@ -234,6 +252,7 @@ export function createInteractionControllers(
   const detachMove = (): void => {
     reparentDrag.detach();
     reorder.detach();
+    dropTargetHighlighter.clear();
   };
 
   const detach = (): void => {

@@ -12,7 +12,6 @@ import type { Rect } from "@vision-control/geometry";
 import {
   beginReorder,
   buildGroupReorderOperation,
-  commitReorder,
   createPointerId,
   endReorder,
   type ReorderLayoutContext,
@@ -37,8 +36,6 @@ import {
   type PreviewDomAdapter,
   type PreviewManager,
 } from "@vision-control/preview-engine";
-
-const PREVIEW_DRAG_ID = "preview-drag";
 
 /** Diagnostic surfaced when a reorder cannot or should not be auto-applied. */
 export interface ReorderDiagnostic {
@@ -109,13 +106,13 @@ export class ReorderController {
   private selectedRuntimeId: string | null = null;
   private parentRuntimeId: string | null = null;
   private state: ReorderState | null = null;
-  private previewRollback: (() => void) | null = null;
   private active = false;
   private multiSelectGroup: MultiSelectGroup | null = null;
 
   private readonly boundPointerDown: (event: PointerEvent) => void;
   private readonly boundPointerMove: (event: PointerEvent) => void;
   private readonly boundPointerUp: (event: PointerEvent) => void;
+  private readonly boundPointerCancel: (event: PointerEvent) => void;
   private readonly boundKeyDown: (event: KeyboardEvent) => void;
 
   constructor(options: ReorderControllerOptions) {
@@ -128,6 +125,7 @@ export class ReorderController {
     this.boundPointerDown = this.handlePointerDown.bind(this);
     this.boundPointerMove = this.handlePointerMove.bind(this);
     this.boundPointerUp = this.handlePointerUp.bind(this);
+    this.boundPointerCancel = this.handlePointerCancel.bind(this);
     this.boundKeyDown = this.handleKeyDown.bind(this);
   }
 
@@ -300,18 +298,18 @@ export class ReorderController {
     document.addEventListener("pointerdown", this.boundPointerDown, true);
     document.addEventListener("pointermove", this.boundPointerMove, true);
     document.addEventListener("pointerup", this.boundPointerUp, true);
+    document.addEventListener("pointercancel", this.boundPointerCancel, true);
     document.addEventListener("keydown", this.boundKeyDown, true);
   }
 
-  /** Detach all global listeners and clear the active preview. */
   detach(): void {
     if (!this.active) return;
     this.active = false;
     document.removeEventListener("pointerdown", this.boundPointerDown, true);
     document.removeEventListener("pointermove", this.boundPointerMove, true);
     document.removeEventListener("pointerup", this.boundPointerUp, true);
+    document.removeEventListener("pointercancel", this.boundPointerCancel, true);
     document.removeEventListener("keydown", this.boundKeyDown, true);
-    this.clearPreview();
     this.dropIndicator.hideDropIndicator();
     this.state = null;
   }
@@ -418,10 +416,12 @@ export class ReorderController {
       return null;
     }
     const parentStyle = window.getComputedStyle(this.parentElement);
-    const children = Array.from(this.parentElement.children).map((child) => {
-      const rect = child.getBoundingClientRect();
-      return { rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height } };
-    });
+    const children = Array.from(this.parentElement.children)
+      .filter((child) => child !== this.selectedElement)
+      .map((child) => {
+        const rect = child.getBoundingClientRect();
+        return { rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height } };
+      });
     return {
       parent: {
         runtimeId: this.parentRuntimeId,
@@ -433,7 +433,7 @@ export class ReorderController {
     };
   }
 
-  private buildPreviewOperation(toIndex: number): ReorderChildOperation {
+  private buildOperation(toIndex: number): ReorderChildOperation {
     const selectedRuntimeId = this.selectedRuntimeId;
     const parentRuntimeId = this.parentRuntimeId;
     if (
@@ -446,7 +446,7 @@ export class ReorderController {
     }
     const fromIndex = this.getSelectedIndex();
     return {
-      id: PREVIEW_DRAG_ID,
+      id: createOperationId(),
       kind: "reorder-child",
       runtime: false,
       timestamp: Date.now(),
@@ -461,19 +461,6 @@ export class ReorderController {
       fromIndex,
       toIndex,
     };
-  }
-
-  private applyPreviewOperation(toIndex: number): void {
-    this.clearPreview();
-    const operation = this.buildPreviewOperation(toIndex);
-    this.previewRollback = this.previewManager.applyOperation(operation);
-  }
-
-  private clearPreview(): void {
-    if (this.previewRollback !== null) {
-      this.previewRollback();
-      this.previewRollback = null;
-    }
   }
 
   private updateDropIndicator(state: ReorderState): void {
@@ -502,9 +489,13 @@ export class ReorderController {
   }
 
   private handlePointerDown(event: PointerEvent): void {
+    if (this.state !== null && this.state.kind !== "committed") {
+      return;
+    }
     if (this.selectedElement === null || event.target !== this.selectedElement) {
       return;
     }
+    this.parentElement = this.selectedElement.parentElement;
     if (!this.ensureRuntimeIds()) {
       return;
     }
@@ -543,7 +534,7 @@ export class ReorderController {
   }
 
   private handlePointerMove(event: PointerEvent): void {
-    if (this.state === null) {
+    if (this.state === null || this.state.pointerId !== String(event.pointerId)) {
       return;
     }
     const role = this.getParentLayoutRole();
@@ -556,26 +547,28 @@ export class ReorderController {
     }
     this.state = updateReorder(this.state, event.clientX, event.clientY, context);
     this.updateDropIndicator(this.state);
-
-    if (this.state.kind === "dragging") {
-      this.applyPreviewOperation(this.state.toIndex);
-    }
   }
 
-  private handlePointerUp(_event: PointerEvent): void {
-    if (this.state === null) {
+  private handlePointerUp(event: PointerEvent): void {
+    if (this.state === null || this.state.pointerId !== String(event.pointerId)) {
       return;
     }
-    this.clearPreview();
-    const result = endReorder(this.state);
-    this.state = result.state;
+    const { operation } = endReorder(this.state);
 
-    if (result.operation !== null) {
-      this.previewRollback = this.previewManager.applyOperation(result.operation);
-      this.recordOperation(result.operation);
-      this.state = commitReorder(this.state);
+    if (operation !== null) {
+      this.previewManager.applyOperation(operation);
+      this.recordOperation(operation);
     }
 
+    this.state = null;
+    this.dropIndicator.hideDropIndicator();
+  }
+
+  private handlePointerCancel(event: PointerEvent): void {
+    if (this.state === null || this.state.pointerId !== String(event.pointerId)) {
+      return;
+    }
+    this.state = null;
     this.dropIndicator.hideDropIndicator();
   }
 
@@ -610,9 +603,8 @@ export class ReorderController {
       return;
     }
 
-    const operation = this.buildPreviewOperation(toIndex);
-    operation.id = createOperationId();
-    this.previewRollback = this.previewManager.applyOperation(operation);
+    const operation = this.buildOperation(toIndex);
+    this.previewManager.applyOperation(operation);
     this.recordOperation(operation);
 
     event.preventDefault();

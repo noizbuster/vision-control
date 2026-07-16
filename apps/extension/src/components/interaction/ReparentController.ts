@@ -120,31 +120,19 @@ export function createReparentController(options: ReparentControllerOptions): Re
   const { callbacks, previewEngine = null, journal = null } = options;
   let session: ReparentSession | null = null;
   let state: ReparentControllerState = initialState;
-  let previewRollback: (() => void) | null = null;
 
   const emit = (): void => {
     callbacks.onStateChange(state);
     callbacks.onHighlight(state.highlight);
   };
 
-  const clearPreview = (): void => {
-    previewRollback?.();
-    previewRollback = null;
-  };
-
-  const commitPreview = (): void => {
-    previewRollback = null;
-  };
-
   const applyPreview = (operation: ReparentElementOperation): void => {
-    clearPreview();
     if (previewEngine !== null) {
-      previewRollback = previewEngine.applyOperation(operation);
+      previewEngine.applyOperation(operation);
     }
   };
 
   const begin: ReparentController["begin"] = (pointerId, element, sourceParent, sourceIndex) => {
-    clearPreview();
     session = beginReparent(createPointerId(pointerId), element, sourceParent, sourceIndex);
     state = {
       ...initialState,
@@ -187,15 +175,6 @@ export function createReparentController(options: ReparentControllerOptions): Re
       highlight,
     };
 
-    if (evaluation.validity === "valid" && evaluation.target !== null) {
-      const operation = endReparent(nextSession);
-      if (operation.status === "committed") {
-        applyPreview(operation.operation);
-      }
-    } else {
-      clearPreview();
-    }
-
     emit();
   };
 
@@ -208,8 +187,8 @@ export function createReparentController(options: ReparentControllerOptions): Re
     session = null;
 
     if (result.status === "committed") {
+      applyPreview(result.operation);
       journal?.record(result.operation);
-      commitPreview();
     }
 
     state = {
@@ -223,8 +202,8 @@ export function createReparentController(options: ReparentControllerOptions): Re
   const cancel: ReparentController["cancel"] = (reason) => {
     if (session === null) return;
 
-    session = cancelReparent(session, reason);
-    clearPreview();
+    cancelReparent(session, reason);
+    session = null;
     state = {
       ...initialState,
       phase: "rejected",

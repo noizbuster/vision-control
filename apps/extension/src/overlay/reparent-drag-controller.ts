@@ -60,6 +60,7 @@ export function createReparentDragController(
   let pending: PendingDrag | null = null;
 
   const onPointerDown = (event: PointerEvent): void => {
+    if (pending !== null) return;
     const selection = getSelectionContext();
     if (selection === null || event.target !== selection.element) return;
     const sourceParent = selection.element.parentElement;
@@ -85,7 +86,13 @@ export function createReparentDragController(
       event.clientX,
       event.clientY,
     );
-    if (candidate === null) return;
+    if (candidate === null) {
+      if (pending.reparentActive) {
+        reparent.move(event.clientX, event.clientY, []);
+        event.preventDefault();
+      }
+      return;
+    }
 
     if (!pending.reparentActive) {
       reorder.detach();
@@ -115,12 +122,26 @@ export function createReparentDragController(
     }
   };
 
+  const onPointerCancel = (event: PointerEvent): void => {
+    if (pending === null || event.pointerId !== pending.pointerId) return;
+    const shouldResumeReorder = pending.reparentActive;
+    if (pending.reparentActive) {
+      reparent.cancel("reparent drag cancelled");
+      event.preventDefault();
+    }
+    pending = null;
+    if (shouldResumeReorder && attached) {
+      reorder.attach();
+    }
+  };
+
   const attach = (): void => {
     if (attached) return;
     attached = true;
     doc.addEventListener("pointerdown", onPointerDown, true);
     doc.addEventListener("pointermove", onPointerMove, true);
     doc.addEventListener("pointerup", onPointerUp, true);
+    doc.addEventListener("pointercancel", onPointerCancel, true);
   };
 
   const detach = (): void => {
@@ -129,6 +150,7 @@ export function createReparentDragController(
     doc.removeEventListener("pointerdown", onPointerDown, true);
     doc.removeEventListener("pointermove", onPointerMove, true);
     doc.removeEventListener("pointerup", onPointerUp, true);
+    doc.removeEventListener("pointercancel", onPointerCancel, true);
     if (pending?.reparentActive === true) {
       reparent.cancel("reparent drag controller detached");
     }

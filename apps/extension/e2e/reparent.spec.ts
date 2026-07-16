@@ -28,6 +28,8 @@ const reparentOp: ReparentElementOperation = {
   id: "reparent-001",
   timestamp: 1000,
   runtime: false,
+  origin: "canvas-drag",
+  confidence: 1,
   element: { runtimeId: "el-p01" },
   sourceParent: { runtimeId: "sidebar-p01" },
   sourceIndex: 0,
@@ -194,16 +196,99 @@ test.describe("@reparent browser", () => {
       await serveFixture(page, MOVE_REPARENT_FIXTURE);
       const cardRect = await pageElementRect(page, "#card");
       await page.mouse.click(cardRect.x + 10, cardRect.y + 10);
-      await page.waitForTimeout(400);
+      await extExpect(page.locator("#card")).toHaveAttribute("data-vc-preview-id", /.+/);
       await setInteractionMode(page, "Move");
 
       const targetRect = await pageElementRect(page, "#nested-target");
       await page.mouse.move(cardRect.x + cardRect.width / 2, cardRect.y + cardRect.height / 2);
       await page.mouse.down();
       await page.mouse.move(targetRect.x + 40, targetRect.y + 40, { steps: 8 });
+
+      const heldStructure = await page.evaluate(() => ({
+        sourceChildren: Array.from(document.querySelector("#source")?.children ?? []).map(
+          (child) => child.id,
+        ),
+        cardParent: document.getElementById("card")?.parentElement?.id ?? null,
+      }));
+      extExpect(heldStructure).toEqual({
+        sourceChildren: ["card", "slot-shell"],
+        cardParent: "source",
+      });
+
+      const validHighlight = await page.evaluate(() => {
+        const host = document.querySelector("[data-vc-overlay-host]");
+        const highlight = host?.shadowRoot?.querySelector<HTMLElement>(".vc-drop-target-highlight");
+        if (highlight === null || highlight === undefined) return null;
+        return {
+          display: getComputedStyle(highlight).display,
+          className: highlight.className,
+        };
+      });
+      extExpect(validHighlight).not.toBeNull();
+      if (validHighlight === null) throw new Error("drop target highlight was not rendered");
+      extExpect(validHighlight.display).toBe("block");
+      extExpect(validHighlight.className).toBe("vc-drop-target-highlight");
+      await extExpect
+        .poll(async () => {
+          const highlight = await overlayElementInfo(page, ".vc-drop-target-highlight");
+          if (highlight === null) return Number.POSITIVE_INFINITY;
+          return Math.max(
+            Math.abs(highlight.x - targetRect.x),
+            Math.abs(highlight.y - targetRect.y),
+            Math.abs(highlight.width - targetRect.width),
+            Math.abs(highlight.height - targetRect.height),
+          );
+        })
+        .toBeLessThanOrEqual(3);
+
       await page.mouse.up();
 
-      await extExpect(page.locator("#nested-target > #card")).toHaveCount(1);
+      await extExpect
+        .poll(() =>
+          page.evaluate(() => ({
+            sourceChildren: Array.from(document.querySelector("#source")?.children ?? []).map(
+              (child) => child.id,
+            ),
+            targetChildren: Array.from(
+              document.querySelector("#nested-target")?.children ?? [],
+            ).map((child) => child.id),
+            cardParent: document.getElementById("card")?.parentElement?.id ?? null,
+          })),
+        )
+        .toEqual({
+          sourceChildren: ["slot-shell"],
+          targetChildren: ["card"],
+          cardParent: "nested-target",
+        });
+      await extExpect
+        .poll(() =>
+          page.evaluate(() => {
+            const host = document.querySelector("[data-vc-overlay-host]");
+            const shadowRoot = host?.shadowRoot;
+            const highlight = shadowRoot?.querySelector<HTMLElement>(".vc-drop-target-highlight");
+            const warning = shadowRoot?.querySelector<HTMLElement>(".vc-drop-warning");
+            return {
+              highlight:
+                highlight === undefined || highlight === null
+                  ? null
+                  : getComputedStyle(highlight).display,
+              warning:
+                warning === undefined || warning === null
+                  ? null
+                  : getComputedStyle(warning).display,
+            };
+          }),
+        )
+        .toEqual({ highlight: "none", warning: "none" });
+      await extExpect
+        .poll(async () => {
+          const movedRect = await pageElementRect(page, "#card");
+          const selectionOutline = await overlayElementInfo(page, ".vc-select-outline");
+          return selectionOutline === null
+            ? Number.POSITIVE_INFINITY
+            : Math.abs(selectionOutline.x - movedRect.x);
+        })
+        .toBeLessThanOrEqual(3);
 
       const outsideRect = await pageElementRect(page, "#outside");
       await page.mouse.click(outsideRect.x + 10, outsideRect.y + 10);

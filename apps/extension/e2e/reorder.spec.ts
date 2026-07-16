@@ -10,6 +10,7 @@ import {
   overlayElementInfo,
   pageElementRect,
   serveFixture,
+  setInteractionMode,
 } from "./fixtures/extension-test.ts";
 
 /**
@@ -28,6 +29,8 @@ const reorderOp: ReorderChildOperation = {
   id: "reorder-001",
   timestamp: 1000,
   runtime: false,
+  origin: "canvas-drag",
+  confidence: 1,
   parent: { runtimeId: "parent-r01" },
   child: { runtimeId: "child-r01" },
   fromIndex: 2,
@@ -50,7 +53,7 @@ test.describe("@reorder unit", () => {
       { rect: { x: 0, y: 100, width: 100, height: 50 } },
     ];
     const result = computeInsertionIndex(
-      { runtimeId: "parent-r01" },
+      { runtimeId: "parent-r01", tagName: "div" },
       children,
       50,
       75,
@@ -96,7 +99,7 @@ test.describe("@reorder unit", () => {
       { rect: { x: 0, y: 150, width: 100, height: 50 } },
     ];
     const result = computeInsertionIndex(
-      { runtimeId: "parent-r02" },
+      { runtimeId: "parent-r02", tagName: "div" },
       children,
       50,
       125,
@@ -113,7 +116,7 @@ test.describe("@reorder unit", () => {
       { rect: { x: 200, y: 0, width: 100, height: 50 } },
     ];
     const result = computeInsertionIndex(
-      { runtimeId: "parent-r03" },
+      { runtimeId: "parent-r03", tagName: "div" },
       children,
       200,
       25,
@@ -136,7 +139,7 @@ test.describe("@reorder unit", () => {
       { rect: { x: 0, y: 60, width: 200, height: 30 } },
     ];
     const result = computeInsertionIndex(
-      { runtimeId: "parent-block" },
+      { runtimeId: "parent-block", tagName: "div" },
       children,
       200,
       45,
@@ -193,7 +196,7 @@ test.describe("@reorder browser", () => {
         rect1.rect.x + rect1.rect.width + (rect2.rect.x - (rect1.rect.x + rect1.rect.width)) / 2;
 
       const result = computeInsertionIndex(
-        { runtimeId: "row" },
+        { runtimeId: "row", tagName: "div" },
         children.rects,
         gapBetweenBandC,
         rect0.rect.y + 10,
@@ -225,7 +228,7 @@ test.describe("@reorder browser", () => {
         rect0.rect.y + rect0.rect.height + (rect1.rect.y - (rect0.rect.y + rect0.rect.height)) / 2;
 
       const result = computeInsertionIndex(
-        { runtimeId: "col" },
+        { runtimeId: "col", tagName: "div" },
         children.rects,
         rect0.rect.x + 10,
         midpointBetweenXandY,
@@ -251,6 +254,80 @@ test.describe("@reorder browser", () => {
       extExpect(previewId).not.toBeNull();
       if (!previewId) throw new Error("previewId should not be null after assertion");
       extExpect(previewId.length).toBeGreaterThan(0);
+    },
+  );
+
+  extTest(
+    "Move reorder keeps DOM order stable while held, then applies at the displayed boundary",
+    async ({ page }) => {
+      await serveFixture(page, FLEX_ROW_FIXTURE);
+      const aRect = await pageElementRect(page, "#a");
+      await page.mouse.click(aRect.x + 10, aRect.y + 10);
+      await extExpect(page.locator("#a")).toHaveAttribute("data-vc-preview-id", /.+/);
+      await setInteractionMode(page, "Move");
+
+      const cRect = await pageElementRect(page, "#c");
+      await page.mouse.move(aRect.x + aRect.width / 2, aRect.y + aRect.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(cRect.x + cRect.width - 4, cRect.y + cRect.height / 2, { steps: 8 });
+
+      const heldChildIds = await page
+        .locator("#row")
+        .evaluate((parent) => Array.from(parent.children).map((child) => child.id));
+      extExpect(heldChildIds).toEqual(["a", "b", "c"]);
+
+      const dropIndicator = await page.evaluate(() => {
+        const host = document.querySelector("[data-vc-overlay-host]");
+        const indicator = Array.from(
+          host?.shadowRoot?.querySelectorAll<HTMLElement>(".vc-drop-indicator") ?? [],
+        ).find((element) => getComputedStyle(element).display === "block");
+        if (indicator === undefined) return null;
+        const rect = indicator.getBoundingClientRect();
+        return {
+          display: getComputedStyle(indicator).display,
+          orientation: indicator.getAttribute("data-orientation"),
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        };
+      });
+      extExpect(dropIndicator).not.toBeNull();
+      if (dropIndicator === null) throw new Error("drop indicator was not visible during reorder");
+      extExpect(dropIndicator.display).toBe("block");
+      extExpect(dropIndicator.orientation).toBe("vertical");
+      extExpect(Math.abs(dropIndicator.x - (cRect.x + cRect.width))).toBeLessThanOrEqual(2);
+      extExpect(dropIndicator.height).toBeGreaterThan(0);
+
+      await page.mouse.up();
+
+      await extExpect
+        .poll(() =>
+          page
+            .locator("#row")
+            .evaluate((parent) => Array.from(parent.children).map((child) => child.id)),
+        )
+        .toEqual(["b", "c", "a"]);
+      await extExpect
+        .poll(() =>
+          page.evaluate(() =>
+            Array.from(
+              document
+                .querySelector("[data-vc-overlay-host]")
+                ?.shadowRoot?.querySelectorAll<HTMLElement>(".vc-drop-indicator") ?? [],
+            ).every((element) => getComputedStyle(element).display === "none"),
+          ),
+        )
+        .toBe(true);
+      await extExpect
+        .poll(async () => {
+          const movedRect = await pageElementRect(page, "#a");
+          const selectionOutline = await overlayElementInfo(page, ".vc-select-outline");
+          return selectionOutline === null
+            ? Number.POSITIVE_INFINITY
+            : Math.abs(selectionOutline.x - movedRect.x);
+        })
+        .toBeLessThanOrEqual(3);
     },
   );
 });

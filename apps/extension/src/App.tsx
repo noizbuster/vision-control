@@ -3,7 +3,7 @@ import type { AlignmentCommandKind } from "@vision-control/layout-engine";
 import type { ReactElement, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
-import { type PropEditCommand, PropsPanel } from "./components/editors/PropsPanel.js";
+import type { PropEditCommand } from "./components/editors/PropsPanel.js";
 import { HostAllowlistPanel } from "./components/HostAllowlistPanel.js";
 import { AlignmentPanel } from "./components/inspector/AlignmentPanel.js";
 import { AutoLayoutPanel } from "./components/inspector/AutoLayoutPanel.js";
@@ -44,6 +44,7 @@ import {
   createEditorCommandMessage,
 } from "./messaging/index.js";
 import "./styles/variables.css";
+import "./styles/panel-shell.css";
 import "./styles/inspector.css";
 import "./styles/journal.css";
 
@@ -216,8 +217,6 @@ export function App(): ReactElement {
     );
   }, [agentPrompt]);
 
-  const showPropsPanel = summary !== null && componentProps.length > 0;
-
   const isLayoutContainer =
     summary !== null &&
     (summary.computedStyle.display === "flex" || summary.computedStyle.display === "grid");
@@ -237,89 +236,103 @@ export function App(): ReactElement {
 
   return (
     <ErrorBoundary>
-      <div className={`app app--${theme}`}>
+      <div className={`app app--${theme}`} data-testid="panel-shell">
         <header className="app__header">
-          <h1 className="app__title">Vision Control</h1>
-          <PairingPanel
-            status={connectionState}
-            onConnect={handleConnect}
-            onDisconnect={handleDisconnect}
-          />
+          <div className="app__title-row">
+            <h1 className="app__title">Vision Control</h1>
+          </div>
           <p className="app__target" data-testid="inspected-url">
             Inspecting: {url ?? "unknown"}
           </p>
+          <details className="app__pairing" data-testid="pairing-drawer">
+            <summary>Agent / MCP pairing (optional)</summary>
+            <div className="app__pairing-body">
+              <PairingPanel
+                status={connectionState}
+                onConnect={handleConnect}
+                onDisconnect={handleDisconnect}
+              />
+            </div>
+          </details>
         </header>
         <main className="app__main">
-          <section className="app__section">
-            <h2>Inspected tab</h2>
-            <ul>
-              <li>Tab ID: {tabId ?? "-"}</li>
-              <li>Title: {title ?? "-"}</li>
-              <li>URL: {url ?? "-"}</li>
-            </ul>
-          </section>
-          <section className="app__section">
-            <h2>Session</h2>
-            <p data-testid="session-id">
-              {session?.sessionId ?? "Waiting for background session…"}
-            </p>
-          </section>
-          <section className="app__section">
-            <h2>Frame tree</h2>
-            {frames.length === 0 ? (
-              <p>No frames reported yet.</p>
-            ) : (
-              <ul className="frame-tree">
-                {frames.map((frame) => (
-                  <FrameTreeItem key={frame.frameId} frame={frame} />
-                ))}
-              </ul>
-            )}
-          </section>
-          <HostAllowlistPanel />
-          <InspectorPanel
-            summary={summary}
-            onSelectElement={selectElement}
-            editorMode={editor.state.mode}
-            onChangeEditorMode={handleEditorModeChange}
-            onEditorCommand={handleEditorCommand}
-            onValidationError={editor.actions.setValidationError}
-            multiSelectGroup={multiSelectGroup}
-            gridPlacement={gridPlacementState?.placement ?? null}
-            gridSpanCandidates={gridPlacementState?.spanCandidates ?? []}
-            gridReorderChoice={gridPlacementState?.reorderChoice ?? null}
-            gridA11yWarning={gridPlacementState?.a11yWarning ?? null}
-            onChooseGridPlacement={handleGridChoosePlacement}
-            onResizeGridSpan={handleGridResizeSpan}
-            canCopySelectionContext={canCopySelectionContext}
-            onCopySelectionContext={handleCopySelectionContext}
-            selectionCopyStatus={selectionCopyStatus}
-            {...(alignmentPanel !== undefined ? { alignmentPanel } : {})}
-            {...(autoLayoutPanel !== undefined ? { autoLayoutPanel } : {})}
-          />
-          {showPropsPanel && summary !== null && (
-            <section className="app__section app__section--props">
-              <h2>Component Props</h2>
-              <PropsPanel summary={summary} props={componentProps} onCommand={handlePropCommand} />
-            </section>
-          )}
-          <ChangeJournal
-            entries={journal.entries}
-            canUndo={journal.canUndo}
-            canRedo={journal.canRedo}
-            canCopyAgentPrompt={agentPrompt.length > 0}
-            agentPromptCopyState={agentPromptCopyState}
-            contextExportStatus={contextExport.status}
-            pendingCount={journal.pendingCount}
-            onUndo={journal.undo}
-            onRedo={journal.redo}
-            onClear={journal.clear}
-            onCopyAgentPrompt={handleCopyAgentPrompt}
-            onCopyContextJson={contextExport.onCopyJson}
-            onCopyContextMarkdown={contextExport.onCopyMarkdown}
-            onDownloadContextJson={contextExport.onDownloadJson}
-            onDownloadContextMarkdown={contextExport.onDownloadMarkdown}
-          />
+          <div className="app__scroll">
+            <details className="app__diagnostics" data-testid="diagnostics-drawer">
+              <summary>Diagnostics</summary>
+              <div className="app__diagnostics-body">
+                <section className="app__section">
+                  <h2>Inspected tab</h2>
+                  <ul>
+                    <li>Tab ID: {tabId ?? "-"}</li>
+                    <li>Title: {title ?? "-"}</li>
+                    <li>URL: {url ?? "-"}</li>
+                  </ul>
+                </section>
+                <section className="app__section">
+                  <h2>Session</h2>
+                  <p data-testid="session-id">
+                    {session?.sessionId ?? "Waiting for background session…"}
+                  </p>
+                </section>
+                <section className="app__section">
+                  <h2>Frame tree</h2>
+                  {frames.length === 0 ? (
+                    <p>No frames reported yet.</p>
+                  ) : (
+                    <ul className="frame-tree">
+                      {frames.map((frame) => (
+                        <FrameTreeItem key={frame.frameId} frame={frame} />
+                      ))}
+                    </ul>
+                  )}
+                </section>
+                <HostAllowlistPanel />
+              </div>
+            </details>
+            <div className="app__primary">
+              <InspectorPanel
+                summary={summary}
+                onSelectElement={selectElement}
+                editorMode={editor.state.mode}
+                onChangeEditorMode={handleEditorModeChange}
+                onEditorCommand={handleEditorCommand}
+                onValidationError={editor.actions.setValidationError}
+                multiSelectGroup={multiSelectGroup}
+                gridPlacement={gridPlacementState?.placement ?? null}
+                gridSpanCandidates={gridPlacementState?.spanCandidates ?? []}
+                gridReorderChoice={gridPlacementState?.reorderChoice ?? null}
+                gridA11yWarning={gridPlacementState?.a11yWarning ?? null}
+                onChooseGridPlacement={handleGridChoosePlacement}
+                onResizeGridSpan={handleGridResizeSpan}
+                canCopySelectionContext={canCopySelectionContext}
+                onCopySelectionContext={handleCopySelectionContext}
+                selectionCopyStatus={selectionCopyStatus}
+                componentProps={componentProps}
+                onPropCommand={handlePropCommand}
+                {...(alignmentPanel !== undefined ? { alignmentPanel } : {})}
+                {...(autoLayoutPanel !== undefined ? { autoLayoutPanel } : {})}
+              />
+            </div>
+          </div>
+          <div className="app__journal" data-testid="journal-strip">
+            <ChangeJournal
+              entries={journal.entries}
+              canUndo={journal.canUndo}
+              canRedo={journal.canRedo}
+              canCopyAgentPrompt={agentPrompt.length > 0}
+              agentPromptCopyState={agentPromptCopyState}
+              contextExportStatus={contextExport.status}
+              pendingCount={journal.pendingCount}
+              onUndo={journal.undo}
+              onRedo={journal.redo}
+              onClear={journal.clear}
+              onCopyAgentPrompt={handleCopyAgentPrompt}
+              onCopyContextJson={contextExport.onCopyJson}
+              onCopyContextMarkdown={contextExport.onCopyMarkdown}
+              onDownloadContextJson={contextExport.onDownloadJson}
+              onDownloadContextMarkdown={contextExport.onDownloadMarkdown}
+            />
+          </div>
         </main>
       </div>
     </ErrorBoundary>

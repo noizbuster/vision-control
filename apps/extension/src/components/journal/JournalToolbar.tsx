@@ -68,79 +68,90 @@ export function JournalToolbar({
   return (
     <div className="journal-toolbar">
       <div className="journal-toolbar__buttons">
-        <button
-          type="button"
-          className="journal-toolbar__button"
-          onClick={onUndo}
-          disabled={!canUndo}
-          aria-label="Undo last change"
-        >
-          Undo
-        </button>
-        <button
-          type="button"
-          className="journal-toolbar__button"
-          onClick={onRedo}
-          disabled={!canRedo}
-          aria-label="Redo change"
-        >
-          Redo
-        </button>
-        <button
-          type="button"
-          className="journal-toolbar__button journal-toolbar__button--danger"
-          onClick={onClear}
-          disabled={!canUndo && !canRedo && pendingCount === 0}
-          aria-label="Clear all changes"
-        >
-          Clear
-        </button>
-        <button
-          type="button"
-          className="journal-toolbar__button"
-          onClick={onCopyAgentPrompt}
-          disabled={!canCopyAgentPrompt}
-          aria-label="Copy agent prompt"
-          data-testid="copy-agent-prompt"
-        >
-          Copy Agent Prompt
-        </button>
-        <button
-          type="button"
-          className="journal-toolbar__button"
-          onClick={onCopyContextJson}
-          aria-label="Copy context as JSON"
-          data-testid="copy-context-json"
-        >
-          Copy JSON
-        </button>
-        <button
-          type="button"
-          className="journal-toolbar__button"
-          onClick={onCopyContextMarkdown}
-          aria-label="Copy context as Markdown"
-          data-testid="copy-context-markdown"
-        >
-          Copy Markdown
-        </button>
-        <button
-          type="button"
-          className="journal-toolbar__button"
-          onClick={onDownloadContextJson}
-          aria-label="Download context as JSON"
-          data-testid="download-context-json"
-        >
-          Download JSON
-        </button>
-        <button
-          type="button"
-          className="journal-toolbar__button"
-          onClick={onDownloadContextMarkdown}
-          aria-label="Download context as Markdown"
-          data-testid="download-context-markdown"
-        >
-          Download Markdown
-        </button>
+        <fieldset className="journal-toolbar__group" aria-label="History actions">
+          <button
+            type="button"
+            className="journal-toolbar__button"
+            onClick={onUndo}
+            disabled={!canUndo}
+            aria-label="Undo last change"
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            className="journal-toolbar__button"
+            onClick={onRedo}
+            disabled={!canRedo}
+            aria-label="Redo change"
+          >
+            Redo
+          </button>
+          <button
+            type="button"
+            className="journal-toolbar__button journal-toolbar__button--danger"
+            onClick={onClear}
+            disabled={!canUndo && !canRedo && pendingCount === 0}
+            aria-label="Clear all changes"
+          >
+            Clear
+          </button>
+        </fieldset>
+        <fieldset className="journal-toolbar__group" aria-label="Agent actions">
+          <button
+            type="button"
+            className="journal-toolbar__button"
+            onClick={onCopyAgentPrompt}
+            disabled={!canCopyAgentPrompt}
+            aria-label="Copy agent prompt"
+            data-testid="copy-agent-prompt"
+          >
+            Copy Agent Prompt
+          </button>
+        </fieldset>
+        <details className="journal-toolbar__export" data-testid="journal-export-menu">
+          <summary className="journal-toolbar__button journal-toolbar__export-summary">
+            Export
+          </summary>
+          <fieldset className="journal-toolbar__export-menu" aria-label="Export context">
+            <button
+              type="button"
+              className="journal-toolbar__button"
+              onClick={onCopyContextJson}
+              aria-label="Copy context as JSON"
+              data-testid="copy-context-json"
+            >
+              Copy JSON
+            </button>
+            <button
+              type="button"
+              className="journal-toolbar__button"
+              onClick={onCopyContextMarkdown}
+              aria-label="Copy context as Markdown"
+              data-testid="copy-context-markdown"
+            >
+              Copy Markdown
+            </button>
+            <button
+              type="button"
+              className="journal-toolbar__button"
+              onClick={onDownloadContextJson}
+              aria-label="Download context as JSON"
+              data-testid="download-context-json"
+            >
+              Download JSON
+            </button>
+            <button
+              type="button"
+              className="journal-toolbar__button"
+              onClick={onDownloadContextMarkdown}
+              aria-label="Download context as Markdown"
+              data-testid="download-context-markdown"
+            >
+              Download Markdown
+            </button>
+          </fieldset>
+        </details>
       </div>
       <div className="journal-toolbar__status-group">
         <span
@@ -150,6 +161,11 @@ export function JournalToolbar({
         >
           {transactionStatus}
         </span>
+        {pendingCount > 0 && (
+          <span className="journal-toolbar__preview-note" data-testid="journal-preview-note">
+            Runtime preview only — not a source change
+          </span>
+        )}
         <span
           className="journal-toolbar__prompt-status"
           data-state={agentPromptCopyState}

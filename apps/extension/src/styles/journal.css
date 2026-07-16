@@ -234,3 +234,59 @@
 .journal-status--reverted {
   color: var(--vc-text-3);
 }
+
+.journal-toolbar__group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--vc-space-1);
+  align-items: center;
+  margin: 0;
+  padding: 0 var(--vc-space-2) 0 0;
+  border: none;
+  border-right: 1px solid var(--vc-border);
+  min-inline-size: 0;
+}
+
+.journal-toolbar__group:last-of-type {
+  border-right: none;
+  padding-right: 0;
+}
+
+.journal-toolbar__export {
+  position: relative;
+  display: inline-block;
+}
+
+.journal-toolbar__export-summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.journal-toolbar__export-summary::-webkit-details-marker {
+  display: none;
+}
+
+.journal-toolbar__export-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vc-space-1);
+  margin: 0;
+  min-width: 160px;
+  min-inline-size: 0;
+  padding: var(--vc-space-2);
+  border: 1px solid var(--vc-border);
+  border-radius: var(--vc-radius-md);
+  background: var(--vc-bg-1);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 25%, transparent);
+}
+
+.journal-toolbar__preview-note {
+  font-size: var(--vc-text-xs);
+  color: var(--vc-warning);
+  font-family: var(--vc-font-sans);
+}

@@ -70,6 +70,7 @@ function setupChromeStubs(theme: "dark" | "light") {
     value: {
       devtools: {
         inspectedWindow: { tabId: 42 },
+        panels: { themeName: theme === "dark" ? "dark" : "default" },
       },
       runtime: {
         lastError: undefined,
@@ -261,7 +262,7 @@ describe("App", () => {
 
   it("renders the empty inspector state when no element is selected and no group exists", () => {
     render(<App />);
-    expect(screen.getByText("Select an element to inspect.")).toBeDefined();
+    expect(screen.getByText(/Select an element on the page to inspect/)).toBeDefined();
     expect(screen.queryByText("Multi-Select Group")).toBeNull();
     expect(screen.queryByText("Auto Layout")).toBeNull();
     expect(screen.queryByText("Alignment")).toBeNull();

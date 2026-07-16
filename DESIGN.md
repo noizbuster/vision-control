@@ -125,3 +125,65 @@ content.
 
 - Do not add decorative cards inside overlay panels.
 - Depth exists to keep controls readable on unknown webpages.
+
+## 8. DevTools Panel
+
+The Chromium DevTools panel is a separate surface from the page overlay. It
+uses the panel token set in `apps/extension/src/styles/variables.css`, not the
+overlay OKLCH tokens in `packages/overlay-ui`. Do not conflate the two.
+
+### Atmosphere
+
+Precise browser workbench: compact, dark-first when DevTools is dark, subordinate
+chrome, high information density without flat endless scroll.
+
+### Panel tokens
+
+| Role | Token | Source |
+|---|---|---|
+| Surfaces | `--vc-bg-1` … `--vc-bg-3` | `variables.css` |
+| Text | `--vc-text-1` … `--vc-text-3` | `variables.css` |
+| Border / accent / status | `--vc-border`, `--vc-accent`, `--vc-success`, `--vc-warning`, `--vc-error` | `variables.css` |
+| Spacing | `--vc-space-1` … `--vc-space-6` (4px rhythm) | `variables.css` |
+| Radii / type | `--vc-radius-*`, `--vc-text-xs` … `--vc-text-lg` | `variables.css` |
+| Focus | `--vc-focus-ring` | `variables.css` (panel shell) |
+| Sticky chrome | `--vc-z-sticky` | `variables.css` (panel shell) |
+
+Theme class: `.app--dark` / `.app--light` on the panel root. Prefer
+`chrome.devtools.panels.themeName` (`"dark"` → dark, otherwise light); fall back
+to `prefers-color-scheme`.
+
+### Shell regions
+
+| Region | Class | Behavior |
+|---|---|---|
+| Header | `.app__header` | Sticky: title, connection status, collapsible pairing, inspected URL |
+| Main | `.app__main` | Scrollable primary work area |
+| Diagnostics | `.app__diagnostics` | Collapsed by default: tab / session / frame tree / site access |
+| Primary | `.app__primary` | Inspector + additive editor surfaces |
+| Journal | `.app__journal` | Sticky bottom change journal + grouped actions |
+
+### Density rules
+
+- Inspector sections use collapsible disclosure (native `details`/`summary` or
+  equivalent with `aria-expanded`).
+- Style editor is the primary edit surface; **Computed Style is collapsed by
+  default** so the same 17 properties are not double-rendered open.
+- Journal toolbar groups: History (Undo/Redo/Clear) | Agent prompt | Export menu.
+- Pairing form is collapsible; edit loop must work agent-disconnected.
+- Debug chrome (tab/session/frames) stays in Diagnostics, not above the work surface.
+
+### Accessibility
+
+- Prefer native `button`, `details`/`summary`, `fieldset`.
+- Visible `:focus-visible` rings via `--vc-focus-ring`.
+- Preserve existing `aria-label`, `aria-live`, `aria-pressed`, `role="alert"` patterns.
+- Preserve all existing `data-testid`s.
+
+### Accepted debt (this pass)
+
+- No Layers / full DOM tree product feature (PRD §8.1 left column deferred).
+- Verification is status-only in the panel (preview note); no new
+  panel→`request_verification` messaging architecture.
+- Overlay tokens remain separate from panel tokens; no forced OKLCH unification.
+- `packages/shared-ui` stays unpopulated; panel uses local components + CSS.

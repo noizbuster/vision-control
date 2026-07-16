@@ -6,13 +6,22 @@ import type {
   GridReorderCandidateSet,
   GridSpanCandidate,
 } from "@vision-control/layout-engine";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import type { EditorMode } from "../../hooks/useEditor.js";
-import { ClassEditor, EditorToolbar, StyleEditor, TextEditor } from "../editors/index.js";
+import {
+  ClassEditor,
+  EditorToolbar,
+  PseudoElementEditor,
+  StyleEditor,
+  TextEditor,
+} from "../editors/index.js";
+import type { EditableProp, PropEditCommand } from "../editors/PropsPanel.js";
+import { PropsPanel } from "../editors/PropsPanel.js";
 import { Attributes } from "./Attributes.js";
 import { BoxModel } from "./BoxModel.js";
 import { Breadcrumb } from "./Breadcrumb.js";
 import { ClassList } from "./ClassList.js";
+import { CollapsibleSection } from "./CollapsibleSection.js";
 import { ComputedStyle } from "./ComputedStyle.js";
 import { ElementActions } from "./ElementActions.js";
 import { GridPanel } from "./GridPanel.js";
@@ -38,13 +47,10 @@ interface InspectorPanelProps {
    * rendered {@link AlignmentPanel} (or any node) to surface alignment
    * commands under the multi-select section.
    */
-  readonly alignmentPanel?: React.ReactNode;
+  readonly alignmentPanel?: ReactNode;
   /**
    * Optional CSS Grid editing slot (VC-V1V2-09). Additive: when
    * `gridPlacement` is null/absent the inspector renders exactly as before.
-   * The caller supplies the inferred placement, span candidates, the
-   * DOM-order-vs-grid-area reorder choice, and the accessibility warning from
-   * the layout-engine grid module.
    */
   readonly gridPlacement?: GridCellPlacement | null;
   readonly gridSpanCandidates?: readonly GridSpanCandidate[];
@@ -52,10 +58,13 @@ interface InspectorPanelProps {
   readonly gridA11yWarning?: string | null;
   readonly onChooseGridPlacement?: (choice: "dom-order" | "grid-area") => void;
   readonly onResizeGridSpan?: (axis: "column" | "row", toSpan: number) => void;
-  readonly autoLayoutPanel?: React.ReactNode;
+  readonly autoLayoutPanel?: ReactNode;
   readonly canCopySelectionContext?: boolean;
   readonly onCopySelectionContext?: () => void;
   readonly selectionCopyStatus?: SelectionCopyStatus;
+  /** Additive: render only when non-empty. */
+  readonly componentProps?: readonly EditableProp[];
+  readonly onPropCommand?: (command: PropEditCommand) => void;
 }
 
 function selectionCopyStatusLabel(status: SelectionCopyStatus): string {
@@ -75,19 +84,7 @@ function selectionCopyStatusLabel(status: SelectionCopyStatus): string {
   }
 }
 
-interface SectionProps {
-  readonly title: string;
-  readonly children: React.ReactNode;
-}
-
-function Section({ title, children }: SectionProps): ReactElement {
-  return (
-    <section className="inspector-section">
-      <header className="inspector-section__header">{title}</header>
-      <div className="inspector-section__body">{children}</div>
-    </section>
-  );
-}
+const EMPTY_COPY = "Select an element on the page to inspect. Editing works offline.";
 
 export function InspectorPanel({
   summary,
@@ -109,34 +106,41 @@ export function InspectorPanel({
   canCopySelectionContext = false,
   onCopySelectionContext,
   selectionCopyStatus = "idle",
+  componentProps = [],
+  onPropCommand,
 }: InspectorPanelProps): ReactElement {
   if (summary === null && multiSelectGroup === null) {
     return (
       <div className="inspector-panel">
-        <Section title="Mode">
+        <CollapsibleSection title="Mode" defaultOpen>
           <EditorToolbar activeMode={editorMode} onChangeMode={onChangeEditorMode} />
-        </Section>
-        <p className="inspector-panel__empty">Select an element to inspect.</p>
+        </CollapsibleSection>
+        <p className="inspector-panel__empty">{EMPTY_COPY}</p>
       </div>
     );
   }
 
   const copyStatusLabel = selectionCopyStatusLabel(selectionCopyStatus);
+  const showProps = summary !== null && componentProps.length > 0 && onPropCommand !== undefined;
 
   return (
     <div className="inspector-panel">
       {multiSelectGroup !== null && (
-        <Section title="Multi-Select Group">
+        <CollapsibleSection title="Multi-Select Group" defaultOpen>
           <MultiSelectInspectorSection
             group={multiSelectGroup}
             violations={multiSelectViolations}
           />
-        </Section>
+        </CollapsibleSection>
       )}
-      {alignmentPanel !== undefined && <Section title="Alignment">{alignmentPanel}</Section>}
+      {alignmentPanel !== undefined && (
+        <CollapsibleSection title="Alignment" defaultOpen>
+          {alignmentPanel}
+        </CollapsibleSection>
+      )}
       {summary !== null && (
         <>
-          <Section title="Identity">
+          <CollapsibleSection title="Identity" defaultOpen>
             <div className="inspector-semantic">
               <div className="inspector-semantic__row">
                 <span className="inspector-semantic__label">Selector</span>
@@ -165,16 +169,21 @@ export function InspectorPanel({
                 <SourceConfidence confidence={summary.sourceConfidence} />
               </div>
             </div>
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="Editors">
+          <CollapsibleSection title="Editors" defaultOpen>
             <EditorToolbar activeMode={editorMode} onChangeMode={onChangeEditorMode} />
             {editorMode === "style" && (
-              <StyleEditor
-                summary={summary}
-                onCommand={onEditorCommand}
-                onValidationError={onValidationError}
-              />
+              <>
+                <StyleEditor
+                  summary={summary}
+                  onCommand={onEditorCommand}
+                  onValidationError={onValidationError}
+                />
+                <p className="inspector-panel__hint">
+                  Computed values are also listed below (collapsed by default).
+                </p>
+              </>
             )}
             {editorMode === "class" && (
               <ClassEditor summary={summary} onCommand={onEditorCommand} />
@@ -187,42 +196,58 @@ export function InspectorPanel({
               />
             )}
             <ElementActions summary={summary} onCommand={onEditorCommand} />
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="Breadcrumb">
+          <CollapsibleSection title="Pseudo" defaultOpen>
+            <PseudoElementEditor
+              summary={summary}
+              onCommand={onEditorCommand}
+              onValidationError={onValidationError}
+            />
+          </CollapsibleSection>
+
+          {showProps && (
+            <CollapsibleSection title="Component Props" defaultOpen>
+              <PropsPanel summary={summary} props={componentProps} onCommand={onPropCommand} />
+            </CollapsibleSection>
+          )}
+
+          <CollapsibleSection title="Breadcrumb" defaultOpen>
             <Breadcrumb items={summary.breadcrumb} onSelect={onSelectElement} />
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="Semantic">
+          <CollapsibleSection title="Semantic" defaultOpen={false}>
             <SemanticSummary semantic={summary.semantic} />
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="Box Model">
+          <CollapsibleSection title="Box Model" defaultOpen={false}>
             <BoxModel boxModel={summary.boxModel} />
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="Computed Style">
+          <CollapsibleSection title="Computed Style" defaultOpen={false}>
             <ComputedStyle style={summary.computedStyle} />
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="Classes">
+          <CollapsibleSection title="Classes" defaultOpen={false}>
             <ClassList classes={summary.classList} />
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="Attributes">
+          <CollapsibleSection title="Attributes" defaultOpen={false}>
             <Attributes attributes={summary.attributes} />
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="Siblings">
+          <CollapsibleSection title="Siblings" defaultOpen={false}>
             <SiblingSummary summary={summary.siblingSummary} />
-          </Section>
+          </CollapsibleSection>
 
           {autoLayoutPanel !== undefined && (
-            <Section title="Auto Layout">{autoLayoutPanel}</Section>
+            <CollapsibleSection title="Auto Layout" defaultOpen>
+              {autoLayoutPanel}
+            </CollapsibleSection>
           )}
 
           {gridPlacement !== null && (
-            <Section title="Grid">
+            <CollapsibleSection title="Grid" defaultOpen>
               <GridPanel
                 placement={gridPlacement}
                 spanCandidates={gridSpanCandidates}
@@ -231,7 +256,7 @@ export function InspectorPanel({
                 onChoosePlacement={(choice) => onChooseGridPlacement?.(choice)}
                 onResizeSpan={(axis, toSpan) => onResizeGridSpan?.(axis, toSpan)}
               />
-            </Section>
+            </CollapsibleSection>
           )}
         </>
       )}

@@ -108,7 +108,7 @@ describe("InspectorPanel", () => {
   it("renders an empty state when summary is null", () => {
     render(<InspectorPanel {...makeProps({ summary: null })} />);
 
-    expect(screen.getByText("Select an element to inspect.")).toBeDefined();
+    expect(screen.getByText(/Select an element on the page to inspect/)).toBeDefined();
   });
 
   it("renders all summary sections", () => {

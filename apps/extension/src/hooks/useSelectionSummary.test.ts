@@ -122,6 +122,7 @@ describe("useSelectionSummary", () => {
         messageType: "selection-summary",
         sourceRoute: "background",
         targetRoute: "panel",
+        selectionRevision: 1,
         timestamp: Date.now(),
         payload: summary,
       });
@@ -142,6 +143,7 @@ describe("useSelectionSummary", () => {
         messageType: "selection-summary",
         sourceRoute: "background",
         targetRoute: "panel",
+        selectionRevision: 1,
         timestamp: Date.now(),
         payload: summary,
       });
@@ -153,6 +155,7 @@ describe("useSelectionSummary", () => {
         messageType: "selection-summary",
         sourceRoute: "background",
         targetRoute: "panel",
+        selectionRevision: 2,
         timestamp: Date.now(),
         payload: null,
       });

@@ -7,6 +7,7 @@ import type {
   GridReorderCandidateSet,
   GridSpanCandidate,
 } from "@vision-control/layout-engine";
+import type { MapOrigin } from "@vision-control/map-origins";
 import type { InteractionMode } from "@vision-control/overlay-ui";
 
 import type { BusMessage, ConnectionState, TabSession } from "./types.js";
@@ -19,6 +20,12 @@ export type BoundaryKind = "server-to-client" | "client-to-server" | "context-pr
 
 /** Local prop-flow warning severity for panel wire payloads. */
 export type PropFlowWarningSeverity = "info" | "warning" | "error";
+
+export interface SelectionOriginsPayload {
+  readonly runtimeId: string;
+  readonly origins: readonly MapOrigin[];
+  readonly originsTruncated: boolean;
+}
 
 export {
   BRIDGE_CONNECT_MESSAGE_TYPE,
@@ -42,23 +49,55 @@ export {
   type RequestComponentPropsPayload,
 } from "./panel-background-control-messages.js";
 
-export function createSelectionSummaryMessage(summary: SelectionSummary): BusMessage {
+export function createSelectionSummaryMessage(
+  summary: SelectionSummary,
+  selectionRevision: number,
+): BusMessage {
   return {
     protocolVersion: "1.0.0",
     messageId: `selection-summary-${Date.now()}`,
     messageType: "selection-summary",
     targetRoute: "panel",
+    selectionRevision,
     payload: summary,
     timestamp: Date.now(),
   };
 }
 
-export function createSelectionSummaryClearedMessage(): BusMessage {
+export function createSelectionSummaryClearedMessage(selectionRevision: number): BusMessage {
   return {
     protocolVersion: "1.0.0",
     messageId: `selection-summary-clear-${Date.now()}`,
     messageType: "selection-summary",
     targetRoute: "panel",
+    selectionRevision,
+    payload: null,
+    timestamp: Date.now(),
+  };
+}
+
+export function createSelectionOriginsMessage(
+  payload: SelectionOriginsPayload,
+  selectionRevision: number,
+): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `selection-origins-${Date.now()}`,
+    messageType: "selection-origins",
+    targetRoute: "panel",
+    selectionRevision,
+    payload,
+    timestamp: Date.now(),
+  };
+}
+
+export function createSelectionOriginsClearedMessage(selectionRevision: number): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `selection-origins-clear-${Date.now()}`,
+    messageType: "selection-origins",
+    targetRoute: "panel",
+    selectionRevision,
     payload: null,
     timestamp: Date.now(),
   };

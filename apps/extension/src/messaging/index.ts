@@ -59,6 +59,8 @@ export {
   createMultiSelectGroupMessage,
   createRequestComponentPropsMessage,
   createSelectElementMessage,
+  createSelectionOriginsClearedMessage,
+  createSelectionOriginsMessage,
   createSelectionSummaryClearedMessage,
   createSelectionSummaryMessage,
   createSessionUpdateMessage,
@@ -71,6 +73,7 @@ export {
   isBridgeDisconnectMessageType,
   type PropFlowWarningEntry,
   type RequestComponentPropsPayload,
+  type SelectionOriginsPayload,
 } from "./panel-messages.js";
 export {
   createChromeRouterTransport,

@@ -15,6 +15,7 @@ export type BusMessage = {
   readonly tabId?: number;
   readonly frameId?: number;
   readonly sessionId?: string;
+  readonly selectionRevision?: number;
   readonly sourceRoute?: BusRoute;
   readonly targetRoute?: BusRoute;
   readonly payload: unknown;

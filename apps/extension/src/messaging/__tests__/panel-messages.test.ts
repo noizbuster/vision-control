@@ -11,11 +11,15 @@
 
 import type { Operation } from "@vision-control/change-ir";
 import { describe, expect, it } from "vitest";
-
+import { createSelectionSummaryFixture } from "../../testing/selection-summary-fixture.js";
 import {
   createClearPreviewMessage,
   createEditorCommandMessage,
   createHostAccessChangedMessage,
+  createSelectionOriginsClearedMessage,
+  createSelectionOriginsMessage,
+  createSelectionSummaryClearedMessage,
+  createSelectionSummaryMessage,
 } from "../panel-messages.js";
 
 const BASE_TIME = 1_700_000_000_000;
@@ -78,5 +82,42 @@ describe("createHostAccessChangedMessage", () => {
     expect(message.targetRoute).toBe("background");
     expect(message.tabId).toBeUndefined();
     expect("tabId" in message).toBe(false);
+  });
+});
+
+describe("selection correlation messages", () => {
+  it("keeps selection-summary payload unchanged and carries revision on the envelope", () => {
+    const summary = createSelectionSummaryFixture();
+
+    const message = createSelectionSummaryMessage(summary, 3);
+
+    expect(message.payload).toBe(summary);
+    expect(message.selectionRevision).toBe(3);
+  });
+
+  it("correlates clear and origins messages through the envelope revision", () => {
+    const clear = createSelectionSummaryClearedMessage(4);
+    const originsClear = createSelectionOriginsClearedMessage(5);
+    const origins = createSelectionOriginsMessage(
+      {
+        runtimeId: "runtime-1",
+        origins: [{ relativePath: "src/Button.tsx", confidence: "high", warnings: [] }],
+        originsTruncated: true,
+      },
+      4,
+    );
+
+    expect(clear.payload).toBeNull();
+    expect(clear.selectionRevision).toBe(4);
+    expect(origins.messageType).toBe("selection-origins");
+    expect(origins.selectionRevision).toBe(4);
+    expect(origins.payload).toEqual({
+      runtimeId: "runtime-1",
+      origins: [{ relativePath: "src/Button.tsx", confidence: "high", warnings: [] }],
+      originsTruncated: true,
+    });
+    expect(originsClear.messageType).toBe("selection-origins");
+    expect(originsClear.selectionRevision).toBe(5);
+    expect(originsClear.payload).toBeNull();
   });
 });

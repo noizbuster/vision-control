@@ -33,9 +33,11 @@ export interface BreakpointControllerOptions {
 
 export interface BreakpointController {
   /** Enrich + track + publish a selection summary with the active breakpoint. */
-  readonly onSelection: (summary: SelectionSummary) => void;
+  readonly onSelection: (summary: SelectionSummary, selectionRevision: number) => void;
   /** Drop the tracked summary (deselect). */
-  readonly clear: () => void;
+  readonly clear: (selectionRevision: number) => void;
+  /** Drop tracked selection state without publishing (runtime stop). */
+  readonly invalidate: () => void;
   /** Attach the resize listener + screens bus handler. */
   readonly attach: () => void;
   readonly detach: () => void;
@@ -51,19 +53,33 @@ export function createBreakpointController(
     ...(options.screens !== undefined ? { screens: options.screens } : {}),
   });
   let lastSummary: SelectionSummary | null = null;
+  let lastSelectionRevision: number | null = null;
 
-  const publish = (summary: SelectionSummary): void => {
+  const publish = (summary: SelectionSummary, selectionRevision: number): void => {
     lastSummary = summary;
-    bus.send("panel", createSelectionSummaryMessage(summary));
+    lastSelectionRevision = selectionRevision;
+    bus.send("panel", createSelectionSummaryMessage(summary, selectionRevision));
   };
 
-  const onSelection = (summary: SelectionSummary): void => {
-    publish({ ...summary, activeBreakpoint: resolver.resolve() });
+  const onSelection = (summary: SelectionSummary, selectionRevision: number): void => {
+    publish({ ...summary, activeBreakpoint: resolver.resolve() }, selectionRevision);
   };
 
-  const clear = (): void => {
+  const invalidate = (): void => {
     lastSummary = null;
-    bus.send("panel", createSelectionSummaryClearedMessage());
+    lastSelectionRevision = null;
+  };
+
+  const clear = (selectionRevision: number): void => {
+    invalidate();
+    bus.send("panel", createSelectionSummaryClearedMessage(selectionRevision));
+  };
+
+  const republishResolvedBreakpoint = (): void => {
+    if (lastSummary === null || lastSelectionRevision === null) return;
+    const next = resolver.resolve();
+    if (next === lastSummary.activeBreakpoint) return;
+    publish({ ...lastSummary, activeBreakpoint: next }, lastSelectionRevision);
   };
 
   const onViewportScreens = (message: BusMessage): void => {
@@ -72,15 +88,13 @@ export function createBreakpointController(
     const screens = payload.screens.filter((s): s is string => typeof s === "string");
     if (screens.length === 0) return;
     resolver.setScreens(screens);
+    republishResolvedBreakpoint();
   };
 
   let resizeRafId: number | null = null;
   const flushResize = (): void => {
     resizeRafId = null;
-    if (lastSummary === null) return;
-    const next = resolver.resolve();
-    if (next === lastSummary.activeBreakpoint) return;
-    publish({ ...lastSummary, activeBreakpoint: next });
+    republishResolvedBreakpoint();
   };
   const onViewportResize = (): void => {
     if (resizeRafId !== null) return;
@@ -96,6 +110,7 @@ export function createBreakpointController(
   let screensUnsub: (() => void) | null = null;
 
   const attach = (): void => {
+    if (screensUnsub !== null) return;
     win.addEventListener("resize", onViewportResize);
     screensUnsub = bus.on("viewport-screens", onViewportScreens);
   };
@@ -109,8 +124,8 @@ export function createBreakpointController(
 
   const dispose = (): void => {
     detach();
-    lastSummary = null;
+    invalidate();
   };
 
-  return { onSelection, clear, attach, detach, dispose };
+  return { onSelection, clear, invalidate, attach, detach, dispose };
 }

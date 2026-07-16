@@ -35,6 +35,11 @@ import type {
   InteractionModePayload,
   MessageBus,
 } from "../messaging/index.js";
+import {
+  createSelectionOriginsClearedMessage,
+  createSelectionOriginsMessage,
+  type SelectionOriginsPayload,
+} from "../messaging/panel-messages.js";
 import { type BreakpointController, createBreakpointController } from "./breakpoint-controller.js";
 import {
   createGridPlacementController,
@@ -52,6 +57,12 @@ import {
   type MultiSelectController,
 } from "./multi-select-controller.js";
 import { createPropertyInspector, type PropertyInspector } from "./property-inspector.js";
+import { resolveSelectionOrigins } from "./resolve-selection-origins.js";
+import {
+  createSelectionOriginController,
+  type SelectionOriginController,
+  type SelectionOriginResolver,
+} from "./selection-origin-controller.js";
 
 /**
  * Narrow bus seam the runtime depends on. {@link MessageBus} satisfies this
@@ -78,6 +89,8 @@ export interface OverlayRuntimeOptions {
    * default scale when absent.
    */
   readonly screens?: readonly string[];
+  /** Override map-origin resolution for deterministic content-runtime tests. */
+  readonly resolveOrigins?: SelectionOriginResolver;
 }
 
 export interface OverlayRuntime {
@@ -110,6 +123,12 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
 
   const overlayRoot = attach(doc);
   const overlayElement = createOverlayElement(overlayRoot.shadowRoot);
+  const elementsByRuntimeId = new Map<string, Element>();
+  const runtimeIdForElement = (element: Element): string => {
+    const runtimeId = getOrAssignPreviewRuntimeId(element);
+    elementsByRuntimeId.set(runtimeId, element);
+    return runtimeId;
+  };
 
   const breakpoint: BreakpointController = createBreakpointController({
     window: doc.defaultView ?? window,
@@ -117,9 +136,34 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     ...(options.screens !== undefined ? { screens: options.screens } : {}),
   });
 
+  const resolveOrigins: SelectionOriginResolver =
+    options.resolveOrigins ??
+    ((element) =>
+      resolveSelectionOrigins(element, {
+        document: doc,
+        fetch: (input, init) => (doc.defaultView ?? window).fetch(input, init),
+      }));
+  const selectionOrigins: SelectionOriginController = createSelectionOriginController({
+    resolve: resolveOrigins,
+    publishSummary: breakpoint.onSelection,
+    publishOrigins: (payload: SelectionOriginsPayload, selectionRevision: number) =>
+      bus.send("panel", createSelectionOriginsMessage(payload, selectionRevision)),
+    publishClear: breakpoint.clear,
+    publishInvalidated: (selectionRevision) =>
+      bus.send("panel", createSelectionOriginsClearedMessage(selectionRevision)),
+  });
+
   const inspectorBus: InspectorBus = {
-    sendSelection: (_identity, summary) => breakpoint.onSelection(summary),
-    sendDeselect: () => breakpoint.clear(),
+    sendSelection: (identity, summary) => {
+      const element = elementsByRuntimeId.get(identity.runtimeId);
+      elementsByRuntimeId.clear();
+      if (element === undefined) return;
+      selectionOrigins.select({ element, runtimeId: identity.runtimeId, summary });
+    },
+    sendDeselect: () => {
+      elementsByRuntimeId.clear();
+      selectionOrigins.clear();
+    },
   };
 
   const inspector = createInspector({
@@ -127,7 +171,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     overlayElement,
     domAdapter,
     bus: inspectorBus,
-    getRuntimeId: getOrAssignPreviewRuntimeId,
+    getRuntimeId: runtimeIdForElement,
   });
 
   const previewDom = createBrowserPreviewDomAdapter();
@@ -298,6 +342,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   let interactionModeUnsub: (() => void) | null = null;
 
   const start = (): void => {
+    if (selectElementUnsub !== null || interactionModeUnsub !== null) return;
     breakpoint.attach();
     setInteractionMode(interactionMode);
     selectElementUnsub = bus.on("select-element", onSelectElement);
@@ -308,6 +353,9 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     controllers?.detach();
     setInspectListeners(false);
     breakpoint.detach();
+    breakpoint.invalidate();
+    elementsByRuntimeId.clear();
+    selectionOrigins.invalidate();
     selectElementUnsub?.();
     selectElementUnsub = null;
     interactionModeUnsub?.();
@@ -321,6 +369,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     controllers = null;
     gridPlacement.dispose();
     multiSelect.dispose();
+    selectionOrigins.dispose();
     breakpoint.dispose();
     inspector.dispose();
   };

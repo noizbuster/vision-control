@@ -492,7 +492,11 @@ export class ReorderController {
     if (this.state !== null && this.state.kind !== "committed") {
       return;
     }
-    if (this.selectedElement === null || event.target !== this.selectedElement) {
+    if (
+      this.selectedElement === null ||
+      !(event.target instanceof Element) ||
+      !this.selectedElement.contains(event.target)
+    ) {
       return;
     }
     this.parentElement = this.selectedElement.parentElement;

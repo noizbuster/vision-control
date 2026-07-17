@@ -121,6 +121,19 @@ const MOVE_REPARENT_FIXTURE = fixtureHtml(`
   </main>
 `);
 
+const MOVE_LEAF_INSERTION_FIXTURE = fixtureHtml(`
+  <main id="canvas" style="width:720px;min-height:360px">
+    <section id="source" style="width:180px;min-height:96px;padding:16px;border:1px solid #999">
+      <div id="card" style="position:relative;width:96px;height:48px;background:#f2f2f2;border:1px solid #333"><span id="card-label">Card</span><span id="card-meta" style="position:absolute;right:4px;top:4px">New</span></div>
+    </section>
+    <section id="target" style="display:flex;flex-direction:column;gap:12px;margin-top:32px;width:180px;padding:16px;border:1px solid #aaa">
+      <div id="first" style="height:40px;border:1px solid #333">First</div>
+      <div id="middle" style="position:relative;height:40px;border:1px solid #333"><span id="middle-label" style="display:block;height:100%">Middle</span><span id="middle-meta" style="position:absolute;right:4px;top:4px">Meta</span></div>
+      <div id="last" style="height:40px;border:1px solid #333">Last</div>
+    </section>
+  </main>
+`);
+
 test.describe("@reparent browser", () => {
   extTest(
     "real DOM tag names validate a valid reparent (p from section to header)",
@@ -242,6 +255,7 @@ test.describe("@reparent browser", () => {
         .toBeLessThanOrEqual(3);
 
       await page.mouse.up();
+      extExpect(await page.evaluate(() => window.getSelection()?.isCollapsed ?? false)).toBe(true);
 
       await extExpect
         .poll(() =>
@@ -293,6 +307,91 @@ test.describe("@reparent browser", () => {
       const outsideRect = await pageElementRect(page, "#outside");
       await page.mouse.click(outsideRect.x + 10, outsideRect.y + 10);
       await extExpect(page.locator("#nested-target > #card")).toHaveCount(1);
+    },
+  );
+
+  extTest(
+    "Move inserts before a nested cross-parent sibling at the displayed boundary",
+    async ({ page }) => {
+      await serveFixture(page, MOVE_LEAF_INSERTION_FIXTURE);
+      const cardRect = await pageElementRect(page, "#card");
+      await page.mouse.click(cardRect.x + cardRect.width - 6, cardRect.y + cardRect.height - 6);
+      await extExpect(page.locator("#card")).toHaveAttribute("data-vc-preview-id", /.+/);
+      await setInteractionMode(page, "Move");
+
+      const firstRect = await pageElementRect(page, "#first");
+      const middleRect = await pageElementRect(page, "#middle");
+      const cardLabelRect = await pageElementRect(page, "#card-label");
+      const middleLabelRect = await pageElementRect(page, "#middle-label");
+      await page.mouse.move(
+        cardLabelRect.x + cardLabelRect.width / 2,
+        cardLabelRect.y + cardLabelRect.height / 2,
+      );
+      await page.mouse.down();
+      await page.mouse.move(middleLabelRect.x + 10, middleLabelRect.y + 8, { steps: 8 });
+
+      const heldStructure = await page.locator("#target").evaluate((target) => ({
+        targetChildren: Array.from(target.children).map((child) => child.id),
+        cardParent: document.getElementById("card")?.parentElement?.id ?? null,
+      }));
+      extExpect(heldStructure).toEqual({
+        targetChildren: ["first", "middle", "last"],
+        cardParent: "source",
+      });
+
+      const insertionLine = await page.evaluate(() => {
+        const host = document.querySelector("[data-vc-overlay-host]");
+        const indicator = Array.from(
+          host?.shadowRoot?.querySelectorAll<HTMLElement>(".vc-drop-indicator") ?? [],
+        ).find((element) => getComputedStyle(element).display === "block");
+        if (indicator === undefined) return null;
+        const rect = indicator.getBoundingClientRect();
+        return {
+          display: getComputedStyle(indicator).display,
+          orientation: indicator.getAttribute("data-orientation"),
+          y: rect.y,
+        };
+      });
+      extExpect(insertionLine).not.toBeNull();
+      if (insertionLine === null) throw new Error("cross-parent insertion line was not rendered");
+      extExpect(insertionLine.display).toBe("block");
+      extExpect(insertionLine.orientation).toBe("horizontal");
+      const expectedBoundary = (firstRect.y + firstRect.height + middleRect.y) / 2;
+      extExpect(Math.abs(insertionLine.y + 1 - expectedBoundary)).toBeLessThanOrEqual(2);
+
+      await page.mouse.up();
+      extExpect(await page.evaluate(() => window.getSelection()?.isCollapsed ?? false)).toBe(true);
+
+      await extExpect
+        .poll(() =>
+          page
+            .locator("#target")
+            .evaluate((target) => Array.from(target.children).map((child) => child.id)),
+        )
+        .toEqual(["first", "card", "middle", "last"]);
+      await extExpect
+        .poll(() =>
+          page.evaluate(() =>
+            Array.from(
+              document
+                .querySelector("[data-vc-overlay-host]")
+                ?.shadowRoot?.querySelectorAll<HTMLElement>(".vc-drop-indicator") ?? [],
+            ).every((element) => getComputedStyle(element).display === "none"),
+          ),
+        )
+        .toBe(true);
+      await extExpect
+        .poll(async () => {
+          const movedRect = await pageElementRect(page, "#card");
+          const selectionOutline = await overlayElementInfo(page, ".vc-select-outline");
+          return selectionOutline === null
+            ? Number.POSITIVE_INFINITY
+            : Math.max(
+                Math.abs(selectionOutline.x - movedRect.x),
+                Math.abs(selectionOutline.y - movedRect.y),
+              );
+        })
+        .toBeLessThanOrEqual(3);
     },
   );
 });

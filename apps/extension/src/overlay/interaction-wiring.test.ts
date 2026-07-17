@@ -113,11 +113,21 @@ function dispatchPointer(target: EventTarget, type: string, init: PointerEventIn
   );
 }
 
-function getReorderDropIndicator(overlayContainer: HTMLElement): HTMLElement {
+function getVisibleDropIndicator(overlayContainer: HTMLElement): HTMLElement {
+  const indicator = Array.from(
+    overlayContainer.querySelectorAll<HTMLElement>(".vc-drop-indicator"),
+  ).find((element) => element.style.display === "block");
+  if (indicator === undefined) {
+    throw new Error("drop indicator was not visible");
+  }
+  return indicator;
+}
+
+function getReparentDropIndicator(overlayContainer: HTMLElement): HTMLElement {
   const indicators = overlayContainer.querySelectorAll<HTMLElement>(".vc-drop-indicator");
   const indicator = indicators.item(indicators.length - 1);
   if (indicator === null) {
-    throw new Error("reorder drop indicator was not mounted");
+    throw new Error("reparent drop indicator was not mounted");
   }
   return indicator;
 }
@@ -379,6 +389,55 @@ describe("interaction wiring", () => {
     assertNoPositionElement(operations);
   });
 
+  it("inserts before a cross-parent leaf with an exact held-drop indicator", () => {
+    const source = document.createElement("section");
+    const target = document.createElement("section");
+    target.style.display = "flex";
+    target.style.flexDirection = "column";
+    const child = document.createElement("div");
+    const first = document.createElement("div");
+    const middle = document.createElement("div");
+    const last = document.createElement("div");
+    source.appendChild(child);
+    target.append(first, middle, last);
+    document.body.append(source, target);
+    setRect(source, 0, 0, 120, 180);
+    setRect(child, 10, 10, 60, 30);
+    setRect(target, 200, 0, 160, 180);
+    setRect(first, 210, 10, 140, 50);
+    setRect(middle, 210, 70, 140, 50);
+    setRect(last, 210, 130, 140, 40);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(child));
+
+    dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 24 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 80, pointerId: 24 });
+
+    const indicator = getVisibleDropIndicator(overlay.overlayContainer);
+    expect(indicator.style.left).toBe("200px");
+    expect(indicator.style.top).toBe("64px");
+    expect(indicator.style.width).toBe("160px");
+    expect(indicator.style.height).toBe("2px");
+    expect(indicator.getAttribute("data-orientation")).toBe("horizontal");
+    expect([...target.children]).toEqual([first, middle, last]);
+    expect(child.parentElement).toBe(source);
+    expect(controllers.getRecordedOperations()).toHaveLength(0);
+
+    dispatchPointer(document, "pointerup", { clientX: 240, clientY: 80, pointerId: 24 });
+
+    const operations = controllers.getRecordedOperations();
+    expect(operations).toHaveLength(1);
+    const operation = operations[0];
+    expect(operation?.kind).toBe("reparent-element");
+    if (operation?.kind !== "reparent-element") return;
+    expect(operation.targetParent.runtimeId).toBe(target.getAttribute("data-vc-preview-id"));
+    expect(operation.targetIndex).toBe(1);
+    expect([...target.children]).toEqual([first, child, middle, last]);
+    expect(indicator.style.display).toBe("none");
+    assertNoPositionElement(operations);
+  });
+
   it("allows Move to drop into a container nested inside the source parent", () => {
     const source = document.createElement("section");
     const child = document.createElement("div");
@@ -438,22 +497,26 @@ describe("interaction wiring", () => {
     parent.style.flexDirection = "row";
     const first = document.createElement("div");
     first.textContent = "first";
+    const firstLabel = document.createElement("span");
+    firstLabel.textContent = "first label";
+    first.appendChild(firstLabel);
     const second = document.createElement("div");
     second.textContent = "second";
     parent.append(first, second);
     document.body.appendChild(parent);
     setRect(parent, 0, 0, 180, 60);
     setRect(first, 0, 0, 60, 40);
+    setRect(firstLabel, 5, 5, 50, 20);
     setRect(second, 70, 0, 60, 40);
 
     controllers.attach();
     controllers.onSelectionChange(buildSelectionContext(first));
     vi.spyOn(previewManager, "applyOperation");
 
-    dispatchPointer(first, "pointerdown", { clientX: 10, clientY: 20, pointerId: 10 });
+    dispatchPointer(firstLabel, "pointerdown", { clientX: 10, clientY: 20, pointerId: 10 });
     dispatchPointer(document, "pointermove", { clientX: 120, clientY: 20, pointerId: 10 });
 
-    const indicator = getReorderDropIndicator(overlay.overlayContainer);
+    const indicator = getVisibleDropIndicator(overlay.overlayContainer);
     expect(indicator.style.display).toBe("block");
     expect([...parent.children]).toEqual([first, second]);
     expect(previewManager.applyOperation).not.toHaveBeenCalled();
@@ -464,7 +527,8 @@ describe("interaction wiring", () => {
     dispatchPointer(document, "pointerup", { clientX: 120, clientY: 20, pointerId: 10 });
 
     const operations = controllers.getRecordedOperations();
-    expect(operations.some((op) => op.kind === "reorder-child")).toBe(true);
+    expect(operations).toHaveLength(1);
+    expect(operations[0]?.kind).toBe("reorder-child");
     expect(operations.some((op) => op.kind === "reparent-element")).toBe(false);
     expect([...parent.children]).toEqual([second, first]);
     expect(previewManager.applyOperation).toHaveBeenCalledTimes(1);
@@ -587,14 +651,42 @@ describe("interaction wiring", () => {
       ".vc-drop-target-highlight",
     );
     expect(highlight?.style.display).toBe("block");
+    const indicator = getReparentDropIndicator(overlay.overlayContainer);
+    expect(indicator.style.display).toBe("block");
 
     dispatchPointer(document, "pointermove", { clientX: 20, clientY: 20, pointerId: 17 });
 
     expect(highlight?.style.display).toBe("none");
+    expect(indicator.style.display).toBe("none");
     dispatchPointer(document, "pointerup", { clientX: 20, clientY: 20, pointerId: 17 });
 
     expect(child.parentElement).toBe(source);
     expect(previewManager.applyOperation).not.toHaveBeenCalled();
+    expect(controllers.getRecordedOperations()).toHaveLength(0);
+    expect(controllers.getJournal().entries).toHaveLength(0);
+    expect(interactionOperationMessages(bus)).toHaveLength(0);
+  });
+
+  it("re-evaluates the release coordinates instead of committing a stale reparent target", () => {
+    const source = document.createElement("section");
+    const target = document.createElement("section");
+    const child = document.createElement("div");
+    source.appendChild(child);
+    document.body.append(source, target);
+    setRect(source, 0, 0, 120, 120);
+    setRect(target, 200, 0, 160, 160);
+    setRect(child, 10, 10, 60, 30);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(child));
+
+    dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 25 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 50, pointerId: 25 });
+    expect(getVisibleDropIndicator(overlay.overlayContainer).style.display).toBe("block");
+
+    dispatchPointer(document, "pointerup", { clientX: 20, clientY: 20, pointerId: 25 });
+
+    expect(child.parentElement).toBe(source);
     expect(controllers.getRecordedOperations()).toHaveLength(0);
     expect(controllers.getJournal().entries).toHaveLength(0);
     expect(interactionOperationMessages(bus)).toHaveLength(0);
@@ -625,10 +717,13 @@ describe("interaction wiring", () => {
       ".vc-drop-target-highlight",
     );
     expect(highlight?.style.display).toBe("block");
+    const indicator = getReparentDropIndicator(overlay.overlayContainer);
+    expect(indicator.style.display).toBe("block");
 
     dispatchPointer(document, "pointercancel", { clientX: 240, clientY: 50, pointerId: 18 });
 
     expect(highlight?.style.display).toBe("none");
+    expect(indicator.style.display).toBe("none");
     expect(child.parentElement).toBe(source);
     expect(previewManager.applyOperation).not.toHaveBeenCalled();
     expect(controllers.getRecordedOperations()).toHaveLength(0);
@@ -665,10 +760,43 @@ describe("interaction wiring", () => {
       ".vc-drop-target-highlight",
     );
     expect(highlight?.style.display).toBe("block");
+    const indicator = getReparentDropIndicator(overlay.overlayContainer);
+    expect(indicator.style.display).toBe("block");
 
     controllers.detachMove();
 
     expect(highlight?.style.display).toBe("none");
+    expect(indicator.style.display).toBe("none");
+    expect(child.parentElement).toBe(source);
+    expect(controllers.getRecordedOperations()).toHaveLength(0);
+  });
+
+  it("clears reparent feedback on dispose", () => {
+    const source = document.createElement("section");
+    const target = document.createElement("section");
+    const child = document.createElement("div");
+    source.appendChild(child);
+    document.body.append(source, target);
+    setRect(source, 0, 0, 120, 120);
+    setRect(target, 200, 0, 160, 160);
+    setRect(child, 10, 10, 60, 30);
+
+    controllers.attach();
+    controllers.onSelectionChange(buildSelectionContext(child));
+    dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 26 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 50, pointerId: 26 });
+
+    const highlight = overlay.root.shadowRoot.querySelector<HTMLElement>(
+      ".vc-drop-target-highlight",
+    );
+    const indicator = getReparentDropIndicator(overlay.overlayContainer);
+    expect(highlight?.style.display).toBe("block");
+    expect(indicator.style.display).toBe("block");
+
+    controllers.dispose();
+
+    expect(highlight?.style.display).toBe("none");
+    expect(indicator.style.display).toBe("none");
     expect(child.parentElement).toBe(source);
     expect(controllers.getRecordedOperations()).toHaveLength(0);
   });

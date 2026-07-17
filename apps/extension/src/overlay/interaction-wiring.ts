@@ -32,7 +32,11 @@ import type { MultiSelectGroup } from "@vision-control/editor-core";
 import type { ElementRef } from "@vision-control/element-identity";
 import type { Rect } from "@vision-control/geometry";
 import type { LayoutComputedStyle } from "@vision-control/layout-engine";
-import { createDropTargetHighlighter, type OverlayElement } from "@vision-control/overlay-ui";
+import {
+  createDropIndicator,
+  createDropTargetHighlighter,
+  type OverlayElement,
+} from "@vision-control/overlay-ui";
 import { PREVIEW_ID_ATTR, type PreviewManager } from "@vision-control/preview-engine";
 import {
   createReparentController,
@@ -179,6 +183,7 @@ export function createInteractionControllers(
     recordOperation,
     onDiagnostic: options.onDiagnostic ?? (() => {}),
   });
+  const reparentDropIndicator = createDropIndicator(overlayContainer);
 
   const resize = createResizeController({
     overlayElement,
@@ -192,6 +197,7 @@ export function createInteractionControllers(
     onHighlight: (state) => {
       if (state === null) {
         dropTargetHighlighter.clear();
+        reparentDropIndicator.hideDropIndicator();
         return;
       }
       dropTargetHighlighter.highlight({
@@ -199,6 +205,24 @@ export function createInteractionControllers(
         validity: state.validity === "valid" ? "valid" : "invalid",
         ...(state.warning !== null ? { warning: state.warning } : {}),
       });
+      const indicatorRect =
+        state.insertion.axis === "x"
+          ? {
+              x: state.insertion.position - 1,
+              y: state.rect.y,
+              width: 2,
+              height: state.rect.height,
+            }
+          : {
+              x: state.rect.x,
+              y: state.insertion.position - 1,
+              width: state.rect.width,
+              height: 2,
+            };
+      reparentDropIndicator.showDropIndicator(
+        indicatorRect,
+        state.insertion.axis === "x" ? "vertical" : "horizontal",
+      );
     },
   };
   const reparent = createReparentController({
@@ -253,6 +277,7 @@ export function createInteractionControllers(
     reparentDrag.detach();
     reorder.detach();
     dropTargetHighlighter.clear();
+    reparentDropIndicator.hideDropIndicator();
   };
 
   const detach = (): void => {

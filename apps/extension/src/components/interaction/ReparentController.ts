@@ -20,7 +20,11 @@ import {
   type ReparentResult,
   type ReparentSession,
 } from "@vision-control/interaction-machine";
-import { classifyGroupMove, type LayoutRole } from "@vision-control/layout-engine";
+import {
+  classifyGroupMove,
+  type InsertionIndicator,
+  type LayoutRole,
+} from "@vision-control/layout-engine";
 import type { PreviewManager } from "@vision-control/preview-engine";
 
 export type {
@@ -38,6 +42,7 @@ export interface ReparentHighlightState {
   };
   readonly validity: DropValidity;
   readonly warning: string | null;
+  readonly insertion: InsertionIndicator;
 }
 
 export interface ReparentControllerState {
@@ -104,10 +109,12 @@ const toHighlightState = (
   container: CandidateContainer,
   validity: DropValidity,
   reason: string | null,
+  insertion: InsertionIndicator,
 ): ReparentHighlightState => ({
   rect: container.rect,
   validity,
   warning: reason,
+  insertion,
 });
 
 const findContainer = (
@@ -166,6 +173,7 @@ export function createReparentController(options: ReparentControllerOptions): Re
             },
             evaluation.validity === "valid" ? "valid" : "invalid",
             evaluation.reason,
+            evaluation.target.indicator,
           );
 
     state = {

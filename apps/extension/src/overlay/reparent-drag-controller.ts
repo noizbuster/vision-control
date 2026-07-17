@@ -1,12 +1,9 @@
-import { createOperationId } from "@vision-control/change-ir";
-import type { Rect } from "@vision-control/geometry";
 import type { CandidateContainer } from "@vision-control/interaction-machine";
-import { classifyLayoutRole, validateReparent } from "@vision-control/layout-engine";
-import { PREVIEW_ID_ATTR } from "@vision-control/preview-engine";
 
 import type { ReparentController } from "../components/interaction/index.js";
 import type { ReorderController } from "../components/interaction/ReorderController.js";
 import type { SelectionContext } from "./interaction-wiring.js";
+import { describeReparentElement, resolveMoveDropTarget } from "./move-drop-target.js";
 
 export interface ReparentDragController {
   readonly attach: () => void;
@@ -31,27 +28,6 @@ interface PendingDrag {
 }
 
 const REPARENT_DRAG_THRESHOLD_PX = 4;
-const SOURCE_TREE_CONTAINER_TAGS = new Set([
-  "article",
-  "aside",
-  "dd",
-  "details",
-  "dl",
-  "dt",
-  "fieldset",
-  "footer",
-  "form",
-  "header",
-  "li",
-  "main",
-  "nav",
-  "ol",
-  "section",
-  "td",
-  "th",
-  "ul",
-]);
-
 export function createReparentDragController(
   options: ReparentDragControllerOptions,
 ): ReparentDragController {
@@ -62,7 +38,13 @@ export function createReparentDragController(
   const onPointerDown = (event: PointerEvent): void => {
     if (pending !== null) return;
     const selection = getSelectionContext();
-    if (selection === null || event.target !== selection.element) return;
+    if (
+      selection === null ||
+      !(event.target instanceof Element) ||
+      !selection.element.contains(event.target)
+    ) {
+      return;
+    }
     const sourceParent = selection.element.parentElement;
     if (sourceParent === null) return;
     pending = {
@@ -73,19 +55,14 @@ export function createReparentDragController(
       startY: event.clientY,
       reparentActive: false,
     };
+    event.preventDefault();
   };
 
   const onPointerMove = (event: PointerEvent): void => {
     if (pending === null || event.pointerId !== pending.pointerId) return;
     if (!pending.reparentActive && !hasExceededThreshold(pending, event)) return;
 
-    const candidate = findCandidateContainer(
-      doc,
-      pending.selection.element,
-      pending.sourceParent,
-      event.clientX,
-      event.clientY,
-    );
+    const candidate = resolveCandidate(pending, event);
     if (candidate === null) {
       if (pending.reparentActive) {
         reparent.move(event.clientX, event.clientY, []);
@@ -98,8 +75,8 @@ export function createReparentDragController(
       reorder.detach();
       reparent.begin(
         String(pending.pointerId),
-        descriptorFor(pending.selection.element),
-        descriptorFor(pending.sourceParent),
+        describeReparentElement(pending.selection.element),
+        describeReparentElement(pending.sourceParent),
         sourceIndex(pending.selection.element, pending.sourceParent),
       );
       pending.reparentActive = true;
@@ -113,6 +90,8 @@ export function createReparentDragController(
     if (pending === null || event.pointerId !== pending.pointerId) return;
     const shouldResumeReorder = pending.reparentActive;
     if (pending.reparentActive) {
+      const candidate = resolveCandidate(pending, event);
+      reparent.move(event.clientX, event.clientY, candidate === null ? [] : [candidate]);
       reparent.end();
       event.preventDefault();
     }
@@ -171,110 +150,11 @@ function sourceIndex(element: Element, parent: Element): number {
   return Array.from(parent.children).indexOf(element);
 }
 
-function descriptorFor(element: Element): CandidateContainer["parent"] {
-  return {
-    ref: {
-      runtimeId: getOrAssignRuntimeId(element),
-      tagName: element.tagName.toLowerCase(),
-    },
-    tagName: element.tagName.toLowerCase(),
-  };
-}
-
-function candidateFor(element: Element, dragged: Element): CandidateContainer {
-  const view = element.ownerDocument.defaultView ?? window;
-  const style = view.getComputedStyle(element);
-  return {
-    parent: descriptorFor(element),
-    layoutRole: classifyLayoutRole({
-      display: style.display,
-      flexDirection: style.flexDirection,
-      position: style.position,
-      tagName: element.tagName.toLowerCase(),
-    }),
-    flexDirection: style.flexDirection,
-    rect: rectFor(element),
-    children: Array.from(element.children)
-      .filter((child) => child !== dragged)
-      .map((child) => ({ rect: rectFor(child) })),
-  };
-}
-
-function findCandidateContainer(
-  doc: Document,
-  dragged: Element,
-  sourceParent: Element,
-  x: number,
-  y: number,
-): CandidateContainer | null {
-  for (const element of elementsAtPoint(doc, x, y)) {
-    if (!isCandidateElement(element, dragged, sourceParent)) {
-      continue;
-    }
-    if (!validateReparent(element.tagName.toLowerCase(), dragged.tagName.toLowerCase()).ok) {
-      continue;
-    }
-    return candidateFor(element, dragged);
-  }
-  return null;
-}
-
-function isCandidateElement(element: Element, dragged: Element, sourceParent: Element): boolean {
-  if (element === dragged || dragged.contains(element)) return false;
-  if (element === sourceParent || element.contains(sourceParent)) return false;
-  if (sourceParent.contains(element) && !isContainerLike(element)) return false;
-  return true;
-}
-
-function isContainerLike(element: Element): boolean {
-  if (element.children.length > 0) return true;
-  const tagName = element.tagName.toLowerCase();
-  if (SOURCE_TREE_CONTAINER_TAGS.has(tagName)) return true;
-  const view = element.ownerDocument.defaultView ?? window;
-  const style = view.getComputedStyle(element);
-  const role = classifyLayoutRole({
-    display: style.display,
-    flexDirection: style.flexDirection,
-    position: style.position,
-    tagName,
+function resolveCandidate(drag: PendingDrag, event: PointerEvent): CandidateContainer | null {
+  return resolveMoveDropTarget({
+    document: drag.selection.element.ownerDocument,
+    dragged: drag.selection.element,
+    sourceParent: drag.sourceParent,
+    pointer: { x: event.clientX, y: event.clientY },
   });
-  return role === "flex-container" || role === "grid-container";
-}
-
-function elementsAtPoint(doc: Document, x: number, y: number): readonly Element[] {
-  if (typeof doc.elementsFromPoint === "function") {
-    return doc.elementsFromPoint(x, y);
-  }
-  return Array.from(doc.querySelectorAll("*"))
-    .filter((element) => containsPoint(element, x, y))
-    .sort((a, b) => area(rectFor(a)) - area(rectFor(b)));
-}
-
-function containsPoint(element: Element, x: number, y: number): boolean {
-  const rect = rectFor(element);
-  return (
-    rect.width > 0 &&
-    rect.height > 0 &&
-    x >= rect.x &&
-    x <= rect.x + rect.width &&
-    y >= rect.y &&
-    y <= rect.y + rect.height
-  );
-}
-
-function rectFor(element: Element): Rect {
-  const rect = element.getBoundingClientRect();
-  return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
-}
-
-function area(rect: Rect): number {
-  return rect.width * rect.height;
-}
-
-function getOrAssignRuntimeId(element: Element): string {
-  const existing = element.getAttribute(PREVIEW_ID_ATTR);
-  if (existing !== null && existing.length > 0) return existing;
-  const runtimeId = `vc-reparent-${createOperationId()}`;
-  element.setAttribute(PREVIEW_ID_ATTR, runtimeId);
-  return runtimeId;
 }

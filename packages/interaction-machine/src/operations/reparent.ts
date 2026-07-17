@@ -4,6 +4,7 @@ import type { Rect } from "@vision-control/geometry";
 import {
   type ChildBox,
   computeInsertionIndex,
+  type InsertionIndicator,
   type LayoutRole,
   validateReparent,
 } from "@vision-control/layout-engine";
@@ -70,6 +71,7 @@ export interface DropTarget {
   readonly parent: ElementRef;
   readonly tagName: string;
   readonly index: number;
+  readonly indicator: InsertionIndicator;
 }
 
 export type DropValidity = "valid" | "invalid" | "pending";
@@ -193,6 +195,7 @@ export const evaluateDropTarget = (
     parent: hovered.parent.ref,
     tagName: hovered.parent.tagName,
     index: insertion.index,
+    indicator: insertion.indicator,
   };
 
   const evaluation: DropEvaluation = {

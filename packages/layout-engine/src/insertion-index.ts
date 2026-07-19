@@ -1,6 +1,11 @@
 import type { ElementRef } from "@vision-control/element-identity";
 import type { Rect } from "@vision-control/geometry";
-
+import {
+  type FlexAxisInput,
+  mapVisualBoundaryToDomIndex,
+  resolveFlexAxis,
+  visualDomOrder,
+} from "./flex/logical-axis.js";
 import type { LayoutRole } from "./layout-role.js";
 
 /**
@@ -30,18 +35,106 @@ export interface InsertionResult {
   readonly indicator: InsertionIndicator;
 }
 
+export type InsertionFlow =
+  | { readonly kind: "block" }
+  | { readonly kind: "flex"; readonly axis: FlexAxisInput };
+
+export interface LogicalInsertionInput {
+  readonly parent: ElementRef;
+  readonly children: readonly ChildBox[];
+  readonly pointer: { readonly x: number; readonly y: number };
+  readonly flow: InsertionFlow;
+}
+
+export class InsertionModelError extends Error {
+  override readonly name = "InsertionModelError";
+}
+
 const axisStart = (rect: Rect, axis: "x" | "y"): number => (axis === "x" ? rect.x : rect.y);
 const axisEnd = (rect: Rect, axis: "x" | "y"): number =>
   axis === "x" ? rect.x + rect.width : rect.y + rect.height;
 
-const flowAxis = (role: LayoutRole, flexDirection: string): "x" | "y" => {
-  if (role === "flex-container" && !normalize(flexDirection).startsWith("column")) {
-    return "x";
+const normalize = (value: string): string => value.trim().toLowerCase();
+
+const legacyFlexDirection = (value: string): FlexAxisInput["flexDirection"] => {
+  switch (normalize(value)) {
+    case "row-reverse":
+      return "row-reverse";
+    case "column":
+      return "column";
+    case "column-reverse":
+      return "column-reverse";
+    default:
+      return "row";
   }
-  return "y";
 };
 
-const normalize = (value: string): string => value.trim().toLowerCase();
+const progressionFor = (flow: InsertionFlow) =>
+  flow.kind === "flex" ? resolveFlexAxis(flow.axis) : ({ axis: "y", sign: 1 } as const);
+
+const indicatorPosition = (
+  children: readonly ChildBox[],
+  visualBoundaryIndex: number,
+  axis: "x" | "y",
+  pointer: number,
+  domIndices: readonly number[],
+): number => {
+  if (children.length === 0) return pointer;
+  const firstDomIndex = domIndices[0];
+  const lastDomIndex = domIndices[domIndices.length - 1];
+  const first = firstDomIndex === undefined ? undefined : children[firstDomIndex];
+  const last = lastDomIndex === undefined ? undefined : children[lastDomIndex];
+  if (visualBoundaryIndex === 0) return first === undefined ? pointer : axisStart(first.rect, axis);
+  if (visualBoundaryIndex === children.length)
+    return last === undefined ? pointer : axisEnd(last.rect, axis);
+  const beforeDomIndex = domIndices[visualBoundaryIndex - 1];
+  const afterDomIndex = domIndices[visualBoundaryIndex];
+  const before = beforeDomIndex === undefined ? undefined : children[beforeDomIndex];
+  const after = afterDomIndex === undefined ? undefined : children[afterDomIndex];
+  return before === undefined || after === undefined
+    ? pointer
+    : (axisEnd(before.rect, axis) + axisStart(after.rect, axis)) / 2;
+};
+
+export const computeLogicalInsertionIndex = (input: LogicalInsertionInput): InsertionResult => {
+  const progression = progressionFor(input.flow);
+  const pointer = progression.axis === "x" ? input.pointer.x : input.pointer.y;
+  const signedPointer = pointer * progression.sign;
+  let domProgressBoundary = 0;
+  for (const child of input.children) {
+    const midpoint =
+      ((axisStart(child.rect, progression.axis) + axisEnd(child.rect, progression.axis)) / 2) *
+      progression.sign;
+    if (midpoint < signedPointer) domProgressBoundary += 1;
+    else break;
+  }
+
+  const visualBoundaryIndex =
+    progression.sign === 1 ? domProgressBoundary : input.children.length - domProgressBoundary;
+  const mapping = mapVisualBoundaryToDomIndex({
+    childCount: input.children.length,
+    visualBoundaryIndex,
+    sign: progression.sign,
+  });
+  const order = visualDomOrder({ childCount: input.children.length, sign: progression.sign });
+  if (!mapping.ok) throw new InsertionModelError(mapping.diagnostic.message);
+  if (!order.ok) throw new InsertionModelError(order.diagnostic.message);
+
+  return {
+    parent: input.parent,
+    index: mapping.domIndex,
+    indicator: {
+      axis: progression.axis,
+      position: indicatorPosition(
+        input.children,
+        visualBoundaryIndex,
+        progression.axis,
+        pointer,
+        order.domIndices,
+      ),
+    },
+  };
+};
 
 /**
  * Compute the insertion index for a pointer inside a container (PRD section
@@ -74,36 +167,21 @@ export const computeInsertionIndex = (
   layoutRole: LayoutRole,
   flexDirection: string = "",
 ): InsertionResult => {
-  const axis = flowAxis(layoutRole, flexDirection);
-  const pointer = axis === "x" ? pointerX : pointerY;
-
-  let index = 0;
-  for (const child of children) {
-    const mid = (axisStart(child.rect, axis) + axisEnd(child.rect, axis)) / 2;
-    if (mid < pointer) {
-      index += 1;
-    } else {
-      break;
-    }
-  }
-
-  let position: number;
-  if (children.length === 0) {
-    position = pointer;
-  } else if (index === 0) {
-    const first = children[0];
-    position = first === undefined ? pointer : axisStart(first.rect, axis);
-  } else if (index === children.length) {
-    const last = children[children.length - 1];
-    position = last === undefined ? pointer : axisEnd(last.rect, axis);
-  } else {
-    const before = children[index - 1];
-    const after = children[index];
-    position =
-      before === undefined || after === undefined
-        ? pointer
-        : (axisEnd(before.rect, axis) + axisStart(after.rect, axis)) / 2;
-  }
-
-  return { parent, index, indicator: { axis, position } };
+  const flow: InsertionFlow =
+    layoutRole === "flex-container"
+      ? {
+          kind: "flex",
+          axis: {
+            writingMode: "horizontal-tb",
+            direction: "ltr",
+            flexDirection: legacyFlexDirection(flexDirection),
+          },
+        }
+      : { kind: "block" };
+  return computeLogicalInsertionIndex({
+    parent,
+    children,
+    pointer: { x: pointerX, y: pointerY },
+    flow,
+  });
 };

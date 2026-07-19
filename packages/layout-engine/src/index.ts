@@ -6,6 +6,7 @@ export {
   type ValidateReparentResult,
   validateReparent,
 } from "./content-model.js";
+export * from "./flex/index.js";
 export * from "./grid/index.js";
 export {
   classifyGroupMove,
@@ -16,8 +17,12 @@ export {
 export {
   type ChildBox,
   computeInsertionIndex,
+  computeLogicalInsertionIndex,
+  type InsertionFlow,
   type InsertionIndicator,
+  InsertionModelError,
   type InsertionResult,
+  type LogicalInsertionInput,
 } from "./insertion-index.js";
 export {
   classifyLayoutRole,

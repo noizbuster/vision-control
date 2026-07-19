@@ -16,6 +16,10 @@ export {
   type ClassOperation,
 } from "./adapters/class-adapter.js";
 export {
+  applyFlexPairPreview,
+  FlexPairPreviewError,
+} from "./adapters/flex-resize-adapter.js";
+export {
   applyDuplicateElementPreview,
   applyInsertElementPreview,
   applyRemoveElementPreview,

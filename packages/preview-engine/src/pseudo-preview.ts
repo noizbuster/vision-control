@@ -61,10 +61,7 @@ export const applyPseudoPreview = (
   const selector = pseudoPreviewSelector(input.runtimeId, input.pseudoClass);
   const important = input.important === true ? " !important" : "";
   const declarations = `${input.property}: ${input.value}${important};`;
-  stylesheet.applyRule(selector, declarations);
-  return (): void => {
-    stylesheet.removeRule(selector);
-  };
+  return stylesheet.applyRule(selector, declarations);
 };
 
 /** Result of a pseudo-element computed-style assertion. */

@@ -17,6 +17,7 @@ import {
   applyClassPreview,
   applySetAttributePreview,
 } from "./adapters/class-adapter.js";
+import { applyFlexPairPreview } from "./adapters/flex-resize-adapter.js";
 import {
   noopRollback,
   type RollbackFn,
@@ -176,6 +177,11 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
     simulated: null,
   });
 
+  const unsupportedOperationKind = (value: unknown): string => {
+    if (typeof value !== "object" || value === null || !("kind" in value)) return "unknown";
+    return typeof value.kind === "string" ? value.kind : "unknown";
+  };
+
   // allow: SIZE_OK — exhaustive Operation.kind dispatch over a 30-variant
   // discriminated union. Splitting the switch would break the compile-time
   // exhaustiveness guarantee (the `never` default branch) that makes a missing
@@ -189,6 +195,12 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
           operation.element.runtimeId,
           `${operation.property}: ${operation.toValue}${operation.unit};`,
         );
+      case "resize-flex-pair":
+        return {
+          rollback: applyFlexPairPreview(stylesheet, dom, operation),
+          observer: null,
+          simulated: null,
+        };
       case "class-add":
       case "class-remove":
       case "class-replace":
@@ -285,9 +297,7 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
         return noopDispatch();
       default: {
         const exhaustive: never = operation;
-        throw new UnsupportedPreviewOperationError(
-          (exhaustive as { kind?: string }).kind ?? "unknown",
-        );
+        throw new UnsupportedPreviewOperationError(unsupportedOperationKind(exhaustive));
       }
     }
   };

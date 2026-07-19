@@ -13,7 +13,7 @@ import { buildPreviewSelector, PREVIEW_STYLE_ATTR, type PreviewDomAdapter } from
 
 export interface StylesheetManager {
   /** Write or update a CSS rule for the given selector. */
-  readonly applyRule: (selector: string, declarations: string) => void;
+  readonly applyRule: (selector: string, declarations: string) => RollbackFn;
   /** Remove the CSS rule for the given selector. */
   readonly removeRule: (selector: string) => void;
   /** Whether a rule exists for the given selector. */
@@ -25,7 +25,13 @@ export interface StylesheetManager {
 }
 
 export function createStylesheetManager(dom: PreviewDomAdapter): StylesheetManager {
-  const rules = new Map<string, string>();
+  interface RuleEntry {
+    readonly declarations: string;
+    readonly previous: RuleEntry | undefined;
+  }
+
+  const rules = new Map<string, RuleEntry>();
+  const cancelled = new WeakSet<RuleEntry>();
   let styleElement: HTMLStyleElement | null = null;
 
   const ensureStyleElement = (): HTMLStyleElement => {
@@ -36,17 +42,36 @@ export function createStylesheetManager(dom: PreviewDomAdapter): StylesheetManag
     return styleElement;
   };
 
-  const flush = (): void => {
+  const flush = (entries: ReadonlyMap<string, RuleEntry> = rules): void => {
     const el = ensureStyleElement();
-    const css = Array.from(rules.entries())
-      .map(([sel, decls]) => `${sel} { ${decls} }`)
+    const css = Array.from(entries.entries())
+      .map(([selector, entry]) => `${selector} { ${entry.declarations} }`)
       .join("\n");
     el.textContent = css;
   };
 
-  const applyRule = (selector: string, declarations: string): void => {
-    rules.set(selector, declarations);
-    flush();
+  const applyRule = (selector: string, declarations: string): RollbackFn => {
+    const previous = rules.get(selector);
+    const applied: RuleEntry = { declarations, previous };
+    const nextRules = new Map(rules);
+    nextRules.set(selector, applied);
+    flush(nextRules);
+    rules.set(selector, applied);
+    return (): void => {
+      if (cancelled.has(applied)) return;
+      cancelled.add(applied);
+      if (rules.get(selector) !== applied) return;
+      let restored = applied.previous;
+      while (restored !== undefined && cancelled.has(restored)) {
+        restored = restored.previous;
+      }
+      if (restored === undefined) {
+        removeRule(selector);
+        return;
+      }
+      rules.set(selector, restored);
+      flush();
+    };
   };
 
   const removeRule = (selector: string): void => {
@@ -80,8 +105,5 @@ export function applyCssRule(
   declarations: string,
 ): RollbackFn {
   const selector = buildPreviewSelector(runtimeId);
-  stylesheet.applyRule(selector, declarations);
-  return (): void => {
-    stylesheet.removeRule(selector);
-  };
+  return stylesheet.applyRule(selector, declarations);
 }

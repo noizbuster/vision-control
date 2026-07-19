@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createReparentController } from "../components/interaction/index.js";
 import { ReorderController } from "../components/interaction/ReorderController.js";
-import { buildSelectionContext } from "./interaction-wiring.js";
+import { requireSelectionContext } from "./interaction-wiring.test-fixtures.js";
 import { createReparentDragController } from "./reparent-drag-controller.js";
 
 function setRect(element: Element, x: number, y: number, width: number, height: number): void {
@@ -65,7 +65,7 @@ describe("createReparentDragController", () => {
       document,
       reorder,
       reparent,
-      getSelectionContext: () => buildSelectionContext(card),
+      getSelectionContext: () => requireSelectionContext(card),
     });
 
     try {

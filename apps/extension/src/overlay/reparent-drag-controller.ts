@@ -2,6 +2,7 @@ import type { CandidateContainer } from "@vision-control/interaction-machine";
 
 import type { ReparentController } from "../components/interaction/index.js";
 import type { ReorderController } from "../components/interaction/ReorderController.js";
+import { measureReorderContainer } from "../components/interaction/reorder-dom-context.js";
 import type { SelectionContext } from "./interaction-wiring.js";
 import { describeReparentElement, resolveMoveDropTarget } from "./move-drop-target.js";
 
@@ -47,6 +48,11 @@ export function createReparentDragController(
     }
     const sourceParent = selection.element.parentElement;
     if (sourceParent === null) return;
+    const sourceMeasurement = measureReorderContainer(sourceParent, selection.element);
+    if (!sourceMeasurement.ok) {
+      reorder.reportMoveDiagnostic(sourceMeasurement.diagnostic);
+      return;
+    }
     pending = {
       pointerId: event.pointerId,
       selection,
@@ -62,7 +68,7 @@ export function createReparentDragController(
     if (pending === null || event.pointerId !== pending.pointerId) return;
     if (!pending.reparentActive && !hasExceededThreshold(pending, event)) return;
 
-    const candidate = resolveCandidate(pending, event);
+    const candidate = resolveCandidate(pending, event, reorder);
     if (candidate === null) {
       if (pending.reparentActive) {
         reparent.move(event.clientX, event.clientY, []);
@@ -90,7 +96,7 @@ export function createReparentDragController(
     if (pending === null || event.pointerId !== pending.pointerId) return;
     const shouldResumeReorder = pending.reparentActive;
     if (pending.reparentActive) {
-      const candidate = resolveCandidate(pending, event);
+      const candidate = resolveCandidate(pending, event, reorder);
       reparent.move(event.clientX, event.clientY, candidate === null ? [] : [candidate]);
       reparent.end();
       event.preventDefault();
@@ -150,11 +156,16 @@ function sourceIndex(element: Element, parent: Element): number {
   return Array.from(parent.children).indexOf(element);
 }
 
-function resolveCandidate(drag: PendingDrag, event: PointerEvent): CandidateContainer | null {
+function resolveCandidate(
+  drag: PendingDrag,
+  event: PointerEvent,
+  reorder: ReorderController,
+): CandidateContainer | null {
   return resolveMoveDropTarget({
     document: drag.selection.element.ownerDocument,
     dragged: drag.selection.element,
     sourceParent: drag.sourceParent,
     pointer: { x: event.clientX, y: event.clientY },
+    onDiagnostic: (diagnostic) => reorder.reportMoveDiagnostic(diagnostic),
   });
 }

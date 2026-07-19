@@ -3,7 +3,8 @@ import type { ElementRef } from "@vision-control/element-identity";
 import type { Point } from "@vision-control/geometry";
 import {
   type ChildBox,
-  computeInsertionIndex,
+  computeLogicalInsertionIndex,
+  type InsertionFlow,
   type InsertionResult,
   type LayoutRole,
 } from "@vision-control/layout-engine";
@@ -41,11 +42,7 @@ export interface ReorderLayoutContext {
   readonly children: readonly ChildBox[];
   /** Classified role of the parent container. */
   readonly layoutRole: LayoutRole;
-  /**
-   * The parent's CSS `flex-direction`. Needed to derive the flow axis for a
-   * `flex-container` role (direction is not encoded in the role).
-   */
-  readonly flexDirection?: string;
+  readonly flow: InsertionFlow;
 }
 
 /**
@@ -109,14 +106,12 @@ const computeInsertion = (
   pointerY: number,
   context: ReorderLayoutContext,
 ): InsertionResult =>
-  computeInsertionIndex(
-    context.parent,
-    context.children,
-    pointerX,
-    pointerY,
-    context.layoutRole,
-    context.flexDirection ?? "",
-  );
+  computeLogicalInsertionIndex({
+    parent: context.parent,
+    children: context.children,
+    pointer: { x: pointerX, y: pointerY },
+    flow: context.flow,
+  });
 
 /**
  * Begin a same-parent reorder gesture. The returned state is `drag-pending`;

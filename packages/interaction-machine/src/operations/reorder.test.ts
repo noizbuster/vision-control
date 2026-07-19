@@ -1,4 +1,4 @@
-import type { ChildBox, LayoutRole } from "@vision-control/layout-engine";
+import type { ChildBox, FlexDirection, LayoutRole } from "@vision-control/layout-engine";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createPointerId, type PointerId } from "../pointer-ownership.js";
@@ -35,12 +35,18 @@ const horizontalChildren: ChildBox[] = [
 const contextFor = (
   role: LayoutRole,
   children: ChildBox[] = verticalChildren,
-  flexDirection: string = "column",
+  flexDirection: FlexDirection = "column",
 ): ReorderLayoutContext => ({
   parent: { runtimeId: "parent", tagName: "section" },
   children,
   layoutRole: role,
-  flexDirection,
+  flow:
+    role === "flex-container"
+      ? {
+          kind: "flex",
+          axis: { writingMode: "horizontal-tb", direction: "ltr", flexDirection },
+        }
+      : { kind: "block" },
 });
 
 describe("reorder lifecycle", () => {

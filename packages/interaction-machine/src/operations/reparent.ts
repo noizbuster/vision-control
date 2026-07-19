@@ -4,6 +4,8 @@ import type { Rect } from "@vision-control/geometry";
 import {
   type ChildBox,
   computeInsertionIndex,
+  computeLogicalInsertionIndex,
+  type InsertionFlow,
   type InsertionIndicator,
   type LayoutRole,
   validateReparent,
@@ -53,10 +55,7 @@ export interface CandidateContainer {
   /** Parent descriptor including risk metadata. */
   readonly parent: ReparentElementDescriptor;
   readonly layoutRole: LayoutRole;
-  /**
-   * The container's CSS `flex-direction`. Needed to derive the flow axis for a
-   * `flex-container` role (direction is not encoded in the role).
-   */
+  readonly flow?: InsertionFlow;
   readonly flexDirection?: string;
   /** Container bounding rect in client coordinates. */
   readonly rect: Rect;
@@ -182,14 +181,22 @@ export const evaluateDropTarget = (
     };
   }
 
-  const insertion = computeInsertionIndex(
-    hovered.parent.ref,
-    hovered.children,
-    pointerX,
-    pointerY,
-    hovered.layoutRole,
-    hovered.flexDirection ?? "",
-  );
+  const insertion =
+    hovered.flow === undefined
+      ? computeInsertionIndex(
+          hovered.parent.ref,
+          hovered.children,
+          pointerX,
+          pointerY,
+          hovered.layoutRole,
+          hovered.flexDirection ?? "",
+        )
+      : computeLogicalInsertionIndex({
+          parent: hovered.parent.ref,
+          children: hovered.children,
+          pointer: { x: pointerX, y: pointerY },
+          flow: hovered.flow,
+        });
 
   const target: DropTarget = {
     parent: hovered.parent.ref,

@@ -1,8 +1,15 @@
-import { createOperationId } from "@vision-control/change-ir";
 import type { Rect } from "@vision-control/geometry";
 import type { CandidateContainer } from "@vision-control/interaction-machine";
-import { classifyLayoutRole, validateReparent } from "@vision-control/layout-engine";
-import { PREVIEW_ID_ATTR } from "@vision-control/preview-engine";
+import { validateReparent } from "@vision-control/layout-engine";
+
+import {
+  getOrAssignMoveRuntimeId,
+  layoutRoleForElement,
+  type MovePlacementDiagnostic,
+  measureReorderContainer,
+  placementProgression,
+  rectFor,
+} from "../components/interaction/reorder-dom-context.js";
 
 const SOURCE_TREE_CONTAINER_TAGS = new Set([
   "article",
@@ -32,21 +39,56 @@ export interface MoveDropTargetRequest {
   readonly dragged: Element;
   readonly sourceParent: Element;
   readonly pointer: { readonly x: number; readonly y: number };
+  readonly onDiagnostic?: (diagnostic: MovePlacementDiagnostic) => void;
 }
+
+type CandidateParentResult =
+  | { readonly kind: "candidate"; readonly element: Element }
+  | { readonly kind: "none" }
+  | { readonly kind: "rejected"; readonly diagnostic: MovePlacementDiagnostic };
+
+type DropZone = "before" | "inside" | "after";
 
 export function resolveMoveDropTarget(request: MoveDropTargetRequest): CandidateContainer | null {
   const { document: doc, dragged, sourceParent, pointer } = request;
   for (const hitElement of normalizeHitElements(elementsAtPoint(doc, pointer.x, pointer.y))) {
-    const candidateParent = resolveCandidateParent(hitElement, sourceParent, pointer);
-    if (candidateParent === null || !isCandidateParent(candidateParent, dragged, sourceParent)) {
+    const parentResult = resolveCandidateParent({ hitElement, sourceParent, pointer });
+    if (parentResult.kind === "rejected") {
+      request.onDiagnostic?.(parentResult.diagnostic);
+      return null;
+    }
+    if (parentResult.kind === "none") continue;
+    const candidateParent = parentResult.element;
+    if (!isCandidateParent(candidateParent, dragged, sourceParent)) {
+      request.onDiagnostic?.({
+        kind: "unsupported-context",
+        message: "Move cannot target the selected element, its descendants, or its source branch.",
+      });
       continue;
     }
-    if (
-      !validateReparent(candidateParent.tagName.toLowerCase(), dragged.tagName.toLowerCase()).ok
-    ) {
-      continue;
+    const contentModel = validateReparent(
+      candidateParent.tagName.toLowerCase(),
+      dragged.tagName.toLowerCase(),
+    );
+    if (!contentModel.ok) {
+      request.onDiagnostic?.({
+        kind: "unsupported-context",
+        message: `${contentModel.violation.code}: ${contentModel.violation.reason}`,
+      });
+      return null;
     }
-    return candidateFor(candidateParent, dragged);
+    const measurement = measureReorderContainer(candidateParent, dragged);
+    if (!measurement.ok) {
+      request.onDiagnostic?.(measurement.diagnostic);
+      return null;
+    }
+    return {
+      parent: describeReparentElement(candidateParent),
+      layoutRole: measurement.measurement.layoutRole,
+      flow: measurement.measurement.flow,
+      rect: measurement.measurement.rect,
+      children: measurement.measurement.children,
+    };
   }
   return null;
 }
@@ -54,74 +96,70 @@ export function resolveMoveDropTarget(request: MoveDropTargetRequest): Candidate
 export function describeReparentElement(element: Element): CandidateContainer["parent"] {
   return {
     ref: {
-      runtimeId: getOrAssignRuntimeId(element),
+      runtimeId: getOrAssignMoveRuntimeId(element),
       tagName: element.tagName.toLowerCase(),
     },
     tagName: element.tagName.toLowerCase(),
   };
 }
 
-function resolveCandidateParent(
-  hitElement: Element,
-  sourceParent: Element,
-  pointer: MoveDropTargetRequest["pointer"],
-): Element | null {
+function resolveCandidateParent(input: {
+  readonly hitElement: Element;
+  readonly sourceParent: Element;
+  readonly pointer: MoveDropTargetRequest["pointer"];
+}): CandidateParentResult {
+  const { hitElement, sourceParent, pointer } = input;
   if (!isContainerLike(hitElement)) {
-    return hitElement.parentElement;
+    return hitElement.parentElement === null
+      ? { kind: "none" }
+      : { kind: "candidate", element: hitElement.parentElement };
   }
   if (hitElement.children.length === 0) {
-    return hitElement;
+    return { kind: "candidate", element: hitElement };
   }
 
-  const zone = containerDropZone(hitElement, pointer);
-  if (zone === "inside") {
-    return hitElement;
+  const zoneResult = containerDropZone(hitElement, pointer);
+  if (!zoneResult.ok) return { kind: "rejected", diagnostic: zoneResult.diagnostic };
+  if (zoneResult.zone === "inside") {
+    return { kind: "candidate", element: hitElement };
   }
 
   const parent = hitElement.parentElement;
   if (parent === sourceParent) {
-    return null;
+    return { kind: "none" };
   }
-  return parent;
+  return parent === null ? { kind: "none" } : { kind: "candidate", element: parent };
 }
 
 function containerDropZone(
   element: Element,
   pointer: MoveDropTargetRequest["pointer"],
-): "before" | "inside" | "after" {
+):
+  | { readonly ok: true; readonly zone: DropZone }
+  | { readonly ok: false; readonly diagnostic: MovePlacementDiagnostic } {
   const parent = element.parentElement;
   if (parent === null) {
-    return "inside";
+    return { ok: true, zone: "inside" };
   }
-  const axis = flowAxisFor(parent);
+  const measurement = measureReorderContainer(parent, null);
+  if (!measurement.ok) return measurement;
+  const progression = placementProgression(measurement.measurement.flow);
   const rect = rectFor(element);
-  const start = axis === "x" ? rect.x : rect.y;
-  const size = axis === "x" ? rect.width : rect.height;
+  const start = progression.axis === "x" ? rect.x : rect.y;
+  const size = progression.axis === "x" ? rect.width : rect.height;
   if (size <= 0) {
-    return "inside";
+    return { ok: true, zone: "inside" };
   }
-  const pointerPosition = axis === "x" ? pointer.x : pointer.y;
-  const relativePosition = (pointerPosition - start) / size;
+  const pointerPosition = progression.axis === "x" ? pointer.x : pointer.y;
+  const physicalOffset = (pointerPosition - start) / size;
+  const relativePosition = progression.sign === 1 ? physicalOffset : 1 - physicalOffset;
   if (relativePosition < LEADING_DROP_ZONE) {
-    return "before";
+    return { ok: true, zone: "before" };
   }
   if (relativePosition > TRAILING_DROP_ZONE) {
-    return "after";
+    return { ok: true, zone: "after" };
   }
-  return "inside";
-}
-
-function flowAxisFor(element: Element): "x" | "y" {
-  const style = getComputedStyleFor(element);
-  const layoutRole = classifyLayoutRole({
-    display: style.display,
-    flexDirection: style.flexDirection,
-    position: style.position,
-    tagName: element.tagName.toLowerCase(),
-  });
-  return layoutRole === "flex-container" && !style.flexDirection.trim().startsWith("column")
-    ? "x"
-    : "y";
+  return { ok: true, zone: "inside" };
 }
 
 function isCandidateParent(element: Element, dragged: Element, sourceParent: Element): boolean {
@@ -129,24 +167,6 @@ function isCandidateParent(element: Element, dragged: Element, sourceParent: Ele
   if (element === sourceParent || element.contains(sourceParent)) return false;
   if (sourceParent.contains(element) && !isContainerLike(element)) return false;
   return true;
-}
-
-function candidateFor(element: Element, dragged: Element): CandidateContainer {
-  const style = getComputedStyleFor(element);
-  return {
-    parent: describeReparentElement(element),
-    layoutRole: classifyLayoutRole({
-      display: style.display,
-      flexDirection: style.flexDirection,
-      position: style.position,
-      tagName: element.tagName.toLowerCase(),
-    }),
-    flexDirection: style.flexDirection,
-    rect: rectFor(element),
-    children: Array.from(element.children)
-      .filter((child) => child !== dragged)
-      .map((child) => ({ rect: rectFor(child) })),
-  };
 }
 
 function isContainerLike(element: Element): boolean {
@@ -157,13 +177,7 @@ function isContainerLike(element: Element): boolean {
 function isExplicitDropContainer(element: Element): boolean {
   const tagName = element.tagName.toLowerCase();
   if (SOURCE_TREE_CONTAINER_TAGS.has(tagName)) return true;
-  const style = getComputedStyleFor(element);
-  const layoutRole = classifyLayoutRole({
-    display: style.display,
-    flexDirection: style.flexDirection,
-    position: style.position,
-    tagName,
-  });
+  const layoutRole = layoutRoleForElement(element);
   return layoutRole === "flex-container" || layoutRole === "grid-container";
 }
 
@@ -220,23 +234,6 @@ function containsPoint(element: Element, x: number, y: number): boolean {
   );
 }
 
-function getComputedStyleFor(element: Element): CSSStyleDeclaration {
-  return element.ownerDocument.defaultView?.getComputedStyle(element) ?? getComputedStyle(element);
-}
-
-function rectFor(element: Element): Rect {
-  const rect = element.getBoundingClientRect();
-  return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
-}
-
 function area(rect: Rect): number {
   return rect.width * rect.height;
-}
-
-function getOrAssignRuntimeId(element: Element): string {
-  const existing = element.getAttribute(PREVIEW_ID_ATTR);
-  if (existing !== null && existing.length > 0) return existing;
-  const runtimeId = `vc-reparent-${createOperationId()}`;
-  element.setAttribute(PREVIEW_ID_ATTR, runtimeId);
-  return runtimeId;
 }

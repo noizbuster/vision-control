@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { ChangeSet } from "@vision-control/change-ir";
+import { createChangeSet } from "@vision-control/change-ir";
 import {
   compileContext,
   redactContext,
@@ -76,25 +76,18 @@ const seededSelection: SelectionSummary = {
   sourceConfidence: "high",
 };
 
-const emptyChangeset: ChangeSet = {
+const emptyChangeset = createChangeSet({
   id: "cs-priv-01",
   workspaceId: "ws-priv",
-  operations: [],
-  runtime: false,
-  createdAt: 1000,
-  updatedAt: 1000,
-};
-
-const sourceCandidates: readonly {
-  readonly confidence: "high" | "medium" | "low";
-  readonly warnings: readonly string[];
-}[] = [];
+  sessionId: "sess-priv-01",
+  now: 1000,
+});
 
 const compileInputs = {
   goal: "Edit the password field",
   selection: seededSelection,
   changeset: emptyChangeset,
-  sourceCandidates,
+  sourceCandidates: [],
   warnings: [
     {
       severity: "info" as const,
@@ -102,7 +95,7 @@ const compileInputs = {
       message: `password=${SECRET_PASSWORD} api_key=${SECRET_API_KEY} cookie=${SECRET_COOKIE}`,
     },
   ],
-};
+} satisfies Parameters<typeof compileContext>[0];
 
 test.describe("risk: privacy export redaction (unit)", () => {
   test("secrets are absent from JSON render after redaction", () => {

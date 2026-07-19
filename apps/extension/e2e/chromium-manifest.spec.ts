@@ -34,7 +34,10 @@ function contentScripts(value: unknown): BuiltManifest["content_scripts"] {
   if (!Array.isArray(value)) {
     return undefined;
   }
-  return value.filter(isRecord).map((script) => ({ matches: stringArray(script.matches) }));
+  return value.filter(isRecord).map((script) => {
+    const matches = stringArray(script.matches);
+    return matches === undefined ? {} : { matches };
+  });
 }
 
 function readBuiltManifest(): BuiltManifest {
@@ -43,11 +46,17 @@ function readBuiltManifest(): BuiltManifest {
   if (!isRecord(parsed)) {
     return {};
   }
+  const hostPermissions = stringArray(parsed.host_permissions);
+  const optionalHostPermissions = stringArray(parsed.optional_host_permissions);
+  const optionalPermissions = stringArray(parsed.optional_permissions);
+  const scripts = contentScripts(parsed.content_scripts);
   return {
-    host_permissions: stringArray(parsed.host_permissions),
-    optional_host_permissions: stringArray(parsed.optional_host_permissions),
-    optional_permissions: stringArray(parsed.optional_permissions),
-    content_scripts: contentScripts(parsed.content_scripts),
+    ...(hostPermissions === undefined ? {} : { host_permissions: hostPermissions }),
+    ...(optionalHostPermissions === undefined
+      ? {}
+      : { optional_host_permissions: optionalHostPermissions }),
+    ...(optionalPermissions === undefined ? {} : { optional_permissions: optionalPermissions }),
+    ...(scripts === undefined ? {} : { content_scripts: scripts }),
   };
 }
 

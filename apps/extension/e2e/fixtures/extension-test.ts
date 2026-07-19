@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { test as base, chromium, expect, type Page, type Worker } from "@playwright/test";
+import { parseE2eViewport } from "../viewport.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = resolve(HERE, "..", "..", ".output", "chrome-mv3");
@@ -39,6 +40,10 @@ export function fixtureUrl(path = "board"): string {
   return `${FIXTURE_ORIGIN}/${path}`;
 }
 
+export function writeEvidenceText(path: string, contents: string): void {
+  writeFileSync(path, contents, "utf8");
+}
+
 export const test = base.extend({
   // biome-ignore lint/correctness/noEmptyPattern: Playwright fixture with no deps
   context: async ({}, use) => {
@@ -53,7 +58,7 @@ export const test = base.extend({
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       args,
-      viewport: { width: 1280, height: 720 },
+      viewport: parseE2eViewport(process.env.VC_E2E_VIEWPORT),
     });
     await use(context);
     await context.close();

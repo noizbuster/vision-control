@@ -32,6 +32,8 @@ const expectedPatch: StyleEditOperation = {
   id: "hmr-s01",
   timestamp: 1000,
   runtime: false,
+  origin: "property-panel",
+  confidence: 1,
   target: { runtimeId: "el-hmr-01" },
   property: "padding",
   value: "24px",

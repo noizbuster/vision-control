@@ -34,7 +34,7 @@ extTest.describe("@selection-summary browser", () => {
     const depth = await page.locator("#heading").evaluate((el) => {
       let node = el as Element | null;
       let count = 0;
-      while (node && node !== document) {
+      while (node) {
         count++;
         node = node.parentElement;
       }

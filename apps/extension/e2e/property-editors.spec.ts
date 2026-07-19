@@ -65,7 +65,7 @@ test.describe("@property-editors", () => {
     const result = validateCssValue("padding", "abc");
     expect(result.valid).toBe(false);
     if (!result.valid) {
-      expect(result.error.length).toBeGreaterThan(0);
+      expect(result.error).toBeTruthy();
     }
     const valid = validateCssValue("padding", "24px");
     expect(valid.valid).toBe(true);

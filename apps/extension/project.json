@@ -23,7 +23,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsc --noEmit -p tsconfig.json",
+        "command": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p e2e/tsconfig.json",
         "cwd": "apps/extension"
       }
     },
@@ -36,6 +36,8 @@
     },
     "e2e": {
       "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", { "env": "VC_E2E_VIEWPORT" }],
       "options": {
         "command": "playwright test",
         "cwd": "apps/extension"

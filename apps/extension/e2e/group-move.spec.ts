@@ -126,6 +126,7 @@ test.describe("@group-move unit", () => {
       sameParent: true,
       sourceParentRole: "absolute-positioned",
       targetParentRole: "absolute-positioned",
+      validContentModel: true,
       sourceContextPositioned: true,
       targetContextPositioned: true,
     });
@@ -135,6 +136,7 @@ test.describe("@group-move unit", () => {
       sameParent: true,
       sourceParentRole: "absolute-positioned",
       targetParentRole: "absolute-positioned",
+      validContentModel: true,
       sourceContextPositioned: true,
       targetContextPositioned: true,
       userIntent: "free-move",

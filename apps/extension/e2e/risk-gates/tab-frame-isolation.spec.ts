@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { checkSendPermission } from "../../src/messaging/context-permissions.ts";
 import { classifyFrames } from "../../src/messaging/frame-discovery.ts";
+import type { BusMessage } from "../../src/messaging/types.ts";
 
 /**
  * Risk gate R4: tab/frame isolation.
@@ -14,11 +15,20 @@ import { classifyFrames } from "../../src/messaging/frame-discovery.ts";
 type BusRoute = "content" | "panel" | "background" | "daemon";
 
 const ctx = (route: BusRoute, tabId?: number, frameId?: number) => ({ route, tabId, frameId });
-const msg = (messageType: string, targetRoute: BusRoute, tabId?: number, frameId?: number) => ({
+const msg = (
+  messageType: string,
+  targetRoute: BusRoute,
+  tabId?: number,
+  frameId?: number,
+): BusMessage => ({
+  protocolVersion: "1.0.0",
+  messageId: `e2e-${messageType}`,
   messageType,
   targetRoute,
-  tabId,
-  frameId,
+  payload: {},
+  timestamp: 0,
+  ...(tabId === undefined ? {} : { tabId }),
+  ...(frameId === undefined ? {} : { frameId }),
 });
 
 test.describe("risk: tab/frame isolation", () => {

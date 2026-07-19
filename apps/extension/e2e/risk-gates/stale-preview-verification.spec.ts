@@ -32,6 +32,8 @@ const runtimeStyleOp: StyleEditOperation = {
   id: "style-runtime1",
   timestamp: 1000,
   runtime: true,
+  origin: "property-panel",
+  confidence: 1,
   target: { runtimeId: "el-stale-01" },
   property: "padding",
   value: "24px",
@@ -50,10 +52,14 @@ const runtimeResize: ResizeElementOperation = {
   id: "resize-run01",
   timestamp: 2000,
   runtime: true,
+  origin: "canvas-drag",
+  confidence: 1,
   target: { runtimeId: "el-stale-02" },
+  element: { runtimeId: "el-stale-02" },
   property: "flex-basis",
   fromValue: "200px",
   toValue: "300px",
+  unit: "px",
 };
 
 test.describe("risk: stale preview verification (unit)", () => {

@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { type ChangeSet, isBaseOverwriteAllowed, type Operation } from "@vision-control/change-ir";
+import {
+  appendOperation,
+  type BreakpointStyleEditOperation,
+  createChangeSet,
+  isBaseOverwriteAllowed,
+} from "@vision-control/change-ir";
 import { compileContext } from "@vision-control/context-compiler";
 
 /**
@@ -16,7 +21,7 @@ import { compileContext } from "@vision-control/context-compiler";
 
 const BASE_TIME = 1_700_000_000_000;
 
-const mdStyleOp: Operation = {
+const mdStyleOp: BreakpointStyleEditOperation = {
   id: "op-bp-e2e0001",
   kind: "breakpoint-style-edit",
   target: { runtimeId: "rt-1", sourceId: "src-1", selector: ".card" },
@@ -30,25 +35,32 @@ const mdStyleOp: Operation = {
   previousValue: "8px",
   timestamp: BASE_TIME,
   runtime: false,
+  origin: "property-panel",
+  confidence: 1,
 };
 
 test.describe("@breakpoint-confidence unit", () => {
   test("a breakpoint-style-edit at md: is scoped and never overwrites base without explicit intent", () => {
     expect(isBaseOverwriteAllowed(mdStyleOp)).toBe(false);
 
-    const overwrite: Operation = { ...mdStyleOp, id: "op-bp-e2e0002", applyToBase: true };
+    const overwrite: BreakpointStyleEditOperation = {
+      ...mdStyleOp,
+      id: "op-bp-e2e0002",
+      applyToBase: true,
+    };
     expect(isBaseOverwriteAllowed(overwrite)).toBe(true);
   });
 
   test("the context compiler derives breakpoint context from a breakpoint changeset", () => {
-    const changeset: ChangeSet = {
-      id: "cs-e2e-bp01",
-      sessionId: "sess-e2e-bp",
-      operations: [mdStyleOp],
-      createdAt: BASE_TIME,
-      updatedAt: BASE_TIME + 1,
-      committed: false,
-    };
+    const changeset = appendOperation(
+      createChangeSet({
+        id: "cs-e2e-bp01",
+        workspaceId: "ws-e2e-bp",
+        sessionId: "sess-e2e-bp",
+        now: BASE_TIME,
+      }),
+      mdStyleOp,
+    );
     const ctx = compileContext({
       goal: "Edit padding at md",
       selection: {
@@ -115,14 +127,12 @@ test.describe("@breakpoint-confidence unit", () => {
   });
 
   test("compiled source candidates surface LOW/MEDIUM and never hide them", () => {
-    const changeset: ChangeSet = {
+    const changeset = createChangeSet({
       id: "cs-e2e-bp02",
+      workspaceId: "ws-e2e-bp",
       sessionId: "sess-e2e-bp",
-      operations: [],
-      createdAt: BASE_TIME,
-      updatedAt: BASE_TIME + 1,
-      committed: false,
-    };
+      now: BASE_TIME,
+    });
     const ctx = compileContext({
       goal: "Inspect confidence",
       selection: {

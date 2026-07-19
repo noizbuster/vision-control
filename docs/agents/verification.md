@@ -29,6 +29,21 @@ If your change touches e2e:
 pnpm test:e2e
 ```
 
+Flex-aware extension changes additionally run the built extension through the
+strictly parsed persistent Chromium viewport matrix:
+
+```bash
+VC_E2E_VIEWPORT=375x720 pnpm nx run extension:e2e -- --grep @flex-pair
+VC_E2E_VIEWPORT=768x720 pnpm nx run extension:e2e -- --grep @flex-pair
+VC_E2E_VIEWPORT=1280x720 pnpm nx run extension:e2e -- --grep @flex-pair
+```
+
+This flow asserts equal-and-opposite paired geometry within 1 px, complete
+witness rectangles, retained pointerup preview, one panel journal row,
+Undo/Redo/Clear, safe rejection with zero operations, and logical Move without
+CSS `order` or positioning fallback. Screenshots and browser-observed geometry
+belong under `.omo/evidence/flex-aware-editor-mode-visual-qa/`.
+
 ---
 
 ## Hybrid TDD

@@ -59,30 +59,19 @@ v0.2.0 does **not** claim automated accessibility repair. A preview that "looks
 fixed" is not evidence; the verification assertion must run against the actual
 source after HMR.
 
-## V1: Panel-bound features (browser-driven e2e blocked by panel-automation harness)
+## V1: Panel-bound features with browser-driven e2e pending
 
-The V1 panel-bound editing features  -  group move (reorder/reparent), CSS Grid
-reorder/span, alignment + distribution, and Auto Layout (Hug/Fill/Fixed)  -  are
+The V1 panel-bound editing features - group move (reorder/reparent), CSS Grid
+reorder/span, alignment + distribution, and Auto Layout (Hug/Fill/Fixed) - are
 **fully wired into the content runtime and unit-tested end-to-end**, but their
-user-visible flows cannot be driven through a real Playwright browser e2e today.
-The blocking reasons are properties of the verification harness, not of the
-implementation:
+feature-specific panel flows still lack real Playwright browser coverage.
 
-- The Playwright overlay harness loads the built extension's content runtime +
-  overlay only. It does **not** open the DevTools panel. Chromium's
-  `--auto-open-devtools-for-tabs` flag opens the DevTools frontend in a separate
-  App-section target that `context.pages()` does not expose, so the panel DOM is
-  not reachable from a Playwright page handle.
-- Interaction modes (Inspect, Move, Resize, Text, Layout) are routed through the
-  extension bus by the DevTools panel toolbar. The browser e2e harness can seed
-  that content-side mode message for overlay-only assertions, but it still cannot
-  inspect or click panel controls.
-- Panel commands (alignment, grid placement, Auto Layout) are reachable through
-  DevTools panel controls. The overlay harness does not open the panel, so those
-  command flows remain outside browser-driven e2e coverage.
-- The operations these features emit (`group-reorder`, `group-reparent`,
-  `grid-reorder`, `grid-span`, alignment intents, `set-container-layout`) record
-  to the change journal, which lives in the DevTools panel context.
+The extension fixture now opens the production panel route and drives accessible
+controls. `flex-pair-flow.spec.ts` uses that route to prove one aggregate paired
+Resize journal row plus Undo, Redo, and Clear. This removes the former claim that
+the panel DOM is categorically unreachable; it does not turn the remaining V1
+`test.fixme` scenarios into coverage. Their `panel-automation` label now names a
+feature-specific coverage backlog, not a categorical harness blocker.
 
 Consequence: the browser-driven e2e specs for these features  - 
 `apps/extension/e2e/group-move.spec.ts`,
@@ -101,9 +90,10 @@ produce observable content-runtime effects (a `vc-multi-` preview id and a
 `apps/extension/e2e/multi-select.spec.ts`; its panel-bound scenarios (member/group
 outlines, cross-frame/closed-shadow diagnostics) are also `test.fixme`.
 
-A future task that drives the panel via the Chrome DevTools Protocol
-`Runtime.evaluate` against the panel target would unblock these specs. That is
-not in v0.2.0 scope.
+Single-item Flex Move is browser-covered across reverse, RTL, vertical, and
+cross-parent logical placement. Wrapped multi-line Flex Move remains deliberately
+unsupported because one-dimensional midpoint ordering is ambiguous across flex
+lines; it fails closed without DOM, CSS `order`, or positioning mutation.
 
 ## Origins: map + range only for HIGH
 

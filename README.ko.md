@@ -120,9 +120,11 @@ agent Bearer (`VC_MCP_TOKEN`)와 확장 페어 토큰은 **별개** 시크릿이
 
 ### 5. agent가 소스를 패치한 뒤 검증
 
-Vision Control은 소스를 대신 쓰지 않는다. HMR 이후 패널 또는 MCP
-`vision_request_verification`으로 검증을 요청한다. content script가 미리보기를
-지우고 대상을 다시 식별한 뒤 실제 DOM에 어서션한다.
+Vision Control은 소스를 대신 쓰지 않는다. HMR 이후 페어된 agent가 MCP
+`vision_request_verification`으로 검증을 요청한다. 이 요청은 확장으로 보내는
+조율 시그널이다. content script가 미리보기를 지우고 대상을 다시 식별한 뒤 실제
+DOM에 어서션한다. 현재 패널에는 검증 요청 컨트롤이 없다. 오프라인 패널은 편집,
+미리보기 제어, 저널 이력, context export를 제공하지만 검증 요청은 제공하지 않는다.
 
 ---
 
@@ -166,8 +168,9 @@ vision-control help
 | `help` | 도움말 |
 
 구 제품 명령(`daemon`, `status`, `sessions`, `context`, `changes`, `verify`,
-`preview`, `share`, `codemod`, `doctor`)은 제거되었다. export/verify는 패널을
-쓰고, 워크스페이스 건강은 `pnpm check` / `typecheck` / `test` / `build`를 쓴다.
+`preview`, `share`, `codemod`, `doctor`)은 제거되었다. export는 패널을 쓰고,
+검증 조율은 페어된 MCP를 쓰며, 워크스페이스 건강은 `pnpm check` / `typecheck` /
+`test` / `build`를 쓴다.
 
 제품 경로에 `VC_DAEMON_URL`은 필요 없고 사용하지 않는다.
 

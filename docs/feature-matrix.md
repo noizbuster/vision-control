@@ -25,15 +25,13 @@ is tracked per row:
 
 - **browser e2e**  -  at least one real (non-`test.fixme`) Playwright spec drives
   the feature through the live overlay/fixture harness. The spec path is cited.
-- **wired + unit-tested; browser e2e blocked**  -  the feature is wired into the
-  content runtime and its full chain is unit-tested, but the user-visible flow
-  renders in the DevTools panel context. The current Playwright overlay harness
-  loads the content runtime + overlay only; it cannot open the DevTools panel
-  (`--auto-open-devtools-for-tabs` does not expose the panel as a page target,
-  and Move/panel modes have no keyboard shortcut). Those flows stay
-  `test.fixme` with a documented `// OUT: panel-context` rationale. See the
-  [panel-automation harness limitation](./known-limitations.md#v1-panel-bound-features-browser-driven-e2e-blocked-by-panel-automation-harness).
-  This is a verification follow-up, not an implementation gap.
+- **wired + unit-tested; browser e2e pending**  -  the feature is wired into the
+  content runtime and its full chain is unit-tested, but its feature-specific
+  panel flow is not yet covered by a real browser spec. The extension fixture can
+  open the production panel route; paired Resize uses it for journal and history
+  controls. Remaining `test.fixme` scenarios retain their documented
+  `// OUT: panel-context` rationale until that specific flow is automated. See
+  [known limitations](./known-limitations.md#v1-panel-bound-features-with-browser-driven-e2e-pending).
 
 ---
 
@@ -43,13 +41,13 @@ is tracked per row:
 |---|---|---|---|
 | Single-element selection + inspector | done |  -  | Shadow-DOM overlay, picker, breadcrumb. `packages/overlay-ui`, `packages/inspector-core`. Works agent-disconnected. |
 | Style / class / text editors | done |  -  | CSS property allowlist; `runtime` flag. `packages/editor-core/src` (style/class/text ops), `apps/extension/src/components/editors`. |
-| Semantic resize + guarded reparent | done |  -  | Normal-flow drag never collapses to absolute. Real browser e2e: `apps/extension/e2e/resize.spec.ts`, `reparent.spec.ts`. `packages/layout-engine/src/resize-candidates.ts`, `apps/extension/src/components/interaction/`. |
-| Flex reorder | done |  -  | Single-element. Real browser e2e: `apps/extension/e2e/reorder.spec.ts`. `packages/change-ir/src/operations/reorder.ts`. |
+| Semantic resize + guarded reparent | done |  -  | Normal-flow drag never collapses to absolute. Atomic paired Flex Resize covers row/column/reverse/RTL/vertical flows plus panel journal/Undo/Redo/Clear. Real browser e2e: `apps/extension/e2e/resize-browser.spec.ts`, `flex-pair-flow.spec.ts`, `flex-logical-move.spec.ts`, `reparent.spec.ts`. `packages/layout-engine/src/resize-candidates.ts`, `apps/extension/src/components/interaction/`. |
+| Flex reorder | done |  -  | Single-element logical Move covers reverse, RTL, vertical, wrapped safe rejection, and same/cross-parent placement without CSS `order` or positioning fallback. Real browser e2e: `apps/extension/e2e/reorder.spec.ts`, `flex-logical-move.spec.ts`. `packages/change-ir/src/operations/reorder.ts`. |
 | Multi-select (marquee + group) |  -  | done | Shift+click + marquee. Real browser e2e (content-runtime): `apps/extension/e2e/multi-select.spec.ts`. `packages/element-identity/src/multi-select-identity.ts`, `apps/extension/src/overlay/`. |
-| Group move (reorder / reparent) |  -  | done  -  wired + unit-tested; browser e2e blocked | Panel journal path; browser e2e blocked by panel harness. `packages/layout-engine/src/group-move-candidates.ts`. |
-| Auto Layout (Hug / Fill / Fixed) |  -  | done  -  wired + unit-tested; browser e2e blocked | `packages/layout-engine/src/auto-layout/`. Panel-context e2e blocked. |
-| CSS Grid reorder + grid-span |  -  | done  -  wired + unit-tested; browser e2e blocked | `packages/layout-engine/src/grid/`, `packages/change-ir/src/operations/grid.ts`. |
-| Alignment + distribution (10 cmds) |  -  | done  -  wired + unit-tested; browser e2e blocked | `packages/layout-engine/src/alignment/alignment-candidates.ts`. |
+| Group move (reorder / reparent) |  -  | done  -  wired + unit-tested; browser e2e pending | Feature-specific panel flow remains to be automated. `packages/layout-engine/src/group-move-candidates.ts`. |
+| Auto Layout (Hug / Fill / Fixed) |  -  | done  -  wired + unit-tested; browser e2e pending | `packages/layout-engine/src/auto-layout/`. Feature-specific panel e2e pending. |
+| CSS Grid reorder + grid-span |  -  | done  -  wired + unit-tested; browser e2e pending | `packages/layout-engine/src/grid/`, `packages/change-ir/src/operations/grid.ts`. |
+| Alignment + distribution (10 cmds) |  -  | done  -  wired + unit-tested; browser e2e pending | `packages/layout-engine/src/alignment/alignment-candidates.ts`. |
 | Breakpoint context + scoped edits |  -  | done | Content-runtime `matchMedia` resolver. `apps/extension/src/overlay/breakpoint-controller.ts`, `packages/change-ir/src/operations/breakpoint.ts`. |
 | Component props editing (AST) |  -  | dropped | Component-props AST product path removed (ADR-019 C7). |
 | Confidence detail UI |  -  | done | Method/reason badges. `apps/extension/src/components/inspector/SourceConfidence.tsx`. |
@@ -71,12 +69,12 @@ is tracked per row:
 
 | Feature | MVP (v0.1.0) | V1 (v0.2.0) | Notes |
 |---|---|---|---|
-| HMR verification engine | done | done (rehomed) | Content-owned verify after clear preview (ADR-019 C6). `packages/verification-engine`. MCP projects result when paired. |
-| Change IR + inverses | done (8 kinds) | done (+14 kinds) | Lossless undo/redo. `packages/change-ir`, `packages/change-journal`. |
+| HMR verification engine | done | done (rehomed) | Content-owned verify after clear preview (ADR-019 C6), including witness-complete paired Flex geometry. `packages/verification-engine`. MCP projects result when paired. |
+| Change IR + inverses | done (8 kinds) | done (+15 kinds; schema 2.1.0) | `resize-flex-pair` is one aggregate operation/inverse and one journal row. Lossless undo/redo. `packages/change-ir`, `packages/change-journal`. |
 | Deterministic patch suggestions |  -  | done | Inert `suggestedDiff` data; no MCP write tool (ADR-012). |
 | Optional direct codemod (product CLI) |  -  | dropped | Agent file tools only (ADR-014 supersession). |
-| Context export (JSON + Markdown) | done | done (rehomed) | Panel export + MCP `vision_get_source_context` from extension snapshot. `packages/context-compiler`. |
-| MCP server (read-only) | done (11 tools) | done (9 tools, pivot) | ADR-020 C5 slim set. stdio + discover/bridge `:4322`. No daemon. `packages/mcp-server/src/tools/index.ts` (`TOOL_NAMES`). |
+| Context export (JSON + Markdown) | done | done (rehomed) | Panel export + MCP `vision_get_source_context` from extension snapshot. Current context format `1.2.0`; snapshot format `1.1.0`. `packages/context-compiler`. |
+| MCP server (read-only) | done (11 tools) | done (9 tools, pivot) | ADR-020 C5 slim set; bridge protocol `2.0.0`. stdio + discover/bridge `:4322`. No daemon. `packages/mcp-server/src/tools/index.ts` (`TOOL_NAMES`). |
 | Always-on loopback daemon | done | dropped | Extension SoT; optional MCP bridge only (ADR-019/020). |
 | Element screenshot crops |  -  | done | Opt-in, redacted (ADR-011). |
 | Product CLI (fat surface) | done | dropped | CLI is MCP launcher only (`vision-control mcp`). |

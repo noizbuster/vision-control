@@ -6,40 +6,42 @@ Chromium extension for Vision Control, built with [WXT](https://wxt.dev) and Rea
 
 ## Architecture overview
 
-The extension is the browser side of Vision Control. The DevTools panel is the
-editing surface; the background service worker owns daemon connectivity and
-routes messages; the content script hosts the shadow-DOM overlay and hit testing
-on the inspected page.
+The extension is the source of truth for Vision Control. The DevTools panel is
+the editing surface; the background service worker owns the per-tab journal in
+`chrome.storage.session` and routes messages; the content script hosts the
+shadow-DOM overlay and hit testing on the inspected page. The optional
+single-process MCP bridge projects extension state to a coding agent. It is not
+required for editing and is never a second source of truth.
 
 ```
 [ inspected page ]
    |  content script (isolated world): overlay + hit testing + DOM adapter
    v
-[ background service worker ]: message router, tab/frame session store, daemon client
-   |  authenticated WebSocket (loopback)
+[ background service worker ]: message router + extension-owned tab journal
+   |  optional paired WebSocket (127.0.0.1:4322)
    v
-[ Vision Control daemon ]
-   |  read-only context
+[ MCP bridge ]: read-only projection + coordination signals
    v
-[ MCP server ]  <-- coding agent
+[ coding agent ]  <-- writes source with its own file tools
 ```
 
 Key invariants:
 
-- The panel never talks to the daemon directly; it routes through the background
-  (`daemon-connect`/`daemon-disconnect` messages).
+- The panel routes through the background. Selection, preview, and journal state
+  remain extension-owned whether an agent is paired or not.
 - Each tab owns an isolated session; content scripts cannot target another tab,
   and cross-origin frames are opaque and never receive edit messages.
-- Edits created in the panel carry a `runtime` flag: preview mutations are
-  reversible; source intent is the agent's responsibility to apply.
+- Preview mutations are reversible and are not source changes. An agent or human
+  applies any source patch with its own file tools.
+- MCP is an optional, read-only projection. There is no source-mutating MCP tool.
 
 ## Entrypoints
 
 WXT discovers entrypoints under [`entrypoints/`](./entrypoints/):
 
 - `devtools/index.html` + `main.ts` — DevTools page that registers the **Vision Control** panel via `chrome.devtools.panels.create`.
-- `panel/index.html` + `main.tsx` — The DevTools panel UI (React): inspector, editors, connection state.
-- `background.ts` — Service worker: message router with per-tab/per-frame isolation, tab session store (`chrome.storage.session`), and the daemon reconnect manager (`@vision-control/daemon-client`).
+- `panel/index.html` + `main.tsx` — The DevTools panel UI (React): inspector, editors, journal, and optional agent pairing state.
+- `background.ts` — Service worker: message router with per-tab/per-frame isolation, the extension-owned tab journal (`chrome.storage.session`), and optional MCP bridge pairing.
 - `content.ts` — Isolated-world content script for loopback pages: shadow-DOM overlay, element picker, hit testing, keyboard navigation. Non-loopback Site Access hosts are injected on demand by the background service worker after an explicit per-host grant.
 
 ## Scripts
@@ -47,33 +49,29 @@ WXT discovers entrypoints under [`entrypoints/`](./entrypoints/):
 Run from the repository root:
 
 ```bash
-pnpm nx run extension:dev       # WXT only (no daemon)
-pnpm nx run extension:dev-pair  # daemon + WXT; opens pairing page in WXT Chromium
+pnpm nx run extension:dev       # WXT HMR for extension-only editing
 pnpm nx run extension:build     # Production build -> .output/chrome-mv3/
 pnpm nx run extension:typecheck
 pnpm nx run extension:test
 ```
 
-### `extension:dev` vs `extension:dev-pair`
+## Optional MCP bridge
 
-- **`extension:dev`** — pure WXT HMR. Load the extension yourself and pair
-  against a daemon you started separately.
-- **`extension:dev-pair`** — starts the daemon with `--no-open` (so the OS
-  default browser is not used), waits for the ready JSON line, then launches
-  WXT with `VC_PAIRING_HTTP_URL` set. WXT's `webExt.startUrls` opens the
-  pairing page inside the Chromium instance that already has the unpacked
-  extension, so the content script can auto-pair.
+Ordinary select, preview, undo/redo, and context export need only the extension.
+To connect a coding agent, start the optional single-process bridge from the
+repository root:
 
-Requires a built daemon binary (`pnpm nx run daemon:build`). Optional env:
+```bash
+pnpm nx run mcp-server:build
+pnpm nx run cli:build
+vision-control mcp
+```
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `VC_DAEMON_PORT` | `4321` | Stable daemon bind port for dev-pair |
-| `VC_DAEMON_BIN` | `apps/daemon/dist/index.js` | Daemon entry path |
-| `VC_DEV_START_URLS` | _(unset)_ | Comma-separated extra start URLs (wins over the pair URL alone) |
-
-If port `4321` is already bound, free it or set `VC_DAEMON_PORT` to another free
-loopback port.
+The bridge serves stdio MCP and the paired discovery/WebSocket transport on
+`127.0.0.1:4322`. It projects extension snapshots and accepts coordination
+signals only. It never writes source or mutates the extension journal. The pair
+token is printed once on stderr, never on stdout or `/discover`; paste it into
+the panel when pairing.
 
 ## Permissions rationale
 

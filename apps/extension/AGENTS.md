@@ -8,15 +8,17 @@ package-specific contract only. Toolchain rationale:
 ## OVERVIEW
 
 WXT + React DevTools extension. Four execution contexts, four MessageBus
-instances, one background-owned daemon socket. Edits here are preview, not source.
+instances, and an extension-owned per-tab journal. The background service worker
+owns journal writes to `chrome.storage.session`; optional MCP pairing projects
+that extension state to an agent. Edits here are preview, not source.
 
 ## STRUCTURE
 
 Four WXT contexts (one MessageBus each, filename-discovered):
 
 - `entrypoints/devtools/main.ts` - registers the panel via `chrome.devtools.panels.create`.
-- `entrypoints/panel/main.tsx` - React panel: inspector, editors, journal, connection state.
-- `entrypoints/background.ts` - service worker. Owns `MessageRouter`, `TabSessionStore`, `ReconnectManager`. Only context that talks to the daemon.
+- `entrypoints/panel/main.tsx` - React panel: inspector, editors, journal, and optional agent pairing state.
+- `entrypoints/background.ts` - service worker. Owns `MessageRouter`, `TabSessionStore`, the session journal writer, and optional bridge pairing.
 - `entrypoints/content.ts` - isolated world on loopback pages by static match;
   non-loopback Site Access hosts are injected by the background service worker
   after an explicit per-host grant. Shadow-DOM overlay, picker, hit testing,
@@ -36,7 +38,7 @@ Four WXT contexts (one MessageBus each, filename-discovered):
 | Context permission boundary | `src/messaging/context-permissions.ts` |
 | Per-tab / per-frame routing | `src/messaging/router.ts`, `tab-session.ts` |
 | Frame enumeration | `src/messaging/frame-discovery.ts` |
-| Daemon reconnect | `src/messaging/reconnect.ts` |
+| Optional MCP bridge pairing | `src/messaging/reconnect.ts` |
 | Panel root + wiring | `src/App.tsx` |
 | Interaction controllers | `src/components/interaction/` |
 | Manifest permissions | `wxt.config.ts` |
@@ -45,7 +47,7 @@ Four WXT contexts (one MessageBus each, filename-discovered):
 
 ## CONVENTIONS
 
-- **Panel routes through background, never the daemon.** `daemon:*` messages are rejected from any non-background route. See `context-permissions.ts`.
+- **Panel routes through background.** Selection, preview, and journal state stay extension-owned; MCP receives only an optional projection. See `context-permissions.ts`.
 - **Panel messages carry `tabId`.** Dropped at the permission check otherwise.
 - **Cross-origin frames are opaque.** Never receive edit messages. `frame-discovery` marks them `routeable: false`.
 - **Loopback mandatory access only.** `host_permissions` and static content-script
@@ -53,13 +55,14 @@ Four WXT contexts (one MessageBus each, filename-discovered):
   mandatory host access, and no automatic wildcard allowlist. Extra local
   development hosts use the panel's Site Access flow: the user grants an exact
   per-host optional permission, then the background service worker dynamically
-  injects eligible tabs. See [ADR-007](../../docs/adr/ADR-007-loopback-daemon.md),
+  injects eligible tabs. See [ADR-019](../../docs/adr/ADR-019-extension-source-of-truth.md),
+  [ADR-020](../../docs/adr/ADR-020-mcp-bridge-projection.md), and
   [ADR-016](../../docs/adr/ADR-016-firefox-support-level.md).
 - **InspectorPanel slots are additive.** V1V2 panels render only when their slot
   prop carries data (the additive-slot contract). The **emission side is wired**
   (v0.2.0): the content runtime publishes the messages the panel hooks already
   subscribe to — `multi-select-group` (`overlay/multi-select-controller.ts`),
-  `grid-placement` (`overlay/grid-placement-controller.ts`), the daemon-fed
+  `grid-placement` (`overlay/grid-placement-controller.ts`), the message-fed
   `component-props` response (`hooks/useComponentProps.ts`), and the
   `activeBreakpoint` enrichment on the selection summary
   (`overlay/breakpoint-controller.ts`). A panel renders on data arrival, never on
@@ -77,7 +80,7 @@ Four WXT contexts (one MessageBus each, filename-discovered):
   subscribes to (`overlay/*-controller.ts`), so the data arrives and the panel
   mounts. Never short-circuit the slot by mounting a panel independent of data
   arrival.
-- Do not import the daemon client from panel or content context. Panel talks to background; background talks to the daemon.
+- Do not make MCP a source of truth. Pairing is optional, and the extension owns selection, preview, and journal state.
 - Do not add a second router. One `MessageRouter` in `background.ts`; the permission layer assumes it.
 - Do not turn interaction controllers into React components. They own pointer / DOM lifecycle outside React.
 - Do not edit anything under `.wxt/`. Regenerate with `pnpm nx run extension:build`.
@@ -90,7 +93,7 @@ Four WXT contexts (one MessageBus each, filename-discovered):
   [docs/known-limitations.md](../../docs/known-limitations.md)). Run
   `pnpm playwright install chromium` then `pnpm nx run extension:e2e` for real
   status.
-- Do not couple the panel directly to `@vision-control/daemon-client`. The permission layer enforces the split.
+- Do not add a source-mutating MCP tool. The bridge is read-only projection plus coordination signals; agents write source with their own file tools.
 
 ## Verification
 

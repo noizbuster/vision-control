@@ -108,9 +108,11 @@ No MCP process is required for the edit loop.
 - **Edit**: use the panel editors for style, class, text, and attribute changes.
 - **Multi-select**: hold Shift and click to toggle elements in a group, or drag a
   marquee rectangle to box-select.
-- **Move and resize**: reorder within the same parent (Flex/block), reparent across
-  parents (guarded so a normal-flow drag never collapses to absolute), and resize
-  semantically (flex-basis, grid-span, align-self candidates).
+- **Move and resize**: reorder through logical Flex axes (including reverse, RTL,
+  and vertical flows), reparent across parents, and resize a supported main-axis
+  Flex pair as one equal-and-opposite preview/journal operation. Unsafe or
+  ambiguous layouts fail closed; Move never falls back to CSS `order` or
+  positioning, and normal-flow drag never collapses to absolute.
 - **V1 panels** (when a multi-select group exists): **Auto Layout**, **CSS Grid**,
   and **alignment and distribution**.
 - **Pseudo-elements**: edit `::before` / `::after`, plus `:hover`, `:focus`,
@@ -155,9 +157,12 @@ Ready-to-paste agent configs: [docs/mcp-config-examples.md](./docs/mcp-config-ex
 ### 5. Agent patches source, then verify
 
 Your agent patches the source itself (Vision Control never writes source for it).
-After HMR, request verification through the panel or via MCP
-`vision_request_verification`. The content script clears the preview first,
-re-identifies the target, and asserts against the actual DOM.
+After HMR, a paired agent requests verification with MCP
+`vision_request_verification`. The request is a coordination signal to the
+extension. The content script clears the preview first, re-identifies the
+target, and asserts against the actual DOM. The panel has no verification
+request control today. Offline panel behavior includes editing, preview control,
+journal history, and context export, but not a verification request.
 
 ---
 
@@ -207,8 +212,8 @@ vision-control help
 
 Former product commands (`daemon`, `status`, `sessions`, `context`, `changes`,
 `verify`, `preview`, `share`, `codemod`, `doctor`) are removed. Use the panel for
-export and verify, and monorepo `pnpm check` / `typecheck` / `test` / `build` for
-workspace health.
+export, use paired MCP for verification coordination, and use monorepo
+`pnpm check` / `typecheck` / `test` / `build` for workspace health.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -257,9 +262,10 @@ explicit, not silent. Full detail in
   post-HMR DOM.
 - **No always-on daemon.** The extension owns edit state. MCP is optional.
 - **Firefox is manifest-only.** Chromium (MV3) is the primary target (ADR-016).
-- **Panel-bound V1 features lack browser-driven e2e.** Group move, CSS Grid,
-  alignment, and Auto Layout are wired and unit-tested; panel automation is a
-  verification follow-up.
+- **Some panel-bound V1 features lack browser-driven e2e.** Group move, CSS Grid,
+  alignment, and Auto Layout are wired and unit-tested, but their specific panel
+  flows remain a verification follow-up. The production panel route itself is
+  browser-driven for paired Resize journal, Undo, Redo, and Clear coverage.
 - **No remote collaboration.** Local panel export is the share path (ADR-015
   supersession; ADR-018 defers remote).
 - **Accessibility repair is advisory only** (ADR-017).

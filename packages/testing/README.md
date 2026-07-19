@@ -19,12 +19,15 @@ helpers so importing it pulls in `vitest` at runtime.
 - **Playwright extension loader** (`buildExtensionLaunchArgs`, `loadExtension`,
   `withExtensionContext`) — builds the canonical Chromium args for loading an
   unpacked extension and wraps the browser lifecycle.
-- **Daemon process helper** (`startDaemon`, `tryStartDaemon`, `withDaemon`,
-  `resolveDaemonBinaryPath`, `DaemonBinaryMissingError`) — spawns
-  `apps/daemon`; throws loud when the binary is absent (use `tryStartDaemon`
-  for opt-in skip).
 - **Vitest preset** (`vcTestConfig`, `vcTestSetup`, `bindSharedClock`,
   `bindSharedUuid`) — config preset + opt-in shared-instance reset between tests.
+
+## Product-path note
+
+The extension owns selection, preview, and tab-journal state. Ordinary editing
+and panel context export do not require a Node process. The optional
+single-process MCP bridge is a read-only projection and coordination path for a
+paired coding agent; it never applies source changes.
 
 ## Playwright note (important)
 
@@ -42,14 +45,6 @@ pnpm exec playwright install --with-deps chromium
 Chrome extensions cannot run in the legacy headless shell. `loadExtension`
 defaults to `headless: false` (headed). Use `headless: true` only with a
 Playwright that defaults to the new headless mode.
-
-## Daemon note
-
-The daemon ships in task 12. Until then `startDaemon` throws
-`DaemonBinaryMissingError` if the resolved binary (`VC_DAEMON_BIN` env, or
-`apps/daemon/dist/index.js`) does not exist — by design, so tests that need a
-real daemon fail loud instead of passing vacuously. Use `tryStartDaemon` for
-opt-in skip-when-absent behavior.
 
 ## Scripts
 

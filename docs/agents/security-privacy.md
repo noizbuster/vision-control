@@ -1,61 +1,52 @@
 # Security and Privacy Contract
 
-This guide defines the security and privacy rules for the Vision Control MVP. It
-covers the loopback daemon, source path handling, redaction, and audit logging.
+This guide defines the security and privacy rules for the current Vision Control
+product path. It covers extension-owned state, the optional MCP bridge, source
+context, and redaction.
 
-Related: [ADR-007](../adr/ADR-007-loopback-daemon.md),
-[ADR-008](../adr/ADR-008-dev-only-source-markers.md),
+Related: [ADR-019](../adr/ADR-019-extension-source-of-truth.md),
+[ADR-020](../adr/ADR-020-mcp-bridge-projection.md),
 [ADR-009](../adr/ADR-009-privacy-redaction.md),
 [ADR-011](../adr/ADR-011-v1-screenshot-crops.md),
-[ADR-013](../adr/ADR-013-mcp-loopback-http-policy.md),
-[ADR-015](../adr/ADR-015-share-bundles-collaboration-trust.md).
+[ADR-013](../adr/ADR-013-mcp-loopback-http-policy.md), and
+[mcp-policy.md](./mcp-policy.md).
 
 ---
 
-## Loopback daemon
+## Optional loopback MCP bridge
 
-The daemon binds to loopback only (`127.0.0.1`). It is never reachable from the
-network.
+The extension is the source of truth. There is no daemon product path. When a
+user starts `vision-control mcp`, one MCP process serves agent stdio, secret-free
+discovery, and the extension bridge at exact `127.0.0.1:4322`.
 
-- **Bind**: loopback. The daemon refuses connections from non-loopback
-  interfaces.
-- **Session token**: a random secret generated per daemon start. Every request
-  from the extension must carry it.
-- **Origin allowlist**: the daemon accepts requests only from the extension's
-  origin. Unknown origins are rejected before any logic runs.
-
-A web page loaded in the browser cannot talk to the daemon even if it guesses the
-port, because the origin check fails first. Another local process cannot talk to
-the daemon without the session token.
-
-The daemon and the MCP server are separate processes on separate transports. The
-daemon serves the extension. The MCP server serves agent tooling over stdio and
-loopback HTTP (ADR-013). They do not share an auth domain.
+- **Bind**: bridge discovery and WebSocket pairing accept only `127.0.0.1`.
+  Non-loopback configuration and multi-port scan are not product paths.
+- **Pairing**: the extension background service worker, not the content script,
+  opens the bridge socket. The pair token prints once on stderr and is never sent
+  on stdout or in `/discover`.
+- **Separate credentials**: the extension pair token and optional HTTP MCP Agent
+  Bearer token (`VC_MCP_TOKEN`) are separate secrets.
+- **Projection only**: MCP receives extension snapshots and coordination commands.
+  It does not own selection or journal state, write source, or mutate the journal.
 
 ---
 
-## Source path handling
+## Source context and confidence
 
-Source markers are dev-only and opaque. This is a hard rule. See ADR-008.
+Origins are best-effort CSSOM and source-map data. They may be absent. HIGH
+confidence requires both a map and a range. Marker-derived HIGH confidence,
+workspace index, and component-props AST are not product paths.
 
-- **No absolute paths in the DOM.** The marker attribute (`data-vc-source`)
-  carries an opaque token, not a filesystem path. The daemon resolves the token
-  to a source location at runtime.
-- **No production injection.** The marker transform runs only in dev mode.
-  Production builds skip it entirely. There is no flag to enable it in
-  production.
-- **No source mutation by markers.** Markers are injected into the rendered DOM
-  at build time. They never modify source files.
-
-If you add a build integration, the marker transform must be gated behind a dev
-check. Never inject markers into a production bundle.
+Runtime preview does not prove a source change. Agents and humans write source
+with their own file tools. Content-owned verification clears preview, then checks
+the real DOM after HMR.
 
 ---
 
 ## Redaction policy
 
-The context compiler applies deny-by-default redaction before any data leaves the
-daemon. See ADR-009.
+The redaction layer applies deny-by-default filtering before context export or
+MCP projection data leaves the product boundary. See ADR-009.
 
 Redacted categories:
 
@@ -65,8 +56,8 @@ Redacted categories:
 - Network request and response bodies
 - Screenshots (deferred entirely in the MVP)
 
-The daemon produces a redaction report with each context export. The report lists
-how many items were redacted and by which rule, without revealing the values.
+Context exports include a redaction report that lists how many items were
+redacted and by which rule, without revealing the values.
 
 Rules for agents:
 
@@ -109,7 +100,7 @@ line 308; ADR-015):
   context, screenshot metadata only when explicitly included and redacted). It
   carries a signature/hash and an audit log. Import reconstructs operations and
   source candidates without secrets.
-- **Token-free.** No raw daemon, MCP, or session token enters a bundle. A tamper
+- **Token-free.** No raw MCP, pair, or session token enters a bundle. A tamper
   or unknown-hash bundle is rejected on import.
 - **No network relay.** The default path has no relay, cloud sync, or remote
   session. Remote real-time collaboration is deferred until a separate
@@ -122,7 +113,7 @@ or network bodies.
 
 ## Audit logging
 
-The daemon writes structured logs for security-relevant events:
+Product logs record security-relevant events:
 
 - Connection attempts (accepted or rejected, with origin)
 - Authentication failures (token mismatch, origin mismatch)
@@ -135,11 +126,13 @@ Logs do not contain redacted values. They contain counts and categories only.
 
 ## What agents must not do
 
-- **Do not add a network listener to the daemon.** Loopback only.
+- **Do not create a daemon-backed product path.** Editing must remain extension
+  owned and agent-disconnected capable.
+- **Do not bind MCP outside `127.0.0.1`.** Discovery and bridge pairing are
+  loopback-only.
 - **Do not add a tool that writes source through MCP.** The MCP server is
   read-only. See [mcp-policy.md](./mcp-policy.md).
-- **Do not inject source markers into production builds.** Dev only, opaque
-  tokens only.
+- **Do not treat marker data as HIGH confidence.** HIGH requires map plus range.
 - **Do not disable the redaction layer.** If a test needs unredacted data, use a
   test fixture, not the production redaction bypass.
 - **Do not log secrets.** Check evidence files and commit messages for accidental

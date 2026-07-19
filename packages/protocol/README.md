@@ -2,7 +2,8 @@
 
 Versioned protocol envelopes, message contracts, and negotiation for Vision
 Control. An isomorphic, self-contained library (only `zod` as a runtime
-dependency) consumed by both the browser extension and the Node daemon.
+dependency) consumed by the browser extension and the optional single-process
+Node MCP bridge.
 
 > Nx tags: platform:isomorphic, type:library, scope:protocol.
 

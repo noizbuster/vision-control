@@ -16,47 +16,44 @@ runtime preview is always clearable with one action.
 
 ---
 
-## Loopback only
+## Loopback bridge only
 
-The daemon binds to `127.0.0.1` (and IPv6 `::1`). It is never reachable from the
-network. Non-loopback bind addresses are refused before the server starts.
+There is no daemon product path. When an agent connection is needed, one MCP
+process serves agent stdio plus discovery and the extension bridge at
+`127.0.0.1:4322`. Non-loopback bridge configuration is refused.
 
-- No web page can talk to the daemon. Even if a page guesses the port, the
-  **origin allowlist** rejects it before any logic runs. The default allowlist is
-  loopback origins plus the extension's own origin.
-- The MCP HTTP transport (when used) also binds to loopback only.
+- The extension background service worker pairs with the bridge. The content
+  script never opens the MCP socket.
+- `GET http://127.0.0.1:4322/discover` contains no secret. The bridge shares the
+  fixed port with that endpoint and does not use a multi-port scan.
+- Optional HTTP MCP uses a separate Agent Bearer token. It does not make MCP a
+  source of truth or a source-writing service.
 
 A diagram of the trust boundary:
 
 ```
-[ web page ]  --X-->  daemon (127.0.0.1)   origin rejected
-[ extension ] --ok--> daemon               pairing token + allowed origin
-[ agent ]     --ok--> MCP server (stdio / 127.0.0.1)   token-gated
+[ inspected page ]  --X-->  MCP bridge socket
+[ extension background ] --ok--> MCP bridge (paired on 127.0.0.1:4322)
+[ agent ] --ok--> MCP server (stdio or optional HTTP MCP)
 ```
 
 ---
 
 ## Authentication
 
-Every connection to the daemon carries a **pairing token**:
+The extension pair token is distinct from the optional HTTP MCP Agent Bearer
+token (`VC_MCP_TOKEN`). The MCP process prints the pair token once on stderr,
+never on stdout or in `/discover`. The token is valid for five minutes and is
+not stored long-term by the extension.
 
-- A random 32-byte secret generated when the daemon starts.
-- Stored only as a **SHA-256 hash** — the raw token is shown once in the ready
-  line and never persisted.
-- Validated with a constant-time comparison to prevent timing side-channels.
-- Required on every WebSocket upgrade; missing/wrong/expired returns
-  `UNAUTHORIZED`.
-
-The MCP HTTP transport (when used) requires a Bearer token on every request.
-Unauthenticated requests are rejected before the transport sees them, so no
-context is leaked.
+The optional HTTP MCP transport requires its Bearer token on every request.
 
 ---
 
 ## No secrets in exports
 
-Before any data leaves the daemon, the **redaction layer** strips sensitive
-material:
+Before panel context export or MCP projection data leaves the extension/MCP
+boundary, the **redaction layer** strips sensitive material:
 
 - Cookies and authentication headers.
 - Form values (passwords, credit cards, hidden auth tokens).
@@ -74,19 +71,15 @@ unredacted export path.
 
 ---
 
-## Source paths stay opaque
+## Origins and source context
 
-The build injects a `data-vc-source` marker into the rendered DOM in **dev mode
-only** so the panel can map an element back to its source location. The marker
-is an **opaque token**, never a filesystem path. The daemon resolves the token
-to a location at runtime.
+Best-effort origins come from CSSOM and source maps. They may be empty. HIGH
+confidence requires both a map and a range. Marker-derived HIGH confidence and a
+workspace-index source-resolution path are not product behavior (ADR-019).
 
-- **Dev only.** Production builds skip the marker transform entirely. There is no
-  flag to enable it in production (ADR-008).
-- **No filesystem paths in the DOM.** Absolute paths are rejected at the storage
-  boundary; only workspace-relative paths cross trust boundaries.
-- **Markers never modify source files.** They are injected into rendered output
-  at build time.
+Runtime preview remains separate from source. An agent or human applies the
+source patch with its own file tools, then a content-script verification checks
+the real DOM after the preview is cleared.
 
 ---
 
@@ -103,29 +96,18 @@ through HMR. The MCP server never applies a patch. See
 
 ---
 
-## Audit logging
+## Product boundary
 
-The daemon writes structured logs for security-relevant events: connection
-attempts (accepted/rejected, with origin), authentication failures, context
-exports (with redaction counts), and source access. Logs contain counts and
-categories, never redacted values. All logs flow through a `RedactingLogger`.
-
----
-
-## What you control
-
-- **Origins**: add dev-server origins via `origins` in
-  `vision-control.config.ts`. Unknown origins are rejected.
-- **Port**: run the daemon on a fixed loopback port with `--port`, or let it pick
-  an ephemeral one (the default).
-- **Token lifetime**: tokens are valid until expiry or revoke. Restart the daemon
-  to mint a fresh one.
+The extension owns selection, preview, and journal state. The MCP process keeps
+only a paired projection cache and coordination queue. The supported product
+startup is `vision-control mcp`; package-level legacy exports do not establish a
+daemon-backed product path.
 
 ---
 
 ## References
 
 - Engineering contract: [docs/agents/security-privacy.md](./agents/security-privacy.md).
-- ADR-007 loopback daemon, ADR-008 dev-only source markers, ADR-009 privacy
-  redaction, ADR-010 read-only MCP.
+- ADR-019 extension source of truth, ADR-020 MCP bridge projection, ADR-009
+  privacy redaction, and ADR-010 read-only MCP.
 - If something behaves unexpectedly, see [troubleshooting.md](./troubleshooting.md).

@@ -23,6 +23,11 @@ export interface ConsoleEntry {
   readonly timestamp: number;
 }
 
+export interface DirectChildSnapshot {
+  readonly elements: readonly Element[];
+  readonly hasNonWhitespaceText: boolean;
+}
+
 /**
  * Contract for all DOM operations the verification engine needs. The browser
  * factory ({@link createBrowserVerificationDomAdapter}) is the canonical impl;
@@ -43,6 +48,8 @@ export interface VerificationDomAdapter {
   readonly getRect: (element: Element) => Rect;
   /** Read the parent element, or null for orphaned / root. */
   readonly getParent: (element: Element) => Element | null;
+  /** Flex-pair lens; paired assertions fail closed when a non-browser adapter omits it. */
+  readonly getDirectChildren?: (element: Element) => DirectChildSnapshot;
   /** 0-based index of `element` among its element siblings. */
   readonly getSiblingIndex: (element: Element) => number;
   /** Read an attribute value, or null when absent. */
@@ -127,18 +134,22 @@ export function createBrowserVerificationDomAdapter(options?: {
         original.apply(console, args as never[]);
       };
 
-    for (const level of ["error", "warn"] as const) {
-      const original = console[level] as (...args: unknown[]) => void;
-      const wrapped = wrap(level)(original);
-      (console as unknown as Record<string, (...args: unknown[]) => void>)[level] = wrapped;
-    }
+    const originalError = console.error.bind(console);
+    const originalWarn = console.warn.bind(console);
+    console.error = wrap("error")(originalError);
+    console.warn = wrap("warn")(originalWarn);
   }
 
   return {
     querySelector: (selector: string): Element | null => document.querySelector(selector),
 
-    querySelectorAll: (selector: string): readonly Element[] =>
-      Array.from(document.querySelectorAll(selector)),
+    querySelectorAll: (selector: string): readonly Element[] => {
+      try {
+        return Array.from(document.querySelectorAll(selector));
+      } catch {
+        return [];
+      }
+    },
 
     getText: (element: Element): string => element.textContent ?? "",
 
@@ -157,6 +168,13 @@ export function createBrowserVerificationDomAdapter(options?: {
     getRect: (element: Element): Rect => rectFromDomRect(element.getBoundingClientRect()),
 
     getParent: (element: Element): Element | null => element.parentElement,
+
+    getDirectChildren: (element: Element): DirectChildSnapshot => ({
+      elements: Array.from(element.children),
+      hasNonWhitespaceText: Array.from(element.childNodes).some(
+        (node) => node.nodeType === 3 && (node.textContent?.trim().length ?? 0) > 0,
+      ),
+    }),
 
     getSiblingIndex: (element: Element): number => {
       let index = 0;

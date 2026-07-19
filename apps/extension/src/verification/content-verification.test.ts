@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { dispatchCommandKind, parseBridgeCommandPayload } from "./bridge-command-kinds.js";
-import { runContentVerification } from "./content-verification.js";
+import { candidateFromRef, runContentVerification } from "./content-verification.js";
 
 function makePreview(active = 0): {
   activeCount: number;
@@ -53,16 +53,30 @@ describe("runContentVerification (C6 anti-cheat)", () => {
     document.body.innerHTML = "";
   });
 
-  it("clears preview before empty-ops pass", async () => {
+  it("clears preview without treating empty operations as source proof", async () => {
+    // Given
     const preview = makePreview(2);
+
+    // When
     const outcome = await runContentVerification({
       operations: [],
       preview,
       skipHmrWait: true,
     });
+
+    // Then
     expect(preview.activeCount).toBe(0);
-    expect(outcome.passed).toBe(true);
-    expect(outcome.details.previewCleared).toBe(true);
+    expect(outcome).toMatchObject({
+      passed: false,
+      details: {
+        verdict: "fail",
+        previewCleared: true,
+        assertions: [
+          { name: "preview-cleared", passed: true },
+          { name: "source-intent-present", passed: false },
+        ],
+      },
+    });
   });
 
   it("fails when preview cannot be cleared", async () => {
@@ -109,5 +123,25 @@ describe("runContentVerification (C6 anti-cheat)", () => {
     expect(preview.activeCount).toBe(0);
     expect(outcome.details.previewCleared).toBe(true);
     expect(outcome.passed).toBe(true);
+  });
+});
+
+describe("candidateFromRef", () => {
+  it("uses only a real fingerprint and never treats runtime identity as one", () => {
+    expect(candidateFromRef({ sourceId: "src-1", selector: ".card" })).toEqual({
+      sourceId: "src-1",
+      selector: ".card",
+    });
+    expect(candidateFromRef({ fingerprint: "abc12345" })).toEqual({
+      fingerprint: "abc12345",
+    });
+  });
+
+  it("preserves selector occurrence for durable HMR identity", () => {
+    expect(candidateFromRef({ selector: ".card", occurrence: 2, fingerprint: "shared" })).toEqual({
+      selector: ".card",
+      occurrence: 2,
+      fingerprint: "shared",
+    });
   });
 });

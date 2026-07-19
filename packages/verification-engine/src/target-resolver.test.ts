@@ -20,12 +20,12 @@ describe("resolveTarget — source id strategy", () => {
     document.body.innerHTML = "";
   });
 
-  it("resolves by data-vc-source with high confidence", async () => {
+  it("resolves by data-vc-source without claiming HIGH confidence", async () => {
     document.body.innerHTML = "<div data-vc-source='src-abc' id='el'>Hello</div>";
     const dom = makeDom();
     const result = await resolveTarget("src-abc", { dom, hints: { sourceId: "src-abc" } });
     expect(result).not.toBeNull();
-    expect(result?.confidence).toBe("high");
+    expect(result?.confidence).toBe("medium");
     expect(result?.sourceId).toBe("src-abc");
   });
 
@@ -179,7 +179,7 @@ describe("resolveTarget — priority cascade", () => {
       dom,
       hints: { sourceId: "src-1", selector: "#by-selector" },
     });
-    expect(result?.confidence).toBe("high");
+    expect(result?.confidence).toBe("medium");
   });
 
   it("adapter fingerprint is deterministic and matches across calls", () => {

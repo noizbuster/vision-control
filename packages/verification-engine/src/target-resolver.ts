@@ -5,9 +5,9 @@
  * the element may have moved or been replaced. The resolver re-finds the
  * element using a priority cascade (PRD section 18.3):
  *
- *   1. Source ID lookup (highest confidence): find elements carrying the
+ *   1. Source ID lookup (durable identity hint): find elements carrying the
  *      `data-vc-source` attribute matching the source id, then disambiguate
- *      repeated instances by fingerprint.
+ *      repeated instances by fingerprint. Markers do not prove source origin.
  *   2. Role/name match (medium): find elements whose ARIA role and accessible
  *      name match the candidate.
  *   3. Stable selector (medium): query the DOM with the candidate's selector.
@@ -21,6 +21,7 @@
 import type { IdentityConfidence } from "@vision-control/element-identity";
 
 import type { VerificationDomAdapter } from "./dom-adapter.js";
+import { resolveDurableElement } from "./durable-target-resolver.js";
 import type { ResolvedTarget, SourceCandidate } from "./types.js";
 
 const SOURCE_ATTR = "data-vc-source";
@@ -56,6 +57,18 @@ export async function resolveTarget(
     ...(sourceId !== undefined ? { sourceId } : {}),
   };
 
+  if (candidate.occurrence !== undefined) {
+    if (candidate.selector === undefined || candidate.fingerprint === undefined) return null;
+    const durable = resolveDurableElement(dom, {
+      selector: candidate.selector,
+      occurrence: candidate.occurrence,
+      fingerprint: candidate.fingerprint,
+      ...(candidate.sourceId !== undefined ? { sourceId: candidate.sourceId } : {}),
+    });
+    if (durable.kind === "failed") return null;
+    return toTarget(durable.element, dom, candidate, "medium");
+  }
+
   // Strategy 1: source ID lookup.
   const bySource = resolveBySourceId(dom, candidate, options);
   if (bySource !== null) return bySource;
@@ -72,7 +85,7 @@ export async function resolveTarget(
   return resolveByFingerprint(dom, candidate);
 }
 
-/** Strategy 1: find elements by `data-vc-source`, disambiguate by fingerprint. */
+/** Strategy 1: find by `data-vc-source` without treating the marker as origin proof. */
 function resolveBySourceId(
   dom: VerificationDomAdapter,
   candidate: SourceCandidate,
@@ -92,7 +105,7 @@ function resolveBySourceId(
       (el) => dom.computeFingerprint(el) === candidate.fingerprint,
     );
     if (fingerprinted !== undefined) {
-      return toTarget(fingerprinted, dom, candidate, "high");
+      return toTarget(fingerprinted, dom, candidate, "medium");
     }
     // Fingerprint mismatch on all instances — stale DOM. Do not fall through to
     // blind instanceIndex; signal "not found" so the runner reports failure.
@@ -102,7 +115,7 @@ function resolveBySourceId(
   // No fingerprint: pick by instance index among repeated instances.
   const chosen = matches[instanceIndex] ?? matches[0];
   if (chosen === undefined) return null;
-  return toTarget(chosen, dom, candidate, "high");
+  return toTarget(chosen, dom, candidate, "medium");
 }
 
 /** Strategy 2: find by ARIA role + accessible name. */

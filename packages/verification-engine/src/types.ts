@@ -18,9 +18,9 @@ import type { VerificationDomAdapter } from "./dom-adapter.js";
  * A resolved target element after HMR/reload. Carries the DOM handle, the
  * adapter lens to read it through, and the identity metadata used to find it.
  *
- * `confidence` follows the element-identity priority order (PRD 18.3):
- * `high` (source id + fingerprint stable) → `medium` (role/name + selector) →
- * `low` (fingerprint-only or nth-child).
+ * `confidence` follows the never-wrong-HIGH policy: `high` requires separately
+ * established map-plus-range evidence. Marker, role/name, and selector-based
+ * reacquisition are `medium`; fingerprint-only or nth-child is `low`.
  */
 export interface ResolvedTarget {
   readonly element: Element;
@@ -63,6 +63,7 @@ export interface SourceCandidate {
   readonly role?: string;
   readonly name?: string;
   readonly selector?: string;
+  readonly occurrence?: number;
   readonly fingerprint?: string;
   readonly tagName?: string;
 }

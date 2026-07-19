@@ -3,10 +3,10 @@
  *
  * Orchestrates the full verification loop after a source patch + HMR:
  *
- *   1. Wait for HMR completion (DOM stability).
- *   2. Clear the preview layer (MANDATORY — a preview that renders correctly
+ *   1. Clear the preview layer (MANDATORY — a preview that renders correctly
  *      does NOT prove the source changed, PRD Appendix D.1).
- *   3. Resolve the target element post-HMR.
+ *   2. Wait for HMR completion (DOM stability).
+ *   3. Resolve the target element post-HMR against the cleared DOM.
  *   4. Run the plan's assertions against the resolved target.
  *   5. Check the console policy (no errors/warnings during verification).
  *   6. Compile a structured report with pass/fail and a retry context.
@@ -58,23 +58,7 @@ export async function runVerification(
 ): Promise<VerificationReport> {
   const results: AssertionResult[] = [];
 
-  // Step 1: Wait for HMR completion.
-  if (options.skipHmrWait !== true) {
-    const hmrOk = await waitForHmrComplete(
-      options.hmrTimeout !== undefined ? { timeout: options.hmrTimeout } : {},
-    );
-    results.push({
-      name: "hmr-complete",
-      passed: hmrOk,
-      expected: "DOM stable after HMR",
-      actual: hmrOk ? "stable" : "timed out",
-      message: hmrOk
-        ? "DOM reached stability after HMR."
-        : "HMR completion timed out; DOM may still be mutating.",
-    });
-  }
-
-  // Step 2: Clear the preview layer (MANDATORY anti-cheat).
+  // Step 1: Clear the preview layer (MANDATORY anti-cheat).
   const requireCleared = options.requirePreviewCleared ?? true;
   if (options.previewEngine !== undefined) {
     options.previewEngine.clearAll();
@@ -94,6 +78,22 @@ export async function runVerification(
     if (!previewCleared) {
       return compileReport(results, null, true);
     }
+  }
+
+  // Step 2: Wait for the cleared post-HMR DOM to stabilize.
+  if (options.skipHmrWait !== true) {
+    const hmrOk = await waitForHmrComplete(
+      options.hmrTimeout !== undefined ? { timeout: options.hmrTimeout } : {},
+    );
+    results.push({
+      name: "hmr-complete",
+      passed: hmrOk,
+      expected: "DOM stable after HMR",
+      actual: hmrOk ? "stable" : "timed out",
+      message: hmrOk
+        ? "DOM reached stability after HMR."
+        : "HMR completion timed out; DOM may still be mutating.",
+    });
   }
 
   // Step 3: Resolve the target element post-HMR.

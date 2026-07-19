@@ -50,22 +50,21 @@
 
 import type { Operation } from "@vision-control/change-ir";
 
-import { assertClass, type ExpectedClass } from "./assertions/class.js";
 import { assertComputedStyle } from "./assertions/computed-style.js";
+import { buildFlexResizeAssertions } from "./assertions/flex-resize.js";
 import {
   buildGroupCompositionAssertion,
   buildReadingOrderAssertion,
 } from "./assertions/group-verification.js";
 import { assertParent } from "./assertions/parent.js";
-import { assertSiblingOrder } from "./assertions/sibling-order.js";
-import { assertText } from "./assertions/text.js";
-import { contextDependentNote } from "./context-dependent-assertion.js";
+import { buildCoreOperationAssertions } from "./core-operation-assertions.js";
 import {
   buildChildSizingAssertions,
   buildGridReorderAssertions,
   buildGridSpanAssertions,
   buildGroupReorderAssertions,
 } from "./layout-assertion-builders.js";
+import { buildMetadataOperationAssertions } from "./metadata-operation-assertions.js";
 import { buildReparentAssertions } from "./reparent-assertions.js";
 import type { AssertionEntry, SourceCandidate, VerificationPlan } from "./types.js";
 
@@ -88,69 +87,16 @@ export function createPlan(
 function assertionsForOperation(operation: Operation): AssertionEntry[] {
   switch (operation.kind) {
     case "style-edit":
-      return [
-        {
-          name: "style-edit:value",
-          run: (target) =>
-            assertComputedStyle(target, [{ property: operation.property, value: operation.value }]),
-        },
-      ];
-
     case "text-edit":
-      return [
-        {
-          name: "text-edit:newText",
-          run: (target) => assertText(target, operation.newText),
-        },
-      ];
-
     case "class-add":
-      return [
-        {
-          name: "class-add",
-          run: (target) => assertClass(target, [{ name: operation.className, present: true }]),
-        },
-      ];
-
     case "class-remove":
-      return [
-        {
-          name: "class-remove",
-          run: (target) => assertClass(target, [{ name: operation.className, present: false }]),
-        },
-      ];
-
-    case "class-replace": {
-      const expected: ExpectedClass[] = [
-        { name: operation.oldClassName, present: false },
-        { name: operation.newClassName, present: true },
-      ];
-      return [
-        {
-          name: "class-replace",
-          run: (target) => assertClass(target, expected),
-        },
-      ];
-    }
-
+    case "class-replace":
     case "resize-element":
-      return [
-        {
-          name: "resize-element:value",
-          run: (target) =>
-            assertComputedStyle(target, [
-              { property: operation.property, value: `${operation.toValue}${operation.unit}` },
-            ]),
-        },
-      ];
-
     case "reorder-child":
-      return [
-        {
-          name: "reorder-child:toIndex",
-          run: (target) => assertSiblingOrder(target, operation.toIndex),
-        },
-      ];
+      return buildCoreOperationAssertions(operation);
+
+    case "resize-flex-pair":
+      return buildFlexResizeAssertions(operation);
 
     case "reparent-element":
       return buildReparentAssertions(operation);
@@ -178,34 +124,11 @@ function assertionsForOperation(operation: Operation): AssertionEntry[] {
       return buildChildSizingAssertions(operation);
 
     case "breakpoint-style-edit":
-      return [
-        {
-          name: "breakpoint-style-edit:value",
-          run: (target) =>
-            assertComputedStyle(target, [{ property: operation.property, value: operation.value }]),
-        },
-      ];
-
-    case "breakpoint-class-edit": {
-      const expectedBp: ExpectedClass[] = [
-        { name: operation.oldClassName, present: false },
-        { name: operation.newClassName, present: true },
-      ];
-      return [
-        {
-          name: "breakpoint-class-edit",
-          run: (target) => assertClass(target, expectedBp),
-        },
-      ];
-    }
-
+    case "breakpoint-class-edit":
     case "breakpoint-text-edit":
-      return [
-        {
-          name: "breakpoint-text-edit:newText",
-          run: (target) => assertText(target, operation.newText),
-        },
-      ];
+    case "set-component-prop":
+    case "pseudo-style-edit":
+      return buildMetadataOperationAssertions(operation);
 
     case "group-reorder":
       return buildGroupReorderAssertions(operation);
@@ -249,40 +172,6 @@ function assertionsForOperation(operation: Operation): AssertionEntry[] {
     // runtime or MCP; no DOM state to assert against.
     case "suggested-diff":
       return [];
-
-    // Component-prop edit: a source-only JSX attribute change (PRD §7.2). Its
-    // DOM effect is component-specific (a class, an attribute, text, etc.) and
-    // cannot be generically predicted from the operation, so emit an honest
-    // context-dependent note rather than a wrong HIGH. The agent verifies the
-    // rendered component reflects the new prop value.
-    case "set-component-prop":
-      return [
-        {
-          name: "set-component-prop:context-dependent",
-          run: () =>
-            contextDependentNote(
-              `set-component-prop (${operation.componentName}.${operation.propName})`,
-              "Component prop is a source-only edit; verify the rendered component reflects the new prop value.",
-            ),
-        },
-      ];
-
-    // Pseudo-element/state edit: the post-HMR assertion would read the pseudo
-    // computed style via the two-argument getComputedStyle(el, "::before")
-    // form, which the verification DOM adapter does not yet expose. Emit an
-    // honest context-dependent note (never a wrong HIGH); full pseudo
-    // computed-style verification lands when the adapter grows the pseudo lens.
-    case "pseudo-style-edit":
-      return [
-        {
-          name: `pseudo-style-edit:${operation.pseudoTarget}`,
-          run: () =>
-            contextDependentNote(
-              `pseudo-style-edit (${operation.pseudoTarget} ${operation.property})`,
-              "Pseudo-element/state edit; verify the pseudo computed style reflects the new declaration after HMR.",
-            ),
-        },
-      ];
 
     // PRD §12.3 structural kinds (Task 6): schemas + inverses are in place, but
     // the verification assertions land in Task 33. No UI emits them yet, so this

@@ -67,6 +67,7 @@ export { assertText } from "./assertions/text.js";
 export {
   type ConsoleEntry,
   createBrowserVerificationDomAdapter,
+  type DirectChildSnapshot,
   VERIFICATION_ATTRS,
   type VerificationDomAdapter,
 } from "./dom-adapter.js";

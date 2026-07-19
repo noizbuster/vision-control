@@ -7,9 +7,8 @@
  * masked and how the redaction is reported.
  *
  * Two layers compose:
- * 1. {@link redactString} applies an ordered list of regex patterns, then a
- *    built-in high-entropy token scan (the catch-all for secrets that do not
- *    match an explicit pattern).
+ * 1. {@link redactString} redacts credential-shaped query values, applies an
+ *    ordered list of regex patterns, then scans for high-entropy tokens.
  * 2. {@link redactObject} additionally replaces the value of any key whose name
  *    looks credential-shaped (password, token, apiKey, ...) before recursing.
  *
@@ -23,6 +22,7 @@ import {
   type RedactionPattern,
 } from "./redaction-patterns.js";
 import { looksLikeSecret, SECRET_ENTROPY_THRESHOLD, shannonEntropy } from "./secret-detection.js";
+import { isRedactedValue, isSensitiveKey, redactSensitiveAssignments } from "./sensitive-fields.js";
 
 export {
   DEFAULT_REDACTION_PATTERNS,
@@ -35,27 +35,41 @@ const ENTROPY_MIN_LENGTH = 20;
 
 const HIGH_ENTROPY_TOKEN_RE = new RegExp(`[A-Za-z0-9_+/=-]{${ENTROPY_MIN_LENGTH},}`, "g");
 
+const QUERY_PARAMETER_RE = /(^|[?&])([^?&#=\s]+)=([^&#\s]*)/g;
+
+const applyTextRules = (input: string, patterns: readonly RedactionPattern[]): string => {
+  let out = input;
+  for (const rule of patterns) {
+    out = out.replace(rule.pattern, rule.replacement);
+  }
+  return out.replace(HIGH_ENTROPY_TOKEN_RE, (token) =>
+    token.includes(REDACTED_MARKER) || shannonEntropy(token) <= SECRET_ENTROPY_THRESHOLD
+      ? token
+      : "[REDACTED:high-entropy]",
+  );
+};
+
 /** Redact a string with the given patterns (defaults to the default ruleset). */
 export const redactString = (
   input: string,
   patterns: readonly RedactionPattern[] = DEFAULT_REDACTION_PATTERNS,
 ): string => {
-  let out = input;
-  for (const rule of patterns) {
-    out = out.replace(rule.pattern, rule.replacement);
+  let out = "";
+  let cursor = 0;
+  for (const match of input.matchAll(QUERY_PARAMETER_RE)) {
+    const [assignment = "", delimiter = "", key = "", value = ""] = match;
+    out += applyTextRules(input.slice(cursor, match.index), patterns);
+    const redactedAssignment = applyTextRules(assignment, patterns);
+    const redactedByRule =
+      redactedAssignment !== assignment && redactedAssignment.includes(REDACTED_MARKER);
+    out +=
+      isSensitiveKey(key) && !isRedactedValue(value) && !redactedByRule
+        ? `${delimiter}${key}=[REDACTED:sensitive-query]`
+        : redactedAssignment;
+    cursor = match.index + assignment.length;
   }
-  // High-entropy catch-all: mask long random tokens the regex rules missed.
-  out = out.replace(HIGH_ENTROPY_TOKEN_RE, (token) =>
-    token.includes(REDACTED_MARKER) || shannonEntropy(token) <= SECRET_ENTROPY_THRESHOLD
-      ? token
-      : "[REDACTED:high-entropy]",
-  );
-  return out;
+  return redactSensitiveAssignments(out + applyTextRules(input.slice(cursor), patterns));
 };
-
-/** Key names whose value is treated as a secret regardless of the value shape. */
-const SENSITIVE_KEY_RE =
-  /^(pass(word|wd)?|pwd|secret|secrets|token|tokens|access_?token|refresh_?token|auth_?token|id_?token|api[_-]?key|api[_-]?keys|api[_-]?secret|client[_-]?secret|credential|credentials|cookie|cookies|authorization|authorisation|private_?key|access_?key|secret_?key)$/i;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -82,7 +96,7 @@ const redactNode = (
     seen.add(value);
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(value)) {
-      out[key] = SENSITIVE_KEY_RE.test(key)
+      out[key] = isSensitiveKey(key)
         ? `[REDACTED:sensitive-key:${key}]`
         : redactNode(child, patterns, seen);
     }
@@ -174,7 +188,7 @@ const walk = (
   }
   if (isRecord(original) && isRecord(redacted)) {
     for (const key of Object.keys(original)) {
-      if (SENSITIVE_KEY_RE.test(key)) {
+      if (isSensitiveKey(key)) {
         if (JSON.stringify(original[key]) !== JSON.stringify(redacted[key])) {
           out.push({
             field: [...path, key].join("."),

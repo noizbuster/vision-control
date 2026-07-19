@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { resolveDaemonBinaryPath, startDaemon, tryStartDaemon } from "./daemon-process.js";
 import {
   appendEvidence,
   buildChangeset,
@@ -14,9 +15,6 @@ import {
   FakeClock,
   FakeUuidSequencer,
   PACKAGE_NAME,
-  resolveDaemonBinaryPath,
-  startDaemon,
-  tryStartDaemon,
   writeEvidence,
 } from "./index.js";
 
@@ -172,7 +170,7 @@ describe("fixture builders", () => {
   });
 });
 
-describe("daemon process helper", () => {
+describe("private daemon process characterization", () => {
   it("throws DaemonBinaryMissingError when the binary is absent", async () => {
     await expect(startDaemon({ binaryPath: "/does/not/exist/daemon.js" })).rejects.toMatchObject({
       name: "DaemonBinaryMissingError",

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { computeSourceConfidence } from "./index.js";
 
 describe("source confidence", () => {
-  it("returns high when a data-vc-source attribute is present", () => {
+  it("returns medium when only a data-vc-source attribute is present", () => {
     const result = computeSourceConfidence({
       attributes: { "data-vc-source": "src/Button.tsx:12" },
       id: "",
@@ -11,7 +11,7 @@ describe("source confidence", () => {
       role: undefined,
       selector: "",
     });
-    expect(result).toBe("high");
+    expect(result).toBe("medium");
   });
 
   it("returns medium for a stable id or role", () => {

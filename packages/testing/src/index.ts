@@ -1,15 +1,6 @@
 export const PACKAGE_NAME = "@vision-control/testing";
 
 export {
-  DaemonBinaryMissingError,
-  type DaemonHandle,
-  resolveDaemonBinaryPath,
-  type StartDaemonOptions,
-  startDaemon,
-  tryStartDaemon,
-  withDaemon,
-} from "./daemon-process.js";
-export {
   appendEvidence,
   evidenceFilePath,
   type WriteEvidenceOptions,

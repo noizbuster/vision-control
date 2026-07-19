@@ -1,9 +1,9 @@
 /**
  * Source-mapping confidence scoring.
  *
- * Computes a confidence level for how well the inspected element maps back to
- * source. This is a placeholder until task 22/23 provide real source-marker
- * data; the rules mirror the priority order in element-identity/selectors.ts.
+ * DOM identity metadata can narrow source candidates, but it cannot prove a
+ * concrete source range. Independent source-map and range resolution owns HIGH
+ * confidence.
  */
 
 import type { IdentityConfidence } from "@vision-control/element-identity";
@@ -22,9 +22,8 @@ export interface ConfidenceInputs {
 /**
  * Compute confidence from element identity data.
  *
- * - `high` — the element carries a `data-vc-source` source marker.
- * - `medium` — no source marker, but a stable selector (`id`, stable classes)
- *   or a semantic role/name was produced.
+ * - `medium` — a source marker, stable selector (`id`, stable classes), or a
+ *   semantic role was produced.
  * - `low` — only a brittle nth-child fallback selector is available.
  */
 export function computeSourceConfidence(inputs: ConfidenceInputs): IdentityConfidence {
@@ -32,7 +31,7 @@ export function computeSourceConfidence(inputs: ConfidenceInputs): IdentityConfi
     inputs.attributes[SOURCE_MARKER_ATTR] !== undefined &&
     inputs.attributes[SOURCE_MARKER_ATTR].length > 0
   ) {
-    return "high";
+    return "medium";
   }
 
   if (inputs.id.length > 0 || hasStableClass(inputs.className) || inputs.role !== undefined) {

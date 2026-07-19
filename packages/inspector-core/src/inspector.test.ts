@@ -1,5 +1,5 @@
 import type { OverlayElement, OverlayRoot } from "@vision-control/overlay-ui";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   createBrowserDomAdapter,
@@ -9,21 +9,24 @@ import {
   type InspectorBus,
 } from "./index.js";
 
-const mockObserver = (): object => ({
-  disconnect: vi.fn(),
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-});
-
 beforeEach(() => {
-  // biome-ignore lint/complexity/useArrowFunction: must be constructible as a class
-  globalThis.ResizeObserver = vi.fn().mockImplementation(function () {
-    return mockObserver();
-  }) as unknown as typeof ResizeObserver;
-  // biome-ignore lint/complexity/useArrowFunction: must be constructible as a class
-  globalThis.IntersectionObserver = vi.fn().mockImplementation(function () {
-    return mockObserver();
-  }) as unknown as typeof IntersectionObserver;
+  globalThis.ResizeObserver = class implements ResizeObserver {
+    disconnect(): void {}
+    observe(): void {}
+    unobserve(): void {}
+  };
+  globalThis.IntersectionObserver = class implements IntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = "0px";
+    readonly scrollMargin = "0px";
+    readonly thresholds = [];
+    disconnect(): void {}
+    observe(): void {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+    unobserve(): void {}
+  };
 });
 
 function createFakeOverlay(): {
@@ -43,6 +46,7 @@ function createFakeOverlay(): {
     getResizeHandle: () => null,
     updateResizeHandleCursor: () => calls.push({ method: "updateResizeHandleCursor" }),
     setParentOutline: () => {},
+    setFlexPairFeedback: () => {},
     setBoxModel: () => {},
     setFlexGridAxis: () => {},
     setRotationHandle: () => {},

@@ -124,6 +124,7 @@ function createFakeOverlay(): {
     getResizeHandle: () => null,
     updateResizeHandleCursor: () => {},
     setParentOutline: () => {},
+    setFlexPairFeedback: () => {},
     setFlexGridAxis: () => {},
     setRotationHandle: () => {},
     setChangedBadge: () => {},

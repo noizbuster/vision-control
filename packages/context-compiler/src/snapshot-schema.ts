@@ -20,7 +20,8 @@ import {
 } from "./context-schema.js";
 
 /** Format version for the portable extension snapshot document. */
-export const SNAPSHOT_FORMAT_VERSION = "1.0.0";
+export const SNAPSHOT_FORMAT_VERSIONS = ["1.0.0", "1.1.0"] as const;
+export const SNAPSHOT_FORMAT_VERSION = "1.1.0" as const;
 
 /**
  * One map-derived origin candidate. Paths are URL or map-relative only — never
@@ -69,7 +70,7 @@ export type JournalSummary = z.infer<typeof JournalSummarySchema>;
  * confidence + redaction report hooks.
  */
 export const VisionContextSnapshotSchema = z.object({
-  formatVersion: z.string(),
+  formatVersion: z.enum(SNAPSHOT_FORMAT_VERSIONS),
   /**
    * Monotonic revision per tab. MCP projection cache uses this for freshness
    * (ADR-020 command queue / snapshot push).

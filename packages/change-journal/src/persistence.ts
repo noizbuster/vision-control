@@ -1,4 +1,5 @@
 import { type Journal, JournalSchema } from "./journal.js";
+import { migrateJournal_v1_to_v2 } from "./migration.js";
 
 /**
  * Result of parsing a serialized journal. Mirrors the parse-result shape used
@@ -44,6 +45,10 @@ export const deserializeJournal = (input: string): ParseResult<Journal> => {
   }
   const result = JournalSchema.safeParse(parsed);
   if (!result.success) {
+    const migrated = migrateJournal_v1_to_v2(parsed);
+    if (migrated !== undefined) {
+      return { success: true, data: migrated };
+    }
     return {
       success: false,
       error: { message: "Journal validation failed", issues: result.error.issues },

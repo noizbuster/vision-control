@@ -5,15 +5,16 @@
  * redacted) → render. No MCP, daemon, or network. Works unpaired.
  */
 
-import type { Operation } from "@vision-control/change-ir";
-import type { Journal, JournalEntry } from "@vision-control/change-journal";
+import {
+  activeJournalEntries,
+  type Journal,
+  type JournalEntry,
+} from "@vision-control/change-journal";
 import {
   type CompileSnapshotInputs,
   compileVisionContextSnapshot,
   type JournalSummary,
   type MapOrigin,
-  type OperationSummary,
-  type OperationSummaryKind,
   projectSelectionToTarget,
   renderSnapshotJson,
   renderSnapshotMarkdown,
@@ -69,8 +70,9 @@ export function buildPanelContextExport(input: PanelContextExportInput): PanelCo
 
 const toCompileInputs = (input: PanelContextExportInput): CompileSnapshotInputs => {
   const sorted = sortedEntries(input.journal.entries);
-  const operations = sorted.map((entry) => safeSummarize(entry.operation));
-  const changesetId = sorted[0]?.changeSetId;
+  const projected = activeJournalEntries(sorted);
+  const operations = projected.map((entry) => summarizeOperation(entry.operation));
+  const changesetId = projected[0]?.changeSetId;
 
   return {
     snapshotRev: input.snapshotRev ?? 0,
@@ -80,7 +82,7 @@ const toCompileInputs = (input: PanelContextExportInput): CompileSnapshotInputs 
     ...(input.selection !== null ? { selection: projectSelectionToTarget(input.selection) } : {}),
     ...(changesetId !== undefined ? { changesetId } : {}),
     operations,
-    journal: summarizeJournal(input.journal, sorted),
+    journal: summarizeJournal(input.journal, projected),
     ...(input.origins !== undefined ? { origins: input.origins } : {}),
     ...(input.originsTruncated !== undefined ? { originsTruncated: input.originsTruncated } : {}),
   };
@@ -99,22 +101,4 @@ const summarizeJournal = (journal: Journal, sorted: readonly JournalEntry[]): Jo
     redoDepth: journal.stacks.redo.length,
     recentKinds,
   };
-};
-
-/**
- * Reduce an IR operation to an agent-facing summary. Unimplemented kinds fall
- * back to a minimal row so export never fails on a single op.
- */
-const safeSummarize = (operation: Operation): OperationSummary => {
-  try {
-    return summarizeOperation(operation);
-  } catch {
-    return {
-      id: operation.id,
-      kind: operation.kind as OperationSummaryKind,
-      runtime: operation.runtime,
-      description: `${operation.kind} (summary pending)`,
-      detail: {},
-    };
-  }
 };

@@ -1,4 +1,4 @@
-import type { Journal } from "@vision-control/change-journal";
+import { type Journal, JournalSchema } from "@vision-control/change-journal";
 
 import type { BusMessage, BusRoute } from "../messaging/types.js";
 
@@ -56,18 +56,21 @@ export function createJournalStateMessage(
 }
 
 export function parseJournalStatePayload(payload: unknown): JournalStatePayload | null {
-  if (typeof payload !== "object" || payload === null) {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("tabId" in payload) ||
+    !("journal" in payload) ||
+    typeof payload.tabId !== "number"
+  ) {
     return null;
   }
-  const obj = payload as Record<string, unknown>;
-  if (typeof obj.tabId !== "number") {
+  if (payload.journal === null) {
+    return { tabId: payload.tabId, journal: null };
+  }
+  const parsed = JournalSchema.safeParse(payload.journal);
+  if (!parsed.success) {
     return null;
   }
-  if (obj.journal !== null && (typeof obj.journal !== "object" || obj.journal === null)) {
-    return null;
-  }
-  return {
-    tabId: obj.tabId,
-    journal: obj.journal as Journal | null,
-  };
+  return { tabId: payload.tabId, journal: parsed.data };
 }

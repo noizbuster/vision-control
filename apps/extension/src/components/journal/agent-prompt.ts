@@ -7,7 +7,11 @@
  * IR operations from the journal.
  */
 
-import type { Journal, JournalEntry } from "@vision-control/change-journal";
+import {
+  activeJournalEntries,
+  type Journal,
+  type JournalEntry,
+} from "@vision-control/change-journal";
 import type { MapOrigin } from "@vision-control/context-compiler";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { redactObject, redactString } from "@vision-control/security";
@@ -51,7 +55,7 @@ export function buildAgentPrompt(input: AgentPromptInput): string {
       ? "unknown"
       : redactString(input.inspectedUrl);
 
-  const sortedEntries = [...input.journal.entries].sort(
+  const sortedEntries = [...activeJournalEntries(input.journal.entries)].sort(
     (left, right) => left.sequence - right.sequence,
   );
 

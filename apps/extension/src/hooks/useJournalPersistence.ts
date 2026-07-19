@@ -1,4 +1,4 @@
-import type { Journal } from "@vision-control/change-journal";
+import { createJournal, type Journal } from "@vision-control/change-journal";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -8,6 +8,7 @@ import {
   parseJournalStatePayload,
 } from "../journal/journal-messages.js";
 import type { MessageBus } from "../messaging/index.js";
+import { mergeHydratedJournal } from "./journal-hydration.js";
 
 export interface UseJournalPersistenceOptions {
   readonly journal: Journal;
@@ -38,6 +39,8 @@ export function useJournalPersistence(
   const [isSyncing, setIsSyncing] = useState(false);
   const onRestoreRef = useRef(onRestore);
   onRestoreRef.current = onRestore;
+  const journalRef = useRef(journal);
+  journalRef.current = journal;
   const hydratedTabRef = useRef<number | null>(null);
   const skipNextSyncRef = useRef(false);
 
@@ -54,10 +57,9 @@ export function useJournalPersistence(
       if (payload === null || payload.tabId !== tabId) {
         return;
       }
-      if (payload.journal !== null) {
-        skipNextSyncRef.current = true;
-        onRestoreRef.current?.(payload.journal);
-      }
+      const merged = mergeHydratedJournal(payload.journal ?? createJournal(), journalRef.current);
+      skipNextSyncRef.current = !merged.hasLocalChanges;
+      onRestoreRef.current?.(merged.journal);
       hydratedTabRef.current = tabId;
       setIsHydrated(true);
     });
@@ -73,7 +75,7 @@ export function useJournalPersistence(
     if (bus === undefined || tabId === undefined || tabId === null) {
       return;
     }
-    if (hydratedTabRef.current !== tabId) {
+    if (!isHydrated || hydratedTabRef.current !== tabId) {
       return;
     }
     if (skipNextSyncRef.current) {
@@ -91,7 +93,7 @@ export function useJournalPersistence(
       clearTimeout(handle);
       setIsSyncing(false);
     };
-  }, [bus, tabId, journal]);
+  }, [bus, tabId, journal, isHydrated]);
 
   return { isHydrated, isSyncing };
 }

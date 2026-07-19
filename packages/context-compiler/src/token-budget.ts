@@ -124,18 +124,17 @@ const reduceSource = (context: CompiledContext): CompiledContext => {
 };
 
 const reduceOperations = (context: CompiledContext): CompiledContext => {
-  if (context.operations.every((op) => op.detail && Object.keys(op.detail).length === 0)) {
-    return context;
-  }
+  let changed = false;
+  const operations = context.operations.map((operation) => {
+    if (operation.kind === "resize-flex-pair" || Object.keys(operation.detail).length === 0) {
+      return operation;
+    }
+    changed = true;
+    return { ...operation, detail: {} };
+  });
+  if (!changed) return context;
   return replaceMeta(context, {
-    operations: context.operations.map((op) => ({
-      id: op.id,
-      kind: op.kind,
-      runtime: op.runtime,
-      description: op.description,
-      ...(op.target !== undefined ? { target: op.target } : {}),
-      detail: {},
-    })),
+    operations,
   });
 };
 

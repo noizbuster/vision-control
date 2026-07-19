@@ -122,6 +122,27 @@ describe("redactTarget — PRD §27.2 selector redaction", () => {
     expect(result.redactions).toEqual([]);
   });
 
+  it("masks credential-bearing DOM attribute values without masking safe token metadata", () => {
+    const result = redactTarget(
+      makeTarget({
+        tagName: "div",
+        attributes: [
+          { name: "session-key", value: "aaaaaaaa" },
+          { name: "token-budget", value: "4096" },
+        ],
+      }),
+      DEFAULT_REDACTION_SELECTORS,
+    );
+
+    expect(result.target.attributes).toEqual([
+      { name: "session-key", value: "[REDACTED:sensitive-attribute]" },
+      { name: "token-budget", value: "4096" },
+    ]);
+    expect(result.redactions).toMatchObject([
+      { field: "target.attributes.session-key", patternId: "sensitive-attribute" },
+    ]);
+  });
+
   it("does not double-count when run twice (idempotent defense-in-depth)", () => {
     const target = makeTarget({
       attributes: [

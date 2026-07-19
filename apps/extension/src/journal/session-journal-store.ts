@@ -15,15 +15,30 @@ import {
 import { journalStorageKey, parseJournalStorageKey } from "./session-journal-keys.js";
 
 export interface SessionJournalStoreOptions {
-  readonly storage?: chrome.storage.StorageArea;
+  readonly storage?: SessionJournalStorage;
+  readonly onTaskError?: (error: unknown) => void;
+}
+
+export interface SessionJournalStorage {
+  readonly get: (keys: null) => Promise<Record<string, unknown>>;
+  readonly set: (items: Record<string, unknown>) => Promise<void>;
+  readonly remove: (key: string) => Promise<void>;
 }
 
 export class SessionJournalStore {
-  private readonly storage: chrome.storage.StorageArea | undefined;
+  private readonly storage: SessionJournalStorage | undefined;
+  private readonly onTaskError: ((error: unknown) => void) | undefined;
   private readonly journals = new Map<number, Journal>();
+  private taskQueue: Promise<void> = Promise.resolve();
+  private queuedTaskCount = 0;
 
   constructor(options: SessionJournalStoreOptions = {}) {
     this.storage = options.storage;
+    this.onTaskError = options.onTaskError;
+  }
+
+  runWhenReady(task: () => void | Promise<void>): void {
+    void this.enqueueTask(task);
   }
 
   get(tabId: number): Journal {
@@ -51,24 +66,58 @@ export class SessionJournalStore {
     await this.storage.remove(journalStorageKey(tabId));
   }
 
-  async restore(): Promise<void> {
-    if (this.storage === undefined) {
-      return;
+  restore(): Promise<void> {
+    return this.enqueueTask(async () => {
+      if (this.storage === undefined) {
+        return;
+      }
+      const stored = await this.storage.get(null);
+      this.journals.clear();
+      for (const [key, value] of Object.entries(stored)) {
+        const tabId = parseJournalStorageKey(key);
+        if (tabId === undefined || typeof value !== "string") {
+          continue;
+        }
+        const parsed = deserializeJournal(value);
+        if (parsed.success) {
+          this.journals.set(tabId, parsed.data);
+        }
+      }
+    });
+  }
+
+  private enqueueTask(task: () => void | Promise<void>): Promise<void> {
+    this.queuedTaskCount += 1;
+    if (this.queuedTaskCount === 1) {
+      let resolveTask = (): void => {};
+      let rejectTask = (_error: unknown): void => {};
+      const completion = new Promise<void>((resolve, reject) => {
+        resolveTask = resolve;
+        rejectTask = reject;
+      });
+      this.taskQueue = completion.finally(() => {
+        this.queuedTaskCount -= 1;
+      });
+      void this.executeTask(task).then(resolveTask, rejectTask);
+      return this.taskQueue;
     }
-    const stored = await this.storage.get(null);
-    this.journals.clear();
-    for (const [key, value] of Object.entries(stored)) {
-      const tabId = parseJournalStorageKey(key);
-      if (tabId === undefined) {
-        continue;
+
+    this.taskQueue = this.taskQueue
+      .then(() => this.executeTask(task))
+      .finally(() => {
+        this.queuedTaskCount -= 1;
+      });
+    return this.taskQueue;
+  }
+
+  private async executeTask(task: () => void | Promise<void>): Promise<void> {
+    try {
+      await task();
+    } catch (error) {
+      if (this.onTaskError === undefined) {
+        throw error;
       }
-      if (typeof value !== "string") {
-        continue;
-      }
-      const parsed = deserializeJournal(value);
-      if (parsed.success) {
-        this.journals.set(tabId, parsed.data);
-      }
+      this.onTaskError(error);
     }
   }
 

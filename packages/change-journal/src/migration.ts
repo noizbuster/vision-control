@@ -4,8 +4,10 @@ import { z } from "zod";
 import {
   type ElementSnapshot,
   ElementSnapshotSchema,
+  type Journal,
   type JournalEntry,
   JournalEntrySchema,
+  JournalSchema,
 } from "./journal.js";
 
 /**
@@ -41,6 +43,14 @@ const V1_JOURNAL_ENTRY_READER = z
   })
   .passthrough();
 
+const V1_JOURNAL_READER = z.object({
+  entries: z.array(V1_JOURNAL_ENTRY_READER),
+  stacks: z.object({
+    undo: z.array(z.string()),
+    redo: z.array(z.string()),
+  }),
+});
+
 /**
  * Normalize an unknown v1 snapshot into a typed v2 {@link ElementSnapshot}
  * (or `null` when absent). v1 snapshots were ad-hoc objects (e.g.
@@ -50,8 +60,9 @@ const V1_JOURNAL_ENTRY_READER = z
  */
 const normalizeV1Snapshot = (raw: unknown): ElementSnapshot | null => {
   if (raw === null || raw === undefined) return null;
-  if (typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
+  const record = z.record(z.string(), z.unknown()).safeParse(raw);
+  if (!record.success) return null;
+  const obj = record.data;
   if (typeof obj.runtimeId === "string") {
     const parsed = ElementSnapshotSchema.safeParse(obj);
     return parsed.success ? parsed.data : null;
@@ -68,8 +79,10 @@ const normalizeV1Snapshot = (raw: unknown): ElementSnapshot | null => {
  * normalized. The result is re-validated through {@link JournalEntrySchema} so a
  * malformed v1 document surfaces as a Zod error, not a silently-broken v2 entry.
  */
-export const migrateJournalEntry_v1_to_v2 = (v1Json: unknown): JournalEntry => {
-  const v1 = V1_JOURNAL_ENTRY_READER.parse(v1Json);
+const migrateEntry = (
+  v1: z.infer<typeof V1_JOURNAL_ENTRY_READER>,
+  sequence: number,
+): JournalEntry => {
   const operation: Operation = v1.operation;
   const appliedAt = v1.appliedAt ?? 0;
   const status = V1_STATUS_MAP[v1.status];
@@ -77,7 +90,7 @@ export const migrateJournalEntry_v1_to_v2 = (v1Json: unknown): JournalEntry => {
     id: v1.id,
     changeSetId: v1.changeSetId ?? "unknown-cs",
     transactionId: `migrated:${v1.id}`,
-    sequence: 0,
+    sequence,
     createdAt: appliedAt,
     actor: "system",
     operation,
@@ -89,4 +102,17 @@ export const migrateJournalEntry_v1_to_v2 = (v1Json: unknown): JournalEntry => {
     beforeSnapshot: normalizeV1Snapshot(v1.beforeSnapshot),
     afterSnapshot: normalizeV1Snapshot(v1.afterSnapshot),
   });
+};
+
+export const migrateJournalEntry_v1_to_v2 = (v1Json: unknown): JournalEntry =>
+  migrateEntry(V1_JOURNAL_ENTRY_READER.parse(v1Json), 0);
+
+export const migrateJournal_v1_to_v2 = (v1Json: unknown): Journal | undefined => {
+  const parsed = V1_JOURNAL_READER.safeParse(v1Json);
+  if (!parsed.success) return undefined;
+  const migrated = JournalSchema.safeParse({
+    entries: parsed.data.entries.map((entry, sequence) => migrateEntry(entry, sequence)),
+    stacks: parsed.data.stacks,
+  });
+  return migrated.success ? migrated.data : undefined;
 };

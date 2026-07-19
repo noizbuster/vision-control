@@ -174,8 +174,10 @@ describe("context-compiler breakpoint context derivation (VC-V1V2-10)", () => {
     // The breakpoint op has no applyToBase field; the context must not imply a
     // base overwrite. The presence of breakpoint context signals scoped edits.
     expect(ctx.breakpoint).toBeDefined();
-    const bpOp = ctx.operations.find((o) => o.kind === "breakpoint-style-edit");
-    expect(bpOp?.detail.breakpoint).toBe("md");
+    const bpOp = ctx.operations.find((operation) => operation.kind === "breakpoint-style-edit");
+    expect(bpOp?.kind).toBe("breakpoint-style-edit");
+    if (bpOp?.kind !== "breakpoint-style-edit") return;
+    expect(bpOp.detail.breakpoint).toBe("md");
   });
 
   it("emits derived context even when the breakpoint op omits activeViewport", () => {

@@ -192,17 +192,6 @@ export function createReorderOperationMessage(operation: Operation): BusMessage 
   };
 }
 
-export function createInteractionOperationMessage(operation: Operation): BusMessage {
-  return {
-    protocolVersion: "1.0.0",
-    messageId: `interaction-operation-${Date.now()}`,
-    messageType: "interaction-operation",
-    targetRoute: "panel",
-    payload: operation,
-    timestamp: Date.now(),
-  };
-}
-
 /**
  * Content -> panel signal carrying an operation emitted by the on-page floating
  * property inspector. The content script applies the op to the DOM directly via

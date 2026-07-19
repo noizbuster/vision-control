@@ -48,7 +48,10 @@ function parseJournalPayload(payload: unknown): Journal | null {
 }
 
 function resolveTabId(message: BusMessage, sender: MessageContext): number | undefined {
-  return message.tabId ?? sender.tabId;
+  if (message.tabId !== undefined && sender.tabId !== undefined && message.tabId !== sender.tabId) {
+    return undefined;
+  }
+  return sender.tabId ?? message.tabId;
 }
 
 export function installBackgroundJournalHandlers(
@@ -70,7 +73,8 @@ export function installBackgroundJournalHandlers(
     if (journal === null) {
       return;
     }
-    void store.set(tabId, journal).then(() => {
+    store.runWhenReady(async () => {
+      await store.set(tabId, journal);
       publishState(tabId, journal);
       onJournalChanged?.(tabId, journal);
     });
@@ -81,12 +85,14 @@ export function installBackgroundJournalHandlers(
     if (tabId === undefined) {
       return;
     }
-    const journal = store.has(tabId) ? store.get(tabId) : null;
-    publishState(tabId, journal);
+    store.runWhenReady(() => {
+      const journal = store.has(tabId) ? store.get(tabId) : null;
+      publishState(tabId, journal);
+    });
   });
 
   const handleTabRemoved = (tabId: number): void => {
-    void store.remove(tabId);
+    store.runWhenReady(() => store.remove(tabId));
   };
 
   return {

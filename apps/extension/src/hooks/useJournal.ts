@@ -49,13 +49,16 @@ const newId = (): string => globalThis.crypto.randomUUID();
  * honouring the commit-status contract.
  */
 function applyCommitted(engine: PreviewManager, operation: Operation): boolean {
+  const tx = engine.beginTransaction();
   try {
-    const tx = engine.beginTransaction();
     tx.begin();
     tx.apply(operation);
     tx.commit();
     return true;
   } catch {
+    if (tx.state === "applying" || tx.state === "applied") {
+      tx.rollback();
+    }
     return false;
   }
 }
@@ -172,7 +175,7 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
       if (dispatchOperation !== undefined) {
         dispatchOperation(inverse);
       } else if (previewEngine !== null && previewEngine !== undefined) {
-        applyCommitted(previewEngine, inverse);
+        if (!applyCommitted(previewEngine, inverse)) return current;
       }
       syncJournalRefs(next);
       return next;
@@ -186,7 +189,7 @@ export function useJournal(options: UseJournalOptions = {}): UseJournalResult {
       if (dispatchOperation !== undefined) {
         dispatchOperation(operation);
       } else if (previewEngine !== null && previewEngine !== undefined) {
-        applyCommitted(previewEngine, operation);
+        if (!applyCommitted(previewEngine, operation)) return current;
       }
       syncJournalRefs(next);
       return next;

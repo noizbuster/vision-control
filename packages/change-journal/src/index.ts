@@ -1,6 +1,7 @@
 export {
   type Actor,
   ActorSchema,
+  activeJournalEntries,
   appendEntry,
   type CreateJournalEntryOptions,
   canRedoJournal,
@@ -34,7 +35,7 @@ export {
   undo,
 } from "./journal.js";
 
-export { migrateJournalEntry_v1_to_v2 } from "./migration.js";
+export { migrateJournal_v1_to_v2, migrateJournalEntry_v1_to_v2 } from "./migration.js";
 
 export {
   deserializeJournal,
@@ -42,15 +43,6 @@ export {
   type ParseResult,
   serializeJournal,
 } from "./persistence.js";
-
-export {
-  type ConnectionState as JournalConnectionState,
-  type JournalDaemonClient,
-  type JournalDaemonMessage,
-  restoreFromDaemon,
-  type SyncResult,
-  syncToDaemon,
-} from "./session-sync.js";
 
 export {
   canRedo,

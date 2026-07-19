@@ -1,4 +1,10 @@
-import type { ElementRef, Operation } from "@vision-control/change-ir";
+import type {
+  DurableElementRef,
+  ElementRef,
+  FlexMemberState,
+  Operation,
+  ResizeFlexPairOperation,
+} from "@vision-control/change-ir";
 import type { JournalEntry } from "@vision-control/change-journal";
 
 function formatElementRef(ref: ElementRef): string {
@@ -13,6 +19,19 @@ function formatElementRefs(refs: readonly ElementRef[]): string {
 
 function formatValueWithUnit(value: string, unit: string): string {
   return value.endsWith(unit) ? value : `${value}${unit}`;
+}
+
+function formatDurableElementRef(ref: DurableElementRef): string {
+  return `${formatElementRef(ref)} occurrence=${ref.occurrence} fingerprint=${ref.fingerprint}`;
+}
+
+function formatFlexState(state: FlexMemberState): string {
+  const { flex } = state;
+  return `${flex.flexGrow} ${flex.flexShrink} ${flex.flexBasis} at ${state.usedMainSize}px`;
+}
+
+function formatRect(rect: ResizeFlexPairOperation["containerWitness"]["before"]): string {
+  return `${rect.x},${rect.y},${rect.width},${rect.height}`;
 }
 
 function assertNeverOperation(value: never): never {
@@ -54,6 +73,16 @@ function formatVerificationItem(entry: JournalEntry, index: number): string {
       return `- ${label}: verify ${formatElementRef(op.target)} CSS position changes from ${op.fromValue} to ${op.toValue}.`;
     case "resize-element":
       return `- ${label}: verify ${formatElementRef(op.element)} CSS ${op.property} changes from ${formatValueWithUnit(op.fromValue, op.unit)} to ${formatValueWithUnit(op.toValue, op.unit)}.`;
+    case "resize-flex-pair": {
+      const [primary, neighbor] = op.members;
+      const witnesses = op.witnesses
+        .map(
+          (witness) =>
+            `${formatDurableElementRef(witness.element)} ${formatRect(witness.before)}->${formatRect(witness.after)}`,
+        )
+        .join("; ");
+      return `- ${label}: verify primary ${formatDurableElementRef(primary.element)} ${formatFlexState(primary.before)} -> ${formatFlexState(primary.after)}; neighbor ${formatDurableElementRef(neighbor.element)} ${formatFlexState(neighbor.before)} -> ${formatFlexState(neighbor.after)}; container ${formatDurableElementRef(op.container)} ${formatRect(op.containerWitness.before)}->${formatRect(op.containerWitness.after)}; axis ${op.axis.writingMode}/${op.axis.direction}/${op.axis.flexDirection}/${op.axis.logicalAxis}/${op.axis.physicalAxis}/${op.axis.directionSign}/${op.axis.handleBoundary}; delta ${op.delta}px; witnesses ${op.witnesses.length}: ${witnesses}.`;
+    }
     case "reorder-child":
       return `- ${label}: verify child ${formatElementRef(op.child)} moves within parent ${formatElementRef(op.parent)} from index ${op.fromIndex} to ${op.toIndex}.`;
     case "reparent-element":

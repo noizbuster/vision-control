@@ -57,6 +57,7 @@ export {
   type MapOrigin,
   MapOriginSchema,
   SNAPSHOT_FORMAT_VERSION,
+  SNAPSHOT_FORMAT_VERSIONS,
   type VisionContextSnapshot,
   VisionContextSnapshotSchema,
 } from "./snapshot-schema.js";

@@ -51,23 +51,23 @@ export interface BridgeConnectPayload {
 
 export type DaemonConnectPayload = BridgeConnectPayload;
 
-export const BRIDGE_CONNECT_MESSAGE_TYPE = "bridge-connect" as const;
-export const BRIDGE_DISCONNECT_MESSAGE_TYPE = "bridge-disconnect" as const;
-export const DAEMON_CONNECT_MESSAGE_TYPE = "daemon-connect" as const;
-export const DAEMON_DISCONNECT_MESSAGE_TYPE = "daemon-disconnect" as const;
+export const BRIDGE_CONNECT_MESSAGE_TYPE: "bridge-connect" = "bridge-connect";
+export const BRIDGE_DISCONNECT_MESSAGE_TYPE: "bridge-disconnect" = "bridge-disconnect";
+export const DAEMON_CONNECT_MESSAGE_TYPE: "daemon-connect" = "daemon-connect";
+export const DAEMON_DISCONNECT_MESSAGE_TYPE: "daemon-disconnect" = "daemon-disconnect";
 
-export const BRIDGE_CONNECT_MESSAGE_TYPES = [
+export type BridgeConnectMessageType = "bridge-connect" | "daemon-connect";
+export type BridgeDisconnectMessageType = "bridge-disconnect" | "daemon-disconnect";
+
+export const BRIDGE_CONNECT_MESSAGE_TYPES: readonly BridgeConnectMessageType[] = [
   BRIDGE_CONNECT_MESSAGE_TYPE,
   DAEMON_CONNECT_MESSAGE_TYPE,
-] as const;
+];
 
-export const BRIDGE_DISCONNECT_MESSAGE_TYPES = [
+export const BRIDGE_DISCONNECT_MESSAGE_TYPES: readonly BridgeDisconnectMessageType[] = [
   BRIDGE_DISCONNECT_MESSAGE_TYPE,
   DAEMON_DISCONNECT_MESSAGE_TYPE,
-] as const;
-
-export type BridgeConnectMessageType = (typeof BRIDGE_CONNECT_MESSAGE_TYPES)[number];
-export type BridgeDisconnectMessageType = (typeof BRIDGE_DISCONNECT_MESSAGE_TYPES)[number];
+];
 
 export function isBridgeConnectMessageType(messageType: string): boolean {
   return messageType === BRIDGE_CONNECT_MESSAGE_TYPE || messageType === DAEMON_CONNECT_MESSAGE_TYPE;
@@ -82,34 +82,40 @@ export function isBridgeDisconnectMessageType(messageType: string): boolean {
 function createConnectMessage(
   messageType: BridgeConnectMessageType,
   pairingUrl: string,
+  tabId?: number,
 ): BusMessage {
   return {
     protocolVersion: "1.0.0",
     messageId: `${messageType}-${Date.now()}`,
     messageType,
     targetRoute: "background",
+    ...(tabId !== undefined ? { tabId } : {}),
     payload: { pairingUrl } satisfies BridgeConnectPayload,
     timestamp: Date.now(),
   };
 }
 
-function createDisconnectMessage(messageType: BridgeDisconnectMessageType): BusMessage {
+function createDisconnectMessage(
+  messageType: BridgeDisconnectMessageType,
+  tabId?: number,
+): BusMessage {
   return {
     protocolVersion: "1.0.0",
     messageId: `${messageType}-${Date.now()}`,
     messageType,
     targetRoute: "background",
+    ...(tabId !== undefined ? { tabId } : {}),
     payload: {},
     timestamp: Date.now(),
   };
 }
 
-export function createBridgeConnectMessage(pairingUrl: string): BusMessage {
-  return createConnectMessage(BRIDGE_CONNECT_MESSAGE_TYPE, pairingUrl);
+export function createBridgeConnectMessage(pairingUrl: string, tabId?: number): BusMessage {
+  return createConnectMessage(BRIDGE_CONNECT_MESSAGE_TYPE, pairingUrl, tabId);
 }
 
-export function createBridgeDisconnectMessage(): BusMessage {
-  return createDisconnectMessage(BRIDGE_DISCONNECT_MESSAGE_TYPE);
+export function createBridgeDisconnectMessage(tabId?: number): BusMessage {
+  return createDisconnectMessage(BRIDGE_DISCONNECT_MESSAGE_TYPE, tabId);
 }
 
 export function createDaemonConnectMessage(pairingUrl: string): BusMessage {

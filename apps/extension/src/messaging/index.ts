@@ -19,6 +19,7 @@ export {
   MessageBus,
   type MessageBusOptions,
 } from "./bus.js";
+export { createChromeMessageContext } from "./chrome-message-context.js";
 export {
   checkSendPermission,
   type PermissionResult,
@@ -33,6 +34,14 @@ export {
   createWebNavigationFrameProvider,
   discoverFrames,
 } from "./frame-discovery.js";
+export {
+  type BackgroundOperationRelayOptions,
+  createInteractionOperationMessage,
+  createTrustedPanelOperationMessage,
+  installBackgroundOperationRelay,
+  type PanelOperationSubscriptionOptions,
+  subscribePanelOperations,
+} from "./operation-relay.js";
 export {
   BRIDGE_CONNECT_MESSAGE_TYPE,
   BRIDGE_CONNECT_MESSAGE_TYPES,
@@ -55,7 +64,6 @@ export {
   createHostAccessChangedMessage,
   createInspectorEditMessage,
   createInteractionModeMessage,
-  createInteractionOperationMessage,
   createMultiSelectGroupMessage,
   createRequestComponentPropsMessage,
   createSelectElementMessage,

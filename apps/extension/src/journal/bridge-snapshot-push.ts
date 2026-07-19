@@ -13,7 +13,9 @@ import type { SelectionSummary } from "@vision-control/inspector-core";
 import { buildPanelContextExport } from "../components/journal/context-export.js";
 
 export interface BridgeSnapshotPushOptions {
-  readonly getClient: () => BridgeClient | undefined;
+  readonly getClient: () =>
+    | Pick<BridgeClient, "state" | "pushSnapshot" | "clearTab" | "focusTab">
+    | undefined;
   readonly getJournal: (tabId: number) => Journal;
   readonly getSessionId: (tabId: number) => string | undefined;
   readonly now?: () => number;
@@ -28,6 +30,7 @@ export interface BridgeSnapshotPushController {
   readonly pushForTab: (tabId: number) => void;
   /** Drop per-tab selection + rev when the tab closes. */
   readonly clearTab: (tabId: number) => void;
+  readonly focusTab: (tabId: number) => void;
   readonly dispose: () => void;
 }
 
@@ -110,8 +113,28 @@ export function createBridgeSnapshotPushController(
     pushForTab,
 
     clearTab(tabId: number): void {
+      const client = options.getClient();
+      const sessionId = options.getSessionId(tabId);
+      if (client !== undefined && client.state === "connected") {
+        client.clearTab({
+          tabId: String(tabId),
+          ...(sessionId !== undefined ? { sessionId } : {}),
+        });
+      }
       selections.delete(tabId);
       snapshotRevByTab.delete(tabId);
+    },
+
+    focusTab(tabId: number): void {
+      const client = options.getClient();
+      if (client === undefined || client.state !== "connected") {
+        return;
+      }
+      const sessionId = options.getSessionId(tabId);
+      client.focusTab({
+        tabId: String(tabId),
+        ...(sessionId !== undefined ? { sessionId } : {}),
+      });
     },
 
     dispose(): void {

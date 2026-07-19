@@ -22,7 +22,7 @@
  * rules handle the element-level layer the schema cannot encode.
  */
 
-import { REDACTED_MARKER } from "@vision-control/security";
+import { isSensitiveKey, REDACTED_MARKER } from "@vision-control/security";
 import { z } from "zod";
 
 import type {
@@ -167,6 +167,9 @@ export interface TargetRedactionResult {
 
 const alreadyRedacted = (value: string): boolean => value.startsWith(REDACTED_MARKER);
 
+const SENSITIVE_ATTRIBUTE_PATTERN_ID = "sensitive-attribute";
+const SENSITIVE_ATTRIBUTE_DESCRIPTION = "Value of a credential-bearing DOM attribute was masked.";
+
 /**
  * Apply selector redaction to a projected target. Pure, non-mutating, and
  * idempotent: a value already carrying the {@link REDACTED_MARKER} is left
@@ -185,13 +188,23 @@ export const redactTarget = (
   const matched = rules.filter((rule) =>
     descriptorMatches(target.semantic, target.attributes, rule.match),
   );
-  if (matched.length === 0) {
+  const credentialRedactions: PrivacyReportRedaction[] = [];
+  let attributes = target.attributes.map((entry) => {
+    if (!isSensitiveKey(entry.name) || alreadyRedacted(entry.value)) return entry;
+    credentialRedactions.push({
+      field: `target.attributes.${entry.name}`,
+      patternId: SENSITIVE_ATTRIBUTE_PATTERN_ID,
+      description: SENSITIVE_ATTRIBUTE_DESCRIPTION,
+      source: "selector",
+    });
+    return { name: entry.name, value: `[REDACTED:${SENSITIVE_ATTRIBUTE_PATTERN_ID}]` };
+  });
+  if (matched.length === 0 && credentialRedactions.length === 0) {
     return { target, redactions: [] };
   }
 
-  let attributes = target.attributes;
   let textContentPreview = target.semantic.textContentPreview;
-  const redactions: PrivacyReportRedaction[] = [];
+  const redactions: PrivacyReportRedaction[] = [...credentialRedactions];
 
   for (const rule of matched) {
     if (rule.action === "mask-value") {

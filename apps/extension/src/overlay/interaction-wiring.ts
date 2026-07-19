@@ -1,43 +1,9 @@
-/**
- * Instantiates and binds the three interaction controllers (reorder, resize,
- * reparent) to the overlay runtime's real dependencies.
- *
- * Each controller emits source-intent operations through a different seam:
- * - {@link ReorderController} calls a `recordOperation` callback.
- * - {@link createResizeController} sends on the bus AND (optionally) the
- *   `onRecordOperation` callback added for journal funneling.
- * - {@link createReparentController} records through a `journal`-shaped object.
- *
- * This module unifies those seams into one funnel that records into the change
- * journal AND forwards the operation to the panel via the bus. It owns a
- * session-scoped {@link Journal} holder and drives controller selection state
- * (reorder's selected element + resize's attach context) from a single
- * {@link onSelectionChange} entry point.
- *
- * PRD constraint 2 (Appendix D.2) is respected by construction: none of the
- * three controllers emit `position-element`. The adversarial guard lives in the
- * controller-layer context checks (`isNormalFlowRole`) and the layout-engine
- * free-position factory; this wiring never introduces a position-element path.
- */
-
-import { createOperationId, type Operation } from "@vision-control/change-ir";
-import {
-  appendEntry,
-  createJournal,
-  createJournalEntry,
-  type Journal,
-  JournalSchema,
-} from "@vision-control/change-journal";
+import type { Operation } from "@vision-control/change-ir";
+import type { Journal } from "@vision-control/change-journal";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
-import type { ElementRef } from "@vision-control/element-identity";
-import type { Rect } from "@vision-control/geometry";
-import type { LayoutComputedStyle } from "@vision-control/layout-engine";
-import {
-  createDropIndicator,
-  createDropTargetHighlighter,
-  type OverlayElement,
-} from "@vision-control/overlay-ui";
-import { PREVIEW_ID_ATTR, type PreviewManager } from "@vision-control/preview-engine";
+import type { OverlayElement } from "@vision-control/overlay-ui";
+import type { PreviewManager } from "@vision-control/preview-engine";
+
 import {
   createReparentController,
   type ReparentController,
@@ -49,20 +15,29 @@ import {
 } from "../components/interaction/ReorderController.js";
 import {
   createResizeController,
-  type SelectedElementContext,
+  type ResizeDiagnostic,
 } from "../components/interaction/ResizeController.js";
-import {
-  createJournalRequestMessage,
-  JOURNAL_STATE_TYPE,
-  parseJournalStatePayload,
-} from "../journal/journal-messages.js";
+import { createMoveRejectionStatusMessage } from "../messaging/move-rejection-messages.js";
+import { createFlexResizeStatusMessage } from "../messaging/resize-messages.js";
 import { createGridDragController, type GridDragController } from "./grid-drag-controller.js";
 import { createGroupMoveRouter, type GroupMoveRouter } from "./group-move-router.js";
+import {
+  createInteractionOperationRecorder,
+  type InteractionOperationRecorderBus,
+} from "./interaction-operation-recorder.js";
+import { createInteractionReparentFeedback } from "./interaction-reparent-feedback.js";
+import type { SelectionContext } from "./interaction-selection-capture.js";
 import type { OverlayRuntimeBus } from "./overlay-runtime.js";
 import {
   createReparentDragController,
   type ReparentDragController,
 } from "./reparent-drag-controller.js";
+
+export type { SelectionContext } from "./interaction-selection-capture.js";
+export {
+  captureSelectionContext,
+  getOrAssignPreviewRuntimeId,
+} from "./interaction-selection-capture.js";
 
 export interface InteractionWiringOptions {
   readonly overlayElement: OverlayElement;
@@ -71,20 +46,14 @@ export interface InteractionWiringOptions {
   readonly bus: InteractionBus;
   readonly document?: Document;
   readonly onDiagnostic?: (diagnostic: ReorderDiagnostic) => void;
+  readonly onResizeDiagnostic?: (diagnostic: ResizeDiagnostic) => void;
   readonly onReparentStateChange?: ReparentControllerCallbacks["onStateChange"];
   readonly onOperationApplied?: (operation: Operation) => void;
 }
 
-export interface InteractionBus {
+export interface InteractionBus extends InteractionOperationRecorderBus {
   readonly send: OverlayRuntimeBus["send"];
   readonly on: OverlayRuntimeBus["on"];
-}
-
-export interface SelectionContext {
-  readonly element: Element;
-  readonly elementRef: ElementRef;
-  readonly rect: Rect;
-  readonly computedStyle: LayoutComputedStyle;
 }
 
 export interface InteractionControllers {
@@ -102,6 +71,14 @@ export interface InteractionControllers {
   readonly dispose: () => void;
 }
 
+const isMultiSelectGroup = (payload: unknown): payload is MultiSelectGroup =>
+  typeof payload === "object" &&
+  payload !== null &&
+  "id" in payload &&
+  "members" in payload &&
+  "boundingRect" in payload &&
+  "shadowRootCompatible" in payload;
+
 export function createInteractionControllers(
   options: InteractionWiringOptions,
 ): InteractionControllers {
@@ -110,141 +87,53 @@ export function createInteractionControllers(
   if (!(overlayRoot instanceof ShadowRoot)) {
     throw new Error("Interaction overlay container must be attached to a shadow root");
   }
-  const dropTargetHighlighter = createDropTargetHighlighter(overlayRoot);
 
-  const changeSetId = createOperationId();
-  let journal: Journal = createJournal();
-  let sequence = 0;
-  const recorded: Operation[] = [];
-  let selectedContext: SelectionContext | null = null;
-  let contentTabId: number | undefined;
-
-  const nextSequenceFor = (next: Journal): number => {
-    let nextSequence = 0;
-    for (const entry of next.entries) {
-      nextSequence = Math.max(nextSequence, entry.sequence + 1);
-    }
-    return nextSequence;
-  };
-
-  const applyRestoredJournal = (next: Journal): void => {
-    journal = next;
-    sequence = nextSequenceFor(next);
-    recorded.length = 0;
-    for (const entry of next.entries) {
-      recorded.push(entry.operation);
-    }
-  };
-
-  const journalStateUnsub = bus.on(JOURNAL_STATE_TYPE, (message) => {
-    const payload = parseJournalStatePayload(message.payload);
-    if (payload === null || payload.journal === null) {
-      return;
-    }
-    if (contentTabId !== undefined && payload.tabId !== contentTabId) {
-      return;
-    }
-    contentTabId = payload.tabId;
-    const parsed = JournalSchema.safeParse(payload.journal);
-    if (!parsed.success) {
-      return;
-    }
-    applyRestoredJournal(parsed.data);
+  const recorder = createInteractionOperationRecorder({
+    bus,
+    ...(options.onOperationApplied !== undefined
+      ? { onOperationApplied: options.onOperationApplied }
+      : {}),
   });
-
-  bus.send("background", createJournalRequestMessage());
-
-  const recordOperation = (operation: Operation): void => {
-    options.onOperationApplied?.(operation);
-    recorded.push(operation);
-    journal = appendEntry(
-      journal,
-      createJournalEntry({
-        id: createOperationId(),
-        changeSetId,
-        transactionId: createOperationId(),
-        sequence: sequence,
-        operation,
-      }),
-    );
-    sequence += 1;
-    bus.send("panel", {
-      protocolVersion: "1.0.0",
-      messageId: `interaction-operation-${operation.id}`,
-      messageType: "interaction-operation",
-      payload: operation,
-      timestamp: Date.now(),
-    });
+  let selectedContext: SelectionContext | null = null;
+  const publishMoveRejection = (message: string | null): void => {
+    bus.send("panel", createMoveRejectionStatusMessage(message === null ? null : { message }));
+  };
+  const reportMoveDiagnostic = (diagnostic: ReorderDiagnostic): void => {
+    publishMoveRejection(diagnostic.message);
+    options.onDiagnostic?.(diagnostic);
   };
 
   const reorder = new ReorderController({
     overlayContainer,
     previewManager,
-    recordOperation,
+    recordOperation: recorder.record,
     onDiagnostic: options.onDiagnostic ?? (() => {}),
+    onMoveRejection: reportMoveDiagnostic,
   });
-  const reparentDropIndicator = createDropIndicator(overlayContainer);
-
   const resize = createResizeController({
     overlayElement,
     previewEngine: previewManager,
     bus,
-    onRecordOperation: recordOperation,
+    onRecordOperation: recorder.record,
+    onDiagnostic: options.onResizeDiagnostic ?? (() => {}),
+    onStatus: (status) => bus.send("panel", createFlexResizeStatusMessage(status)),
   });
-
-  const reparentCallbacks: ReparentControllerCallbacks = {
-    onStateChange: options.onReparentStateChange ?? (() => {}),
-    onHighlight: (state) => {
-      if (state === null) {
-        dropTargetHighlighter.clear();
-        reparentDropIndicator.hideDropIndicator();
-        return;
-      }
-      dropTargetHighlighter.highlight({
-        rect: state.rect,
-        validity: state.validity === "valid" ? "valid" : "invalid",
-        ...(state.warning !== null ? { warning: state.warning } : {}),
-      });
-      const indicatorRect =
-        state.insertion.axis === "x"
-          ? {
-              x: state.insertion.position - 1,
-              y: state.rect.y,
-              width: 2,
-              height: state.rect.height,
-            }
-          : {
-              x: state.rect.x,
-              y: state.insertion.position - 1,
-              width: state.rect.width,
-              height: 2,
-            };
-      reparentDropIndicator.showDropIndicator(
-        indicatorRect,
-        state.insertion.axis === "x" ? "vertical" : "horizontal",
-      );
-    },
-  };
+  const reparentFeedback = createInteractionReparentFeedback({
+    overlayRoot,
+    overlayContainer,
+    ...(options.onReparentStateChange !== undefined
+      ? { onStateChange: options.onReparentStateChange }
+      : {}),
+  });
   const reparent = createReparentController({
-    callbacks: reparentCallbacks,
+    callbacks: reparentFeedback.callbacks,
     previewEngine: previewManager,
-    journal: { record: recordOperation },
+    journal: { record: recorder.record },
   });
-
-  // Group-move router (plan task 3): the wiring caches the latest
-  // multi-select group from the bus (task 2 publishes it) and routes a group
-  // drag to reorder.reorderGroup (same-parent) or reparent.reparentGroup
-  // (cross-parent). D41 is enforced inside classifyGroupMove in both paths.
   const groupMove = createGroupMoveRouter({ reorder, reparent });
-  const groupMoveUnsub = bus.on("multi-select-group", (message) => {
-    groupMove.setGroup(message.payload as MultiSelectGroup);
+  const groupMoveUnsubscribe = bus.on("multi-select-group", (message) => {
+    if (isMultiSelectGroup(message.payload)) groupMove.setGroup(message.payload);
   });
-
-  // Grid-drag router (plan task 4): routes a CSS-Grid drag to
-  // reorder.reorderGrid, which resolves the visual goal through resolveGridIntent
-  // (dom-order vs grid-area) and records a grid-reorder op. Defaults
-  // userChoice "unset" -> grid-area (never a silent DOM-order rewrite); the
-  // reading-order a11y warning is surfaced via the onDiagnostic callback below.
   const gridDrag = createGridDragController({ reorder });
   const reparentDrag: ReparentDragController = createReparentDragController({
     document: options.document ?? document,
@@ -255,20 +144,17 @@ export function createInteractionControllers(
 
   const onSelectionChange = (context: SelectionContext | null): void => {
     selectedContext = context;
+    publishMoveRejection(null);
     reorder.setSelectedElement(context?.element ?? null);
     if (context === null) {
       resize.detach();
       return;
     }
-    const resizeContext: SelectedElementContext = {
-      element: context.elementRef,
-      rect: context.rect,
-      computedStyle: context.computedStyle,
-    };
-    resize.attach(resizeContext);
+    resize.attach(context.resize);
   };
 
   const attach = (): void => {
+    publishMoveRejection(null);
     reparentDrag.attach();
     reorder.attach();
   };
@@ -276,8 +162,8 @@ export function createInteractionControllers(
   const detachMove = (): void => {
     reparentDrag.detach();
     reorder.detach();
-    dropTargetHighlighter.clear();
-    reparentDropIndicator.hideDropIndicator();
+    reparentFeedback.clear();
+    publishMoveRejection(null);
   };
 
   const detach = (): void => {
@@ -288,8 +174,8 @@ export function createInteractionControllers(
   const dispose = (): void => {
     detach();
     resize.destroy();
-    groupMoveUnsub();
-    journalStateUnsub();
+    groupMoveUnsubscribe();
+    recorder.dispose();
   };
 
   return {
@@ -302,39 +188,8 @@ export function createInteractionControllers(
     detachMove,
     detach,
     onSelectionChange,
-    getJournal: () => journal,
-    getRecordedOperations: () => recorded,
+    getJournal: recorder.getJournal,
+    getRecordedOperations: recorder.getRecordedOperations,
     dispose,
   };
-}
-
-/**
- * Build a {@link SelectionContext} from a live DOM element. Reuses the
- * preview-engine's `data-vc-preview-id` attribute as the runtime id so the
- * reorder controller and resize controller share one element identity.
- */
-export function buildSelectionContext(element: Element): SelectionContext {
-  const domRect = element.getBoundingClientRect();
-  const style = window.getComputedStyle(element);
-  const runtimeId = getOrAssignPreviewRuntimeId(element);
-  return {
-    element,
-    elementRef: { runtimeId, tagName: element.tagName.toLowerCase() },
-    rect: { x: domRect.left, y: domRect.top, width: domRect.width, height: domRect.height },
-    computedStyle: {
-      display: style.display,
-      flexDirection: style.flexDirection,
-      position: style.position,
-    },
-  };
-}
-
-export function getOrAssignPreviewRuntimeId(element: Element): string {
-  return element.getAttribute(PREVIEW_ID_ATTR) ?? assignPreviewId(element);
-}
-
-function assignPreviewId(element: Element): string {
-  const id = `vc-interaction-${createOperationId()}`;
-  element.setAttribute(PREVIEW_ID_ATTR, id);
-  return id;
 }

@@ -46,7 +46,7 @@ import {
   type GridPlacementController,
 } from "./grid-placement-controller.js";
 import {
-  buildSelectionContext,
+  captureSelectionContext,
   createInteractionControllers,
   getOrAssignPreviewRuntimeId,
   type InteractionControllers,
@@ -205,7 +205,12 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   const gridPlacement: GridPlacementController = createGridPlacementController({ bus });
 
   const notifySelection = (target: Element): void => {
-    const context = buildSelectionContext(target);
+    const captured = captureSelectionContext(target);
+    if (!captured.ok) {
+      controllers?.onSelectionChange(null);
+      return;
+    }
+    const context = captured.context;
     previewDom.registerElement(context.elementRef.runtimeId, target);
     controllers?.onSelectionChange(context);
     gridPlacement.onSelection(target);

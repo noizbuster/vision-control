@@ -1,5 +1,7 @@
 import { CHANGE_IR_SCHEMA_VERSION, type ChangeSet } from "./changeset.js";
+import { conflictSignatures } from "./conflict-signatures.js";
 import { DEFAULT_VERIFICATION_PLAN } from "./context.js";
+import { type ElementIdentity, sameElementIdentity } from "./element-identity.js";
 import { createOperationId } from "./operation-base.js";
 import type { Operation } from "./operations/index.js";
 import { DEFAULT_PRIVACY_REPORT } from "./privacy.js";
@@ -13,76 +15,45 @@ export type MergeResult =
   | { readonly ok: true; readonly changeSet: ChangeSet }
   | { readonly ok: false; readonly conflicts: readonly MergeConflict[] };
 
-/**
- * Signature of the logical "slot" an operation edits. Two operations with the
- * same signature touch the same element property / structural slot and
- * conflict unless one is a documented inverse of the other (structural or
- * `inverseOf`-linked). Returns `undefined` for operations that cannot
- * meaningfully conflict (metadata markers, group-spanning ops).
- */
-const conflictSignature = (op: Operation): string | undefined => {
-  switch (op.kind) {
-    case "style-edit":
-    case "remove-style":
-      return `style:${op.target.runtimeId}:${op.property}`;
-    case "text-edit":
-      return `text:${op.target.runtimeId}`;
-    case "class-add":
-    case "class-remove":
-      return `class:${op.target.runtimeId}:${op.className}`;
-    case "class-replace":
-      return `class:${op.target.runtimeId}:${op.oldClassName}`;
-    case "set-attribute":
-      return `attribute:${op.target.runtimeId}:${op.name}`;
-    case "set-component-prop":
-      return `component-prop:${op.target.runtimeId}:${op.componentName}:${op.propName}`;
-    case "position-element":
-      return `position:${op.target.runtimeId}:${op.property}`;
-    case "resize-element":
-      return `resize:${op.element.runtimeId}:${op.property}`;
-    case "reorder-child":
-      return `reorder:${op.parent.runtimeId}:${op.child.runtimeId}`;
-    case "reparent-element":
-      return `reparent:${op.element.runtimeId}`;
-    case "set-container-layout":
-      return `container-layout:${op.container.runtimeId}:${op.property}`;
-    case "set-child-sizing":
-      return `child-sizing:${op.container.runtimeId}:${op.childIndex}:${op.sizing}`;
-    case "grid-reorder":
-      return `grid-reorder:${op.grid.runtimeId}:${op.child.runtimeId}`;
-    case "grid-span":
-      return `grid-span:${op.grid.runtimeId}:${op.child.runtimeId}:${op.axis}`;
-    case "breakpoint-style-edit":
-      return `bp-style:${op.target.runtimeId}:${op.breakpoint}:${op.property}`;
-    case "breakpoint-class-edit":
-      return `bp-class:${op.target.runtimeId}:${op.breakpoint}:${op.oldClassName}`;
-    case "breakpoint-text-edit":
-      return `bp-text:${op.target.runtimeId}:${op.breakpoint}`;
-    case "group-reorder":
-      return `group-reorder:${op.parent.runtimeId}`;
-    case "group-reparent":
-      return `group-reparent:${op.elements[0]?.runtimeId ?? ""}`;
-    case "insert-element":
-      return `structural-element:${op.element.runtimeId}`;
-    case "remove-element":
-      return `structural-element:${op.element.runtimeId}`;
-    case "duplicate-element":
-      return `structural-element:${op.duplicate.runtimeId}`;
-    case "wrap-elements":
-      return `structural-wrapper:${op.wrapper.runtimeId}`;
-    case "unwrap-element":
-      return `structural-wrapper:${op.wrapper.runtimeId}`;
-    default:
-      // multi-select-group, align-elements, distribute-elements,
-      // screenshot-crop-ref, and suggested-diff are metadata/no-op markers or
-      // group-spanning ops that do not occupy a single conflicting slot.
-      return undefined;
-  }
-};
-
 const isInversePair = (a: Operation, b: Operation): boolean =>
   (b.inverseOf !== undefined && b.inverseOf === a.id) ||
   (a.inverseOf !== undefined && a.inverseOf === b.id);
+
+type CssConflictSlot = {
+  readonly element: ElementIdentity;
+  readonly property: string;
+};
+
+const cssConflictSlots = (operation: Operation): readonly CssConflictSlot[] => {
+  switch (operation.kind) {
+    case "style-edit":
+    case "remove-style":
+      return [{ element: operation.target, property: operation.property }];
+    case "resize-element":
+      return [{ element: operation.element, property: operation.property }];
+    case "resize-flex-pair":
+      return operation.members.flatMap((member) =>
+        ["flex-grow", "flex-shrink", "flex-basis"].map((property) => ({
+          element: member.element,
+          property,
+        })),
+      );
+    default:
+      return [];
+  }
+};
+
+const flexPairAliasSignature = (a: Operation, b: Operation): string | undefined => {
+  if (a.kind !== "resize-flex-pair" && b.kind !== "resize-flex-pair") return undefined;
+  for (const slotA of cssConflictSlots(a)) {
+    for (const slotB of cssConflictSlots(b)) {
+      if (slotA.property === slotB.property && sameElementIdentity(slotA.element, slotB.element)) {
+        return `css:${slotA.element.runtimeId}:${slotA.property}`;
+      }
+    }
+  }
+  return undefined;
+};
 
 /**
  * Two operations are structural inverses when they target the same element and
@@ -152,28 +123,41 @@ export const mergeOperations = (operations: readonly Operation[]): Operation[] =
 export const mergeChangeSets = (a: ChangeSet, b: ChangeSet): MergeResult => {
   const sigsA = new Map<string, Operation[]>();
   for (const op of a.operations) {
-    const sig = conflictSignature(op);
-    if (sig === undefined) continue;
-    const bucket = sigsA.get(sig);
-    if (bucket === undefined) sigsA.set(sig, [op]);
-    else bucket.push(op);
+    for (const signature of conflictSignatures(op)) {
+      const bucket = sigsA.get(signature);
+      if (bucket === undefined) sigsA.set(signature, [op]);
+      else bucket.push(op);
+    }
   }
   const conflicts: MergeConflict[] = [];
   for (const opB of b.operations) {
-    const sig = conflictSignature(opB);
-    if (sig === undefined) continue;
-    const opAs = sigsA.get(sig);
-    if (opAs === undefined) continue;
-    const allowsThrough = opAs.some(
-      (opA) => structuralInversePair(opA, opB) || isInversePair(opA, opB),
-    );
-    if (!allowsThrough) {
-      const counterpart = opAs[0];
-      if (counterpart === undefined) continue;
-      conflicts.push({
-        reason: `Conflicting edit on "${sig}" present in both changesets without an inverse`,
-        operationIds: [counterpart.id, opB.id],
-      });
+    for (const signature of conflictSignatures(opB)) {
+      const opAs = sigsA.get(signature);
+      if (opAs === undefined) continue;
+      const counterpart = opAs.find(
+        (opA) => !structuralInversePair(opA, opB) && !isInversePair(opA, opB),
+      );
+      if (counterpart !== undefined) {
+        conflicts.push({
+          reason: `Conflicting edit on "${signature}" present in both changesets without an inverse`,
+          operationIds: [counterpart.id, opB.id],
+        });
+      }
+    }
+    for (const opA of a.operations) {
+      const signature = flexPairAliasSignature(opA, opB);
+      if (
+        signature !== undefined &&
+        !isInversePair(opA, opB) &&
+        !conflicts.some(
+          (conflict) => conflict.operationIds[0] === opA.id && conflict.operationIds[1] === opB.id,
+        )
+      ) {
+        conflicts.push({
+          reason: `Conflicting edit on "${signature}" present in both changesets without an inverse`,
+          operationIds: [opA.id, opB.id],
+        });
+      }
     }
   }
   if (conflicts.length > 0) return { ok: false, conflicts };

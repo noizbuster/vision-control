@@ -18,16 +18,18 @@ export interface DeserializeError {
  * Serialize a ChangeSet to a deterministic JSON string. The input is validated
  * through {@link ChangeSetSchema} first, so the output keys follow stable
  * schema insertion order regardless of how the caller constructed the object —
- * snapshot-friendly. Never throws on valid ChangeSets.
+ * snapshot-friendly. JSON canonical semantics apply: negative zero becomes
+ * zero and object properties valued `undefined` are omitted. Never throws on
+ * valid ChangeSets.
  */
 export const serializeChangeSet = (cs: ChangeSet): string =>
   JSON.stringify(ChangeSetSchema.parse(cs));
 
 /**
- * Deserialize a JSON string into a typed ChangeSet. Never throws: invalid JSON
- * or schema failures return a `{ success: false, error }` result. The `runtime`
- * anti-cheat flag on each operation survives the round-trip because it is a
- * regular schema field.
+ * Deserialize a JSON string into a canonical ChangeSet. Valid 2.0.0 input is
+ * migrated to 2.1.0 by ChangeSetSchema. Invalid JSON or schema failures return
+ * a `{ success: false, error }` result. The `runtime` anti-cheat flag on each
+ * operation survives the round-trip because it is a regular schema field.
  */
 export const deserializeChangeSet = (input: string): DeserializeResult => {
   let parsed: unknown;

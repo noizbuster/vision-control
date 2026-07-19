@@ -8,8 +8,8 @@ import { z } from "zod";
  * parallel; importing it here would create a dependency cycle or a file
  * conflict during parallel execution. This minimal string-based reference is
  * structurally compatible with the future ElementRef from element-identity
- * (same fields: `runtimeId`, `sourceId?`, `selector?`). Later tasks can align
- * the types once element-identity lands. See decisions.md (VC-MVP-06).
+ * (`runtimeId`, optional source id, and optional durable selector identity).
+ * See decisions.md (VC-MVP-06).
  *
  * Anti-cheat note: this type identifies an element for an operation but says
  * nothing about whether the operation is a source change or a runtime preview
@@ -23,6 +23,8 @@ export const ElementRefSchema = z.object({
   sourceId: z.string().optional(),
   /** CSS selector fallback for elements without a stable id. */
   selector: z.string().optional(),
+  occurrence: z.number().int().nonnegative().optional(),
+  fingerprint: z.string().min(1).optional(),
 });
 
 export type ElementRef = z.infer<typeof ElementRefSchema>;

@@ -1,6 +1,6 @@
 # change-ir schema version
 
-Current: **2.0.0** (see `CHANGE_IR_SCHEMA_VERSION` in `changeset.ts`).
+Current: **2.1.0** (see `CHANGE_IR_SCHEMA_VERSION` in `changeset-schema.ts`).
 
 ## Versioning rule
 
@@ -9,6 +9,29 @@ kind is a MINOR bump (additive): older consumers that do not recognise the new
 `kind` discriminator will reject it via `z.discriminatedUnion` rather than
 silently misinterpreting it, so the wire is safe within a major. Removing or
 renaming a kind, or changing a field shape, is a MAJOR bump.
+
+## 2.1.0 (additive — paired flex resize)
+
+Added the `resize-flex-pair` operation. One operation carries the durable
+container and primary target identities, exactly one `primary` and one
+`neighbor` member, both members' before/after flex triples and used main sizes,
+the container rectangle transition, every non-pair rectangle witness, logical
+and physical axis metadata, and the signed delta.
+
+The canonical writer emits `2.1.0`. `ChangeSetSchema`, `serializeChangeSet`, and
+`deserializeChangeSet` accept a valid `2.0.0` document through the explicit
+compatibility boundary and return `2.1.0`. A stale `2.0.0` document cannot carry
+`resize-flex-pair`; that kind is rejected until the version is 2.1.0.
+
+Pair inversion swaps every member/container/witness before/after value and
+negates delta. Pair merge conflicts use six common CSS slots: `flex-grow`,
+`flex-shrink`, and `flex-basis` for each of the two members.
+
+Real Chromium coverage in `apps/extension/e2e/flex-pair-flow.spec.ts` proves the
+kind remains one preview transaction, one journal row, and one Undo/Redo command
+through row/column/reverse/RTL/vertical flows. This coverage does not change the
+wire shape, so the canonical version remains `2.1.0` (context `1.2.0`, extension
+snapshot `1.1.0`).
 
 ## 2.0.0 (breaking — PRD §12.2 ChangeSet reshape)
 
@@ -21,7 +44,7 @@ New required fields on every ChangeSet:
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `schemaVersion` | `"2.0.0"` | literal; enforced by `z.literal(CHANGE_IR_SCHEMA_VERSION)` |
+| `schemaVersion` | `"2.0.0"` | legacy literal; canonicalized to `"2.1.0"` on ingestion |
 | `workspaceId` | `string` | workspace the set belongs to |
 | `page` | `PageContext` | `{ url, title }` — page the set was captured against |
 | `viewport` | `ViewportContext` | `{ width, height }` — viewport in effect |
@@ -40,13 +63,13 @@ unchanged to keep the wire stable within the reshape).
 
 A v1 (≤ 1.1.0) document does **not** parse against the v2 schema — it is
 missing `schemaVersion` and the required context fields. Use
-`migrateChangeset_1_to_2(v1Json)` to lift a v1 document to a valid v2 set. The
+`migrateChangeset_1_to_2(v1Json)` to lift a v1 document to a valid current set. The
 migrator applies the R8 binding defaults for the absent fields (empty
 `selectedTargets`/`sourceResolutions`, sentinel `page`/`viewport`, stub
 `verificationPlan`/`privacyReport` carrying a "recompute via engine" note,
 `workspaceId` defaulting to the `"<unknown>"` sentinel) and re-validates the
-result through `ChangeSetSchema`. The migration is covered by round-trip and
-rejection tests in `index.test.ts`.
+result through the canonical schema. The migration is covered by round-trip and
+rejection tests in `changeset-schema.test.ts` and `serialization.test.ts`.
 
 The new context types (`PageContext`, `ViewportContext`, `SourceResolution`,
 `VerificationPlan`) live in `src/context.ts`; the real `PrivacyReport` lives in

@@ -1,5 +1,6 @@
 export {
   appendOperation,
+  type CanonicalChangeSet,
   CHANGE_IR_SCHEMA_VERSION,
   type ChangeSet,
   ChangeSetSchema,
@@ -7,9 +8,11 @@ export {
   computeInverse,
   createChangeSet,
   migrateChangeset_1_to_2,
+  migrateChangeset_2_0_to_2_1,
   removeOperation,
   withPrivacyReport,
 } from "./changeset.js";
+export { conflictSignatures, FLEX_PAIR_CSS_PROPERTIES } from "./conflict-signatures.js";
 export {
   type PageContext,
   PageContextSchema,

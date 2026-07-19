@@ -14,6 +14,7 @@ import {
   SetContainerLayoutOperationSchema,
 } from "./container-layout.js";
 import { DuplicateElementOperationSchema } from "./duplicate-element.js";
+import { ResizeFlexPairOperationSchema } from "./flex-resize.js";
 import { GridReorderOperationSchema, GridSpanOperationSchema } from "./grid.js";
 import { InsertElementOperationSchema } from "./insert-element.js";
 import {
@@ -43,6 +44,7 @@ export * from "./breakpoint.js";
 export * from "./class.js";
 export * from "./container-layout.js";
 export * from "./duplicate-element.js";
+export * from "./flex-resize.js";
 export * from "./grid.js";
 export * from "./insert-element.js";
 export * from "./multi-select.js";
@@ -83,6 +85,7 @@ export const OperationSchema = z.discriminatedUnion("kind", [
   ReparentElementOperationSchema,
   PositionElementOperationSchema,
   ResizeElementOperationSchema,
+  ResizeFlexPairOperationSchema,
   MultiSelectGroupOperationSchema,
   GroupReorderOperationSchema,
   GroupReparentOperationSchema,
@@ -124,6 +127,7 @@ export const OPERATION_KINDS = [
   "reparent-element",
   "position-element",
   "resize-element",
+  "resize-flex-pair",
   "multi-select-group",
   "group-reorder",
   "group-reparent",

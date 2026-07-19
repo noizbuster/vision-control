@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConnectionState } from "../messaging/index.js";
 import { PairingPanel } from "./PairingPanel.js";
 
-const VALID_URL = "vision-control://pair?token=abc&port=8080&host=127.0.0.1";
+const VALID_URL = "vision-control://pair?token=abc&port=4322&host=127.0.0.1";
 
 afterEach(() => {
   cleanup();
@@ -88,11 +88,10 @@ describe("PairingPanel — bare token fallback (defaults host/port)", () => {
     fireEvent.click(screen.getByRole("button", { name: /pair agent/i }));
 
     expect(onConnect).toHaveBeenCalledOnce();
-    const sentUrl = onConnect.mock.calls[0]?.[0] as string;
-    expect(sentUrl.startsWith("vision-control://pair?")).toBe(true);
-    expect(sentUrl).toContain("token=my-bare-token");
-    expect(sentUrl).toContain("port=4322");
-    expect(sentUrl).not.toContain("port=4321");
+    expect(onConnect).toHaveBeenCalledWith(expect.stringMatching(/^vision-control:\/\/pair\?/));
+    expect(onConnect).toHaveBeenCalledWith(expect.stringContaining("token=my-bare-token"));
+    expect(onConnect).toHaveBeenCalledWith(expect.stringContaining("port=4322"));
+    expect(onConnect).not.toHaveBeenCalledWith(expect.stringContaining("port=4321"));
   });
 });
 

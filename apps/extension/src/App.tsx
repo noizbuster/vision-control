@@ -1,26 +1,23 @@
-import type { Operation } from "@vision-control/change-ir";
-import type { AlignmentCommandKind } from "@vision-control/layout-engine";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
-import type { PropEditCommand } from "./components/editors/PropsPanel.js";
-import { HostAllowlistPanel } from "./components/HostAllowlistPanel.js";
-import { AlignmentPanel } from "./components/inspector/AlignmentPanel.js";
-import { AutoLayoutPanel } from "./components/inspector/AutoLayoutPanel.js";
-import { InspectorPanel } from "./components/inspector/InspectorPanel.js";
+import { InspectorEditorSlots } from "./components/inspector/InspectorEditorSlots.js";
 import { buildAgentPrompt } from "./components/journal/agent-prompt.js";
 import { ChangeJournal } from "./components/journal/ChangeJournal.js";
 import { PairingPanel } from "./components/PairingPanel.js";
+import { PanelDiagnostics } from "./components/PanelDiagnostics.js";
 import { useComponentProps } from "./hooks/useComponentProps.js";
 import { useConnectionState } from "./hooks/useConnectionState.js";
 import { useContextExport } from "./hooks/useContextExport.js";
 import type { EditorMode } from "./hooks/useEditor.js";
 import { useEditor } from "./hooks/useEditor.js";
+import { useFlexResizeStatus } from "./hooks/useFlexResizeStatus.js";
 import { useFrameTree } from "./hooks/useFrameTree.js";
 import { useGridPlacement } from "./hooks/useGridPlacement.js";
 import { useInspectedTab } from "./hooks/useInspectedTab.js";
 import { useJournal } from "./hooks/useJournal.js";
 import { useJournalPersistence } from "./hooks/useJournalPersistence.js";
+import { useMoveRejection } from "./hooks/useMoveRejection.js";
 import { useMultiSelect } from "./hooks/useMultiSelect.js";
 import { usePanelBus } from "./hooks/usePanelBus.js";
 import { useSelectionCopyContext } from "./hooks/useSelectionCopyContext.js";
@@ -28,37 +25,21 @@ import { useSelectionSummary } from "./hooks/useSelectionSummary.js";
 import { useSession } from "./hooks/useSession.js";
 import { useTheme } from "./hooks/useTheme.js";
 import {
-  buildAlignmentOperation,
-  buildGridReorderOperation,
-  buildGridSpanOperation,
-} from "./inspector-slot-commands.js";
-import {
   isPanelInteractionMode,
   sendInteractionModeToRouteableFrames,
 } from "./interaction-mode-routing.js";
-import type { BusMessage, FrameInfo } from "./messaging/index.js";
 import {
   createBridgeConnectMessage,
   createBridgeDisconnectMessage,
   createClearPreviewMessage,
   createEditorCommandMessage,
+  subscribePanelOperations,
 } from "./messaging/index.js";
 import "./styles/variables.css";
 import "./styles/panel-shell.css";
 import "./styles/inspector.css";
+import "./styles/flex-resize-status.css";
 import "./styles/journal.css";
-
-function FrameTreeItem({ frame }: { readonly frame: FrameInfo }): ReactElement {
-  return (
-    <li
-      className={`frame-tree__item frame-tree__item--${frame.routeable ? "routeable" : "opaque"}`}
-    >
-      <span className="frame-tree__frame-id">{frame.frameId}</span>
-      <span className="frame-tree__origin">{frame.origin || "unknown"}</span>
-      <span className="frame-tree__routeable">{frame.routeable ? "routeable" : "opaque"}</span>
-    </li>
-  );
-}
 
 export function App(): ReactElement {
   const { theme } = useTheme();
@@ -71,6 +52,8 @@ export function App(): ReactElement {
   const { group: multiSelectGroup } = useMultiSelect(bus);
   const { state: gridPlacementState } = useGridPlacement(bus);
   const { componentProps } = useComponentProps(bus, summary);
+  const flexResizeStatus = useFlexResizeStatus(bus);
+  const moveRejection = useMoveRejection(bus);
   const editor = useEditor();
   const routedInteractionMode = isPanelInteractionMode(editor.state.mode)
     ? editor.state.mode
@@ -119,26 +102,13 @@ export function App(): ReactElement {
   const recordRemoteRef = useRef(journal.recordRemote);
   recordRemoteRef.current = journal.recordRemote;
   useEffect(() => {
-    if (bus === undefined) return;
-    const recordRemoteOperation = (message: BusMessage): void => {
-      const payload = message.payload;
-      if (
-        typeof payload !== "object" ||
-        payload === null ||
-        typeof (payload as { kind?: unknown }).kind !== "string" ||
-        typeof (payload as { id?: unknown }).id !== "string"
-      ) {
-        return;
-      }
-      recordRemoteRef.current(payload as Operation);
-    };
-    const unsubscribeInspectorEdit = bus.on("inspector-edit", recordRemoteOperation);
-    const unsubscribeInteractionOperation = bus.on("interaction-operation", recordRemoteOperation);
-    return () => {
-      unsubscribeInspectorEdit();
-      unsubscribeInteractionOperation();
-    };
-  }, [bus]);
+    if (bus === undefined || tabId === undefined || tabId === null) return;
+    return subscribePanelOperations({
+      bus,
+      tabId,
+      record: (operation) => recordRemoteRef.current(operation),
+    });
+  }, [bus, tabId]);
   useJournalPersistence({
     journal: journal.journal,
     tabId,
@@ -164,39 +134,19 @@ export function App(): ReactElement {
     }
   };
 
-  const handleAlignmentCommand = (kind: AlignmentCommandKind): void => {
-    if (multiSelectGroup === null) return;
-    const op = buildAlignmentOperation(multiSelectGroup, kind);
-    if (op !== null) handleEditorCommand(op);
-  };
-
-  const handleGridChoosePlacement = (choice: "dom-order" | "grid-area"): void => {
-    if (gridPlacementState === null) return;
-    handleEditorCommand(buildGridReorderOperation(gridPlacementState, choice));
-  };
-
-  const handleGridResizeSpan = (axis: "column" | "row", toSpan: number): void => {
-    if (gridPlacementState === null) return;
-    handleEditorCommand(buildGridSpanOperation(gridPlacementState, axis, toSpan));
-  };
-
-  const handlePropCommand = (command: PropEditCommand): void => {
-    handleEditorCommand(command);
-  };
-
   const handleEditorModeChange = (mode: EditorMode): void => {
     editor.actions.setMode(mode);
   };
 
   const handleConnect = (pairingUrl: string): void => {
     if (bus !== undefined) {
-      bus.send("background", createBridgeConnectMessage(pairingUrl));
+      bus.send("background", createBridgeConnectMessage(pairingUrl, tabId ?? undefined));
     }
   };
 
   const handleDisconnect = (): void => {
     if (bus !== undefined) {
-      bus.send("background", createBridgeDisconnectMessage());
+      bus.send("background", createBridgeDisconnectMessage(tabId ?? undefined));
     }
   };
 
@@ -216,23 +166,6 @@ export function App(): ReactElement {
       },
     );
   }, [agentPrompt]);
-
-  const isLayoutContainer =
-    summary !== null &&
-    (summary.computedStyle.display === "flex" || summary.computedStyle.display === "grid");
-  const showAlignment = multiSelectGroup !== null && multiSelectGroup.members.length >= 2;
-
-  const autoLayoutPanel: ReactNode | undefined =
-    isLayoutContainer && summary !== null ? (
-      <AutoLayoutPanel summary={summary} onCommand={handleEditorCommand} />
-    ) : undefined;
-  const alignmentPanel: ReactNode | undefined =
-    showAlignment && multiSelectGroup !== null ? (
-      <AlignmentPanel
-        memberCount={multiSelectGroup.members.length}
-        onCommand={handleAlignmentCommand}
-      />
-    ) : undefined;
 
   return (
     <ErrorBoundary>
@@ -257,40 +190,17 @@ export function App(): ReactElement {
         </header>
         <main className="app__main">
           <div className="app__scroll">
-            <details className="app__diagnostics" data-testid="diagnostics-drawer">
-              <summary>Diagnostics</summary>
-              <div className="app__diagnostics-body">
-                <section className="app__section">
-                  <h2>Inspected tab</h2>
-                  <ul>
-                    <li>Tab ID: {tabId ?? "-"}</li>
-                    <li>Title: {title ?? "-"}</li>
-                    <li>URL: {url ?? "-"}</li>
-                  </ul>
-                </section>
-                <section className="app__section">
-                  <h2>Session</h2>
-                  <p data-testid="session-id">
-                    {session?.sessionId ?? "Waiting for background session…"}
-                  </p>
-                </section>
-                <section className="app__section">
-                  <h2>Frame tree</h2>
-                  {frames.length === 0 ? (
-                    <p>No frames reported yet.</p>
-                  ) : (
-                    <ul className="frame-tree">
-                      {frames.map((frame) => (
-                        <FrameTreeItem key={frame.frameId} frame={frame} />
-                      ))}
-                    </ul>
-                  )}
-                </section>
-                <HostAllowlistPanel />
-              </div>
-            </details>
+            <PanelDiagnostics
+              diagnostics={{
+                tabId,
+                title,
+                url,
+                sessionId: session?.sessionId,
+                frames,
+              }}
+            />
             <div className="app__primary">
-              <InspectorPanel
+              <InspectorEditorSlots
                 summary={summary}
                 onSelectElement={selectElement}
                 editorMode={editor.state.mode}
@@ -298,19 +208,13 @@ export function App(): ReactElement {
                 onEditorCommand={handleEditorCommand}
                 onValidationError={editor.actions.setValidationError}
                 multiSelectGroup={multiSelectGroup}
-                gridPlacement={gridPlacementState?.placement ?? null}
-                gridSpanCandidates={gridPlacementState?.spanCandidates ?? []}
-                gridReorderChoice={gridPlacementState?.reorderChoice ?? null}
-                gridA11yWarning={gridPlacementState?.a11yWarning ?? null}
-                onChooseGridPlacement={handleGridChoosePlacement}
-                onResizeGridSpan={handleGridResizeSpan}
+                gridPlacementState={gridPlacementState}
                 canCopySelectionContext={canCopySelectionContext}
                 onCopySelectionContext={handleCopySelectionContext}
                 selectionCopyStatus={selectionCopyStatus}
                 componentProps={componentProps}
-                onPropCommand={handlePropCommand}
-                {...(alignmentPanel !== undefined ? { alignmentPanel } : {})}
-                {...(autoLayoutPanel !== undefined ? { autoLayoutPanel } : {})}
+                flexResizeStatus={flexResizeStatus}
+                moveRejection={moveRejection}
               />
             </div>
           </div>

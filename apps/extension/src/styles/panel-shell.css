@@ -133,6 +133,8 @@ body,
   min-height: 0;
   overflow-y: auto;
   padding: var(--vc-space-3);
+  padding-block-end: calc(var(--vc-space-6) + var(--vc-space-4));
+  scroll-padding-block-end: calc(var(--vc-space-6) + var(--vc-space-4));
 }
 
 .app__diagnostics {

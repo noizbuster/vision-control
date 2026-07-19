@@ -36,6 +36,13 @@ export {
   type FlexGridAxisState,
 } from "./flex-grid-axis.js";
 export {
+  createFlexPairFeedback,
+  FLEX_PAIR_FEEDBACK_KINDS,
+  type FlexPairFeedback,
+  type FlexPairFeedbackKind,
+  type FlexPairFeedbackState,
+} from "./flex-pair-feedback.js";
+export {
   type ElementsFromRectOptions,
   elementsFromRect,
   hitTest,

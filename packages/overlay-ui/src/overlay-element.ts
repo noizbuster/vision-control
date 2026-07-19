@@ -13,6 +13,7 @@ import { type BoxModelState, createBoxModelOverlay } from "./box-model-overlay.j
 import { type ChangedBadgeState, createChangedBadge } from "./changed-badge.js";
 import { createDragGhost, type DragGhostState } from "./drag-ghost.js";
 import { createFlexGridAxis, type FlexGridAxisState } from "./flex-grid-axis.js";
+import { createFlexPairFeedback, type FlexPairFeedbackState } from "./flex-pair-feedback.js";
 import { createParentOutline } from "./parent-outline.js";
 import type { ResizeHandlePosition } from "./resize-handles.js";
 import { createResizeHandles } from "./resize-handles.js";
@@ -39,6 +40,7 @@ export interface OverlayElement {
   readonly getResizeHandle: (position: ResizeHandlePosition) => HTMLElement | null;
   /** Update the cursor style of one resize handle. */
   readonly updateResizeHandleCursor: (position: ResizeHandlePosition, cursor: string) => void;
+  readonly setFlexPairFeedback: (state: FlexPairFeedbackState | null) => void;
   /** Show or hide the parent/container outline (PRD §8.2). */
   readonly setParentOutline: (rect: Rect | null) => void;
   /** Show or hide the margin/border/padding visualization (PRD §8.2). */
@@ -71,6 +73,7 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
   const badge = createDiv(document, "vc-badge");
   const dropIndicator = createDiv(document, "vc-drop-indicator");
   const resizeHandles = createResizeHandles(root);
+  const flexPairFeedback = createFlexPairFeedback(root, resizeHandles);
   const parentOutline = createParentOutline(root);
   const boxModel = createBoxModelOverlay(root);
   const flexGridAxis = createFlexGridAxis(root);
@@ -129,6 +132,14 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
     resizeHandles.updateHandleCursor(position, cursor);
   };
 
+  const setFlexPairFeedback = (state: FlexPairFeedbackState | null): void => {
+    if (state === null) {
+      flexPairFeedback.clear();
+      return;
+    }
+    flexPairFeedback.set(state);
+  };
+
   const setParentOutline = (rect: Rect | null): void => {
     parentOutline.setParentOutline(rect);
   };
@@ -170,6 +181,7 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
     setSelection(null);
     setDropIndicator(null);
     setResizeHandles(null);
+    setFlexPairFeedback(null);
     setParentOutline(null);
     setBoxModel(null);
     setFlexGridAxis(null);
@@ -185,6 +197,7 @@ export function createOverlayElement(shadowRoot: ShadowRoot): OverlayElement {
     setResizeHandles,
     getResizeHandle,
     updateResizeHandleCursor,
+    setFlexPairFeedback,
     setParentOutline,
     setBoxModel,
     setFlexGridAxis,

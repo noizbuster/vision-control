@@ -8,6 +8,8 @@
  * inherited properties with `all: initial`.
  */
 
+import { INTERACTION_STYLES } from "./interaction-styles.js";
+
 /** Class applied to the inner root container inside the shadow tree. */
 export const OVERLAY_ROOT_CLASS = "vc-overlay-root";
 
@@ -150,99 +152,6 @@ export const OVERLAY_CSS = /* css */ `
   .vc-badge-medium { background: var(--vc-confidence-medium); }
   .vc-badge-low { background: var(--vc-confidence-low); color: var(--vc-ink); }
 
-  .vc-drop-indicator {
-    position: absolute;
-    pointer-events: none;
-    background: var(--vc-drop);
-    border-radius: var(--vc-radius-sm);
-  }
-
-  .vc-handles-layer {
-    position: absolute;
-    pointer-events: none;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  .vc-handle {
-    position: absolute;
-    width: var(--vc-handle-size);
-    height: var(--vc-handle-size);
-    background: var(--vc-handle);
-    border: 1px solid oklch(100% 0 0);
-    border-radius: var(--vc-radius-sm);
-    pointer-events: auto;
-    cursor: pointer;
-  }
-
-  .vc-handle-n { cursor: n-resize; }
-  .vc-handle-ne { cursor: ne-resize; }
-  .vc-handle-e { cursor: e-resize; }
-  .vc-handle-se { cursor: se-resize; }
-  .vc-handle-s { cursor: s-resize; }
-  .vc-handle-sw { cursor: sw-resize; }
-  .vc-handle-se { cursor: se-resize; }
-
-  .vc-drop-target-highlight {
-    position: absolute;
-    pointer-events: none;
-    border: var(--vc-outline-width) solid var(--vc-drop-valid);
-    border-radius: var(--vc-radius-sm);
-    background: oklch(70% 0.22 145 / 0.08);
-    transition: top var(--vc-transition-fast),
-                left var(--vc-transition-fast),
-                width var(--vc-transition-fast),
-                height var(--vc-transition-fast);
-  }
-
-  .vc-drop-target-highlight--invalid {
-    border-color: var(--vc-drop-invalid);
-    background: oklch(60% 0.22 25 / 0.08);
-  }
-
-  .vc-drop-warning {
-    position: absolute;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--vc-space-2);
-    padding: var(--vc-space-1) var(--vc-space-3);
-    background: var(--vc-surface);
-    color: var(--vc-drop-invalid);
-    border-radius: var(--vc-radius-md);
-    white-space: nowrap;
-    user-select: none;
-    pointer-events: none;
-  }
-
-  .vc-drop-warning__icon {
-    width: 12px;
-    height: 12px;
-    flex-shrink: 0;
-  }
-
-  .vc-snap-guide-layer {
-    position: absolute;
-    pointer-events: none;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  .vc-snap-guide {
-    position: absolute;
-    pointer-events: none;
-    box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.3);
-  }
-
-  .vc-snap-guide--edge { background: var(--vc-snap-edge); }
-  .vc-snap-guide--center { background: var(--vc-snap-center); }
-  .vc-snap-guide--baseline { background: var(--vc-snap-baseline); }
-  .vc-snap-guide--grid { background: var(--vc-snap-grid); }
-  .vc-snap-guide--spacing-token { background: var(--vc-snap-spacing-token); }
-
   /* PRD §8.2 — parent/container outline (distinct from hover/select). */
   .vc-parent-outline {
     position: absolute;
@@ -351,30 +260,5 @@ export const OVERLAY_CSS = /* css */ `
     pointer-events: none;
   }
 
-  /* PRD §8.2 — drag ghost / placeholder. */
-  .vc-drag-ghost {
-    position: absolute;
-    pointer-events: none;
-    background: color-mix(in oklch, var(--vc-drag-ghost) 25%, transparent);
-    border: 1px solid var(--vc-drag-ghost);
-    border-radius: var(--vc-radius-sm);
-    box-shadow: 0 4px 12px oklch(0% 0 0 / 0.2);
-  }
-
-  .vc-drag-placeholder {
-    position: absolute;
-    pointer-events: none;
-    border: 2px dashed var(--vc-drag-placeholder);
-    border-radius: var(--vc-radius-sm);
-    background: color-mix(in oklch, var(--vc-drag-placeholder) 12%, transparent);
-  }
-
-  /* PRD §9.1 — marquee drag-rectangle (distinct from select outline). */
-  .vc-marquee-rect {
-    position: absolute;
-    pointer-events: none;
-    border: 1px dashed var(--vc-select);
-    background: color-mix(in oklch, var(--vc-select) 10%, transparent);
-    border-radius: var(--vc-radius-sm);
-  }
+  ${INTERACTION_STYLES}
 `;

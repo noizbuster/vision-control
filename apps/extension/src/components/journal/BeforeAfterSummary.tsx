@@ -12,11 +12,8 @@ function formatElementRef(ref: ElementRef): string {
   return ref.selector ?? ref.sourceId ?? ref.runtimeId;
 }
 
-/**
- * Reduce an operation to a compact before/after summary for the journal list.
- * Pure and unit-tested in isolation from rendering. The switch is exhaustive;
- * a new operation kind without a branch is a compile error.
- */
+const formatFlexPairSize = (value: number): string => `${Number(value.toFixed(1))}px`;
+
 export function summarizeOperation(op: Operation): OperationSummary {
   switch (op.kind) {
     case "style-edit":
@@ -63,6 +60,13 @@ export function summarizeOperation(op: Operation): OperationSummary {
         subject: op.property,
         from: `${op.fromValue}${op.unit}`,
         to: `${op.toValue}${op.unit}`,
+        variant: "set",
+      };
+    case "resize-flex-pair":
+      return {
+        subject: "flex pair",
+        from: `${formatFlexPairSize(op.members[0].before.usedMainSize)} / ${formatFlexPairSize(op.members[1].before.usedMainSize)}`,
+        to: `${formatFlexPairSize(op.members[0].after.usedMainSize)} / ${formatFlexPairSize(op.members[1].after.usedMainSize)}`,
         variant: "set",
       };
     case "multi-select-group":
@@ -191,6 +195,7 @@ const KIND_LABEL: Record<OperationKind, string> = {
   "reparent-element": "Reparent",
   "position-element": "Position",
   "resize-element": "Resize",
+  "resize-flex-pair": "Flex resize",
   "multi-select-group": "Multi-select",
   "group-reorder": "Group reorder",
   "group-reparent": "Group reparent",

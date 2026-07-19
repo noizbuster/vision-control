@@ -26,11 +26,9 @@ import { ComputedStyle } from "./ComputedStyle.js";
 import { ElementActions } from "./ElementActions.js";
 import { GridPanel } from "./GridPanel.js";
 import { MultiSelectInspectorSection } from "./MultiSelectInspectorSection.js";
+import { type SelectionCopyStatus, SelectionIdentitySection } from "./SelectionIdentitySection.js";
 import { SemanticSummary } from "./SemanticSummary.js";
 import { SiblingSummary } from "./SiblingSummary.js";
-import { SourceConfidence } from "./SourceConfidence.js";
-
-type SelectionCopyStatus = "idle" | "resolving" | "copied" | "error";
 
 interface InspectorPanelProps {
   readonly summary: SelectionSummary | null;
@@ -59,29 +57,14 @@ interface InspectorPanelProps {
   readonly onChooseGridPlacement?: (choice: "dom-order" | "grid-area") => void;
   readonly onResizeGridSpan?: (axis: "column" | "row", toSpan: number) => void;
   readonly autoLayoutPanel?: ReactNode;
+  readonly flexResizeStatusPanel?: ReactNode;
+  readonly moveRejectionPanel?: ReactNode;
   readonly canCopySelectionContext?: boolean;
   readonly onCopySelectionContext?: () => void;
   readonly selectionCopyStatus?: SelectionCopyStatus;
   /** Additive: render only when non-empty. */
   readonly componentProps?: readonly EditableProp[];
   readonly onPropCommand?: (command: PropEditCommand) => void;
-}
-
-function selectionCopyStatusLabel(status: SelectionCopyStatus): string {
-  switch (status) {
-    case "idle":
-      return "";
-    case "resolving":
-      return "Resolving source hints";
-    case "copied":
-      return "Selection context copied";
-    case "error":
-      return "Copy failed";
-    default: {
-      const _exhaustive: never = status;
-      return _exhaustive;
-    }
-  }
 }
 
 const EMPTY_COPY = "Select an element on the page to inspect. Editing works offline.";
@@ -103,6 +86,8 @@ export function InspectorPanel({
   onChooseGridPlacement,
   onResizeGridSpan,
   autoLayoutPanel,
+  flexResizeStatusPanel,
+  moveRejectionPanel,
   canCopySelectionContext = false,
   onCopySelectionContext,
   selectionCopyStatus = "idle",
@@ -120,7 +105,6 @@ export function InspectorPanel({
     );
   }
 
-  const copyStatusLabel = selectionCopyStatusLabel(selectionCopyStatus);
   const showProps = summary !== null && componentProps.length > 0 && onPropCommand !== undefined;
 
   return (
@@ -141,34 +125,12 @@ export function InspectorPanel({
       {summary !== null && (
         <>
           <CollapsibleSection title="Identity" defaultOpen>
-            <div className="inspector-semantic">
-              <div className="inspector-semantic__row">
-                <span className="inspector-semantic__label">Selector</span>
-                <span className="inspector-semantic__value">
-                  {summary.identity.selector ?? "none"}
-                </span>
-                <button
-                  type="button"
-                  className="inspector-selection-copy"
-                  onClick={onCopySelectionContext}
-                  disabled={!canCopySelectionContext}
-                  aria-label="Copy for agent"
-                >
-                  Copy for agent
-                </button>
-              </div>
-              <p
-                className="inspector-selection-copy__status"
-                data-testid="selection-copy-status"
-                aria-live="polite"
-              >
-                {copyStatusLabel}
-              </p>
-              <div className="inspector-semantic__row">
-                <span className="inspector-semantic__label">Confidence</span>
-                <SourceConfidence confidence={summary.sourceConfidence} />
-              </div>
-            </div>
+            <SelectionIdentitySection
+              summary={summary}
+              canCopySelectionContext={canCopySelectionContext}
+              onCopySelectionContext={onCopySelectionContext}
+              selectionCopyStatus={selectionCopyStatus}
+            />
           </CollapsibleSection>
 
           <CollapsibleSection title="Editors" defaultOpen>
@@ -197,6 +159,18 @@ export function InspectorPanel({
             )}
             <ElementActions summary={summary} onCommand={onEditorCommand} />
           </CollapsibleSection>
+
+          {flexResizeStatusPanel !== undefined && (
+            <CollapsibleSection title="Resize" defaultOpen>
+              {flexResizeStatusPanel}
+            </CollapsibleSection>
+          )}
+
+          {moveRejectionPanel !== undefined && (
+            <CollapsibleSection title="Move" defaultOpen>
+              {moveRejectionPanel}
+            </CollapsibleSection>
+          )}
 
           <CollapsibleSection title="Pseudo" defaultOpen>
             <PseudoElementEditor

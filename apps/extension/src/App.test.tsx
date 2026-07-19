@@ -1,36 +1,44 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { Operation } from "@vision-control/change-ir";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
-import { createMultiSelectGroupId } from "@vision-control/element-identity";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { makeGroup, makeSummary, setupChromeStubs } from "./App.test-fixtures.js";
 import type { SelectionOriginState } from "./hooks/useSelectionSummary.js";
 import type {
-  BusMessage,
   BusMessageHandler,
   ComponentPropEntry,
   FrameInfo,
   GridPlacementMessage,
+  MessageBus,
 } from "./messaging/index.js";
 
-const { slotState } = vi.hoisted(() => ({
-  slotState: {
-    summary: null as SelectionSummary | null,
-    originState: { status: "idle" } as SelectionOriginState,
-    group: null as MultiSelectGroup | null,
-    gridPlacement: null as GridPlacementMessage | null,
-    componentProps: [] as readonly ComponentPropEntry[],
-    frames: [] as readonly FrameInfo[],
-    bus: {
-      send: vi.fn(),
-      on: vi.fn(() => () => {}),
-    },
-  },
-}));
+const { slotState } = vi.hoisted(() => {
+  const bus = {
+    send: vi.fn<MessageBus["send"]>(),
+    on: vi.fn<(messageType: string, handler: BusMessageHandler) => () => void>(() => () => {}),
+  };
+  const slotState: {
+    summary: SelectionSummary | null;
+    originState: SelectionOriginState;
+    group: MultiSelectGroup | null;
+    gridPlacement: GridPlacementMessage | null;
+    componentProps: readonly ComponentPropEntry[];
+    frames: readonly FrameInfo[];
+    bus: typeof bus;
+  } = {
+    summary: null,
+    originState: { status: "idle" },
+    group: null,
+    gridPlacement: null,
+    componentProps: [],
+    frames: [],
+    bus,
+  };
+  return { slotState };
+});
 
-vi.mock("./hooks/usePanelBus.js", () => ({
-  usePanelBus: () => slotState.bus,
-}));
+vi.mock("./hooks/usePanelBus.js", () => ({ usePanelBus: () => slotState.bus }));
 vi.mock("./hooks/useSelectionSummary.js", () => ({
   useSelectionSummary: () => ({
     summary: slotState.summary,
@@ -38,9 +46,7 @@ vi.mock("./hooks/useSelectionSummary.js", () => ({
     selectElement: () => {},
   }),
 }));
-vi.mock("./hooks/useFrameTree.js", () => ({
-  useFrameTree: () => slotState.frames,
-}));
+vi.mock("./hooks/useFrameTree.js", () => ({ useFrameTree: () => slotState.frames }));
 vi.mock("./hooks/useMultiSelect.js", () => ({
   useMultiSelect: () => ({ group: slotState.group }),
 }));
@@ -53,178 +59,6 @@ vi.mock("./hooks/useComponentProps.js", () => ({
 
 import { App } from "./App.js";
 
-function setupChromeStubs(theme: "dark" | "light") {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: (query: string) => ({
-      matches: query === "(prefers-color-scheme: dark)" && theme === "dark",
-      media: query,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => true,
-    }),
-  });
-
-  Object.defineProperty(globalThis, "chrome", {
-    writable: true,
-    value: {
-      devtools: {
-        inspectedWindow: { tabId: 42 },
-        panels: { themeName: theme === "dark" ? "dark" : "default" },
-      },
-      runtime: {
-        lastError: undefined,
-        sendMessage: () => Promise.resolve(),
-        onMessage: { addListener: () => {}, removeListener: () => {} },
-        connect: () => ({
-          onMessage: { addListener: () => {}, removeListener: () => {} },
-          onDisconnect: { addListener: () => {}, removeListener: () => {} },
-          disconnect: () => {},
-          postMessage: () => {},
-        }),
-      },
-      tabs: {
-        get: (_tabId: number, callback: (tab: { title?: string; url?: string }) => void) => {
-          callback({ title: "Test page", url: "http://localhost:3000/" });
-        },
-      },
-    },
-  });
-}
-
-function makeSummary(display: string): SelectionSummary {
-  return {
-    identity: {
-      runtimeId: "runtime-1",
-      tagName: "div",
-      frameId: "main",
-      fingerprint: "abc12345",
-      confidence: "high",
-      selector: "#container",
-    },
-    breadcrumb: [
-      { tagName: "body", selector: "body" },
-      { tagName: "div", selector: "#container" },
-    ],
-    computedStyle: {
-      display: display as "flex",
-      position: "static",
-      flexDirection: "row",
-      alignItems: "stretch",
-      justifyContent: "flex-start",
-      flexBasis: "auto",
-      flexGrow: "0",
-      width: "auto",
-      height: "auto",
-      padding: "0px",
-      margin: "0px",
-      border: "0px none rgb(0, 0, 0)",
-      color: "rgb(0, 0, 0)",
-      backgroundColor: "rgba(0, 0, 0, 0)",
-      fontSize: "16px",
-      fontWeight: "400",
-      lineHeight: "normal",
-    },
-    boxModel: {
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
-      border: { top: 0, right: 0, bottom: 0, left: 0 },
-      padding: { top: 0, right: 0, bottom: 0, left: 0 },
-      content: { width: 400, height: 200 },
-      position: { x: 0, y: 0 },
-    },
-    classList: [],
-    attributes: [],
-    semantic: {
-      tagName: "div",
-      textContentPreview: "",
-    },
-    siblingSummary: {
-      count: 1,
-      index: 0,
-      parentTagName: "body",
-      parent: { runtimeId: "parent-1", tagName: "body", selector: "body" },
-    },
-    parentLayout: { mode: "block", display: "block" },
-    sourceConfidence: "high",
-  };
-}
-
-function makeReadyOriginState(runtimeId = "runtime-1"): SelectionOriginState {
-  return {
-    status: "ready",
-    revision: 1,
-    runtimeId,
-    origins: [
-      {
-        relativePath: "src/components/Checkout.tsx",
-        startLine: 12,
-        confidence: "high",
-        kind: "js",
-        warnings: [],
-      },
-      {
-        relativePath: "src/styles/checkout.css",
-        startLine: 8,
-        confidence: "medium",
-        kind: "css",
-        warnings: [],
-      },
-    ],
-    originsTruncated: true,
-  };
-}
-
-function makeGroup(memberCount = 2): MultiSelectGroup {
-  const members = Array.from({ length: memberCount }, (_, i) => ({
-    runtimeId: `runtime-${i}`,
-    tagName: "div",
-    frameId: "main",
-    frameKind: "top" as const,
-    shadowKind: "light-dom" as const,
-  }));
-  return {
-    id: createMultiSelectGroupId("grp-0001"),
-    members,
-    frameId: "main",
-    frameKind: "top",
-    shadowKind: "light-dom",
-    shadowRootCompatible: true,
-    commonParent: null,
-    boundingRect: { x: 0, y: 0, width: 200, height: 100 },
-  };
-}
-
-function makeReparentOperation(): Operation {
-  return {
-    id: "op-reparent01",
-    timestamp: 1_700_000_000_000,
-    runtime: false,
-    origin: "canvas-drag",
-    confidence: 1,
-    kind: "reparent-element",
-    element: { runtimeId: "child-1" },
-    sourceParent: { runtimeId: "source-1" },
-    sourceIndex: 0,
-    targetParent: { runtimeId: "target-1" },
-    targetIndex: 0,
-  };
-}
-
-interface MockedBusOn {
-  readonly mock: {
-    readonly calls: ReadonlyArray<readonly [string, BusMessageHandler]>;
-  };
-}
-
-function deliverPanelMessage(messageType: string, message: BusMessage): void {
-  const calls = (slotState.bus.on as unknown as MockedBusOn).mock.calls;
-  const call = calls.find(([registeredType]) => registeredType === messageType);
-  expect(call, `${messageType} handler should be registered`).toBeDefined();
-  if (call === undefined) return;
-  const [, handler] = call;
-  handler(message, { route: "content" });
-}
-
 function resetSlotState(): void {
   slotState.summary = null;
   slotState.originState = { status: "idle" };
@@ -236,15 +70,13 @@ function resetSlotState(): void {
   slotState.bus.on.mockClear();
 }
 
-describe("App", () => {
+describe("App panel slots", () => {
   beforeEach(() => {
     setupChromeStubs("light");
     resetSlotState();
   });
 
-  afterEach(() => {
-    cleanup();
-  });
+  afterEach(cleanup);
 
   it("renders without crashing and shows the inspected tab URL", () => {
     render(<App />);
@@ -289,24 +121,20 @@ describe("App", () => {
         routeable: true,
       },
     ];
-
     render(<App />);
     slotState.bus.send.mockClear();
+
     screen.getByRole("button", { name: "Inspect" }).click();
 
     await waitFor(() => expect(slotState.bus.send).toHaveBeenCalledTimes(2));
-    expect(slotState.bus.send.mock.calls[0]?.[0]).toBe("content");
-    expect(slotState.bus.send.mock.calls[1]?.[0]).toBe("content");
-    const first = slotState.bus.send.mock.calls[0]?.[1];
-    const second = slotState.bus.send.mock.calls[1]?.[1];
-    expect(first).toMatchObject({
+    expect(slotState.bus.send.mock.calls[0]?.[1]).toMatchObject({
       messageType: "interaction-mode",
       targetRoute: "content",
       tabId: 42,
       frameId: 0,
       payload: { mode: "Inspect" },
     });
-    expect(second).toMatchObject({
+    expect(slotState.bus.send.mock.calls[1]?.[1]).toMatchObject({
       messageType: "interaction-mode",
       targetRoute: "content",
       tabId: 42,
@@ -318,11 +146,9 @@ describe("App", () => {
   it("replays the current Inspect mode to routeable frames discovered after activation", async () => {
     const { rerender } = render(<App />);
     slotState.bus.send.mockClear();
-
     screen.getByRole("button", { name: "Inspect" }).click();
     await waitFor(() => expect(slotState.bus.send).toHaveBeenCalledTimes(1));
     slotState.bus.send.mockClear();
-
     slotState.frames = [
       {
         frameId: 3,
@@ -337,10 +163,10 @@ describe("App", () => {
         routeable: false,
       },
     ];
+
     rerender(<App />);
 
     await waitFor(() => expect(slotState.bus.send).toHaveBeenCalledTimes(1));
-    expect(slotState.bus.send.mock.calls[0]?.[0]).toBe("content");
     expect(slotState.bus.send.mock.calls[0]?.[1]).toMatchObject({
       messageType: "interaction-mode",
       targetRoute: "content",
@@ -353,7 +179,6 @@ describe("App", () => {
   it("renders the Multi-Select Group section when a multi-element selection exists", () => {
     slotState.group = makeGroup(3);
     render(<App />);
-
     expect(screen.getByText("Multi-Select Group")).toBeDefined();
     expect(screen.getByText("grp-0001")).toBeDefined();
     expect(screen.getByText("3")).toBeDefined();
@@ -362,7 +187,6 @@ describe("App", () => {
   it("renders the Alignment panel alongside the multi-select group", () => {
     slotState.group = makeGroup(2);
     render(<App />);
-
     expect(screen.getByText("Alignment")).toBeDefined();
     expect(document.querySelector("[data-vc-alignment-panel]")).not.toBeNull();
   });
@@ -370,7 +194,6 @@ describe("App", () => {
   it("renders the Auto Layout panel when a flex container is selected", () => {
     slotState.summary = makeSummary("flex");
     render(<App />);
-
     expect(screen.getByText("Auto Layout")).toBeDefined();
     expect(screen.getByTestId("auto-layout-panel")).not.toBeNull();
   });
@@ -378,14 +201,12 @@ describe("App", () => {
   it("renders the Auto Layout panel when a grid container is selected", () => {
     slotState.summary = makeSummary("grid");
     render(<App />);
-
     expect(screen.getByText("Auto Layout")).toBeDefined();
   });
 
   it("does not render the Auto Layout panel for a non-layout element", () => {
     slotState.summary = makeSummary("inline");
     render(<App />);
-
     expect(screen.queryByText("Auto Layout")).toBeNull();
   });
 
@@ -408,265 +229,7 @@ describe("App", () => {
       a11yWarning: null,
     };
     render(<App />);
-
     expect(screen.getByText("Grid")).toBeDefined();
     expect(document.querySelector("[data-vc-grid-panel]")).not.toBeNull();
-  });
-
-  it("does not render the Component Props section when componentProps is empty (baseline)", () => {
-    slotState.summary = makeSummary("inline");
-    slotState.componentProps = [];
-    render(<App />);
-
-    expect(screen.queryByText("Component Props")).toBeNull();
-  });
-
-  it("renders the Component Props section when a selection has discoverable props (showPropsPanel true)", () => {
-    slotState.summary = makeSummary("inline");
-    slotState.componentProps = [
-      {
-        name: "variant",
-        value: "primary",
-        kind: "component-prop",
-        componentName: "Button",
-        sourceRange: { startLine: 5, startColumn: 10, endLine: 5, endColumn: 18 },
-        ownershipContext: "same-component",
-      },
-    ];
-    render(<App />);
-
-    expect(screen.getByText("Component Props")).toBeDefined();
-    expect(screen.getByText("Button.variant")).toBeDefined();
-  });
-
-  it("sends and records a remove-element command from the delete action", async () => {
-    slotState.summary = makeSummary("inline");
-    render(<App />);
-
-    screen.getByRole("button", { name: "Delete element" }).click();
-
-    await waitFor(() => expect(screen.getByText("Remove")).toBeDefined());
-    const editorMessage = slotState.bus.send.mock.calls
-      .map((call) => call[1])
-      .find((message) => message.messageType === "editor-command");
-    const operation = editorMessage?.payload as Operation | undefined;
-    expect(operation?.kind).toBe("remove-element");
-    if (operation?.kind !== "remove-element") return;
-    expect(operation.element.runtimeId).toBe("runtime-1");
-    expect(operation.parent.runtimeId).toBe("parent-1");
-  });
-
-  it("does not render the Component Props section when props exist but no selection (additive-slot contract)", () => {
-    slotState.summary = null;
-    slotState.componentProps = [
-      {
-        name: "variant",
-        value: "primary",
-        kind: "component-prop",
-        componentName: "Button",
-        sourceRange: { startLine: 5, startColumn: 10, endLine: 5, endColumn: 18 },
-      },
-    ];
-    render(<App />);
-
-    expect(screen.queryByText("Component Props")).toBeNull();
-  });
-
-  it("records content interaction operations in the change journal", async () => {
-    const operation = makeReparentOperation();
-    render(<App />);
-
-    deliverPanelMessage("interaction-operation", {
-      protocolVersion: "1.0.0",
-      messageId: "interaction-operation-op-reparent01",
-      messageType: "interaction-operation",
-      targetRoute: "panel",
-      sourceRoute: "content",
-      payload: operation,
-      timestamp: 1_700_000_000_000,
-    });
-
-    await waitFor(() => expect(screen.getByText("Reparent")).toBeDefined());
-    expect(screen.queryByTestId("change-journal-empty")).toBeNull();
-    expect(screen.getByTestId("journal-summary").textContent).toContain("source-1[0]");
-    expect(screen.getByTestId("journal-summary").textContent).toContain("target-1[0]");
-  });
-
-  it("copies an agent handoff prompt with URL, selection context, and journal entries", async () => {
-    const operation = makeReparentOperation();
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
-    slotState.summary = makeSummary("flex");
-    render(<App />);
-
-    deliverPanelMessage("interaction-operation", {
-      protocolVersion: "1.0.0",
-      messageId: "interaction-operation-op-reparent01",
-      messageType: "interaction-operation",
-      targetRoute: "panel",
-      sourceRoute: "content",
-      payload: operation,
-      timestamp: 1_700_000_000_000,
-    });
-    await waitFor(() => expect(screen.getByText("Reparent")).toBeDefined());
-
-    screen.getByRole("button", { name: "Copy agent prompt" }).click();
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
-    const copiedPrompt = writeText.mock.calls[0]?.[0];
-    expect(copiedPrompt).toContain("URL: http://localhost:3000/");
-    expect(copiedPrompt).toContain("# Vision Context Snapshot");
-    expect(copiedPrompt).toContain("#container");
-    expect(copiedPrompt).toContain("reparent-element");
-    expect(copiedPrompt).toContain("## Operations");
-    expect(copiedPrompt).toContain("MCP pair is optional");
-    await waitFor(() =>
-      expect(screen.getByTestId("agent-prompt-copy-status").textContent).toBe(
-        "Agent prompt copied",
-      ),
-    );
-  });
-
-  it("does not copy selection context while source hints are pending or for a different runtime", async () => {
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
-    slotState.summary = makeSummary("inline");
-    slotState.originState = { status: "pending", revision: 1, runtimeId: "runtime-1" };
-    const { rerender } = render(<App />);
-
-    await waitFor(() =>
-      expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
-    );
-
-    const copyButton = screen.getByRole("button", { name: "Copy for agent" });
-    expect(copyButton).toHaveProperty("disabled", true);
-    copyButton.click();
-    expect(writeText).not.toHaveBeenCalled();
-
-    slotState.originState = makeReadyOriginState("runtime-2");
-    rerender(<App />);
-
-    expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty("disabled", true);
-    expect(writeText).not.toHaveBeenCalled();
-  });
-
-  it("copies matching ready selection context with every origin and reports success", async () => {
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
-    slotState.summary = makeSummary("inline");
-    slotState.originState = makeReadyOriginState();
-    render(<App />);
-
-    await waitFor(() =>
-      expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty(
-        "disabled",
-        false,
-      ),
-    );
-
-    screen.getByRole("button", { name: "Copy for agent" }).click();
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
-    const copiedContext = writeText.mock.calls[0]?.[0];
-    expect(copiedContext).toContain('page_url: "http://localhost:3000/"');
-    expect(copiedContext).toContain('selector: "#container"');
-    expect(copiedContext).toContain("semantic:");
-    expect(copiedContext).toContain('"tagName":"div"');
-    expect(copiedContext).toContain("breadcrumb:");
-    expect(copiedContext).toContain('"selector":"#container"');
-    expect(copiedContext).toContain("src/components/Checkout.tsx");
-    expect(copiedContext).toContain("src/styles/checkout.css");
-    expect(copiedContext).toContain("origins_truncated: true");
-    await waitFor(() =>
-      expect(screen.getByTestId("selection-copy-status").textContent).toBe(
-        "Selection context copied",
-      ),
-    );
-  });
-
-  it("reports a failed selection context copy", async () => {
-    const writeText = vi
-      .fn<(text: string) => Promise<void>>()
-      .mockRejectedValue(new Error("clipboard unavailable"));
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
-    slotState.summary = makeSummary("inline");
-    slotState.originState = makeReadyOriginState();
-    render(<App />);
-
-    await waitFor(() =>
-      expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty(
-        "disabled",
-        false,
-      ),
-    );
-
-    screen.getByRole("button", { name: "Copy for agent" }).click();
-
-    await waitFor(() =>
-      expect(screen.getByTestId("selection-copy-status").textContent).toBe("Copy failed"),
-    );
-  });
-
-  it("keeps inspector and edit path usable when the agent bridge is unpaired", async () => {
-    slotState.summary = makeSummary("inline");
-    render(<App />);
-
-    const pairing = screen.getByTestId("pairing-panel");
-    expect(pairing.getAttribute("data-editing-ready")).toBe("true");
-    expect(pairing.getAttribute("data-pairing-optional")).toBe("true");
-    expect(pairing.getAttribute("data-agent-pair-state")).toBe("disconnected");
-    expect(pairing.textContent?.toLowerCase()).not.toContain("daemon required");
-    expect(screen.getByRole("button", { name: "Delete element" })).toBeDefined();
-    expect(screen.getByTestId("editing-ready")).toBeDefined();
-
-    slotState.bus.send.mockClear();
-    screen.getByRole("button", { name: "Delete element" }).click();
-
-    await waitFor(() => {
-      const editorMessage = slotState.bus.send.mock.calls
-        .map((call) => call[1])
-        .find((message) => message.messageType === "editor-command");
-      expect(editorMessage).toBeDefined();
-      expect((editorMessage?.payload as Operation | undefined)?.kind).toBe("remove-element");
-    });
-    expect(screen.getByText("Remove")).toBeDefined();
-  });
-
-  it("pairs the optional agent bridge via bridge-connect, not a daemon-required gate", async () => {
-    const pairingUrl = "vision-control://pair?token=abc&port=4321&host=127.0.0.1";
-    render(<App />);
-
-    const input = screen.getByPlaceholderText(/vision-control:\/\//);
-    fireEvent.change(input, { target: { value: pairingUrl } });
-    fireEvent.click(screen.getByRole("button", { name: /pair agent/i }));
-
-    await waitFor(() => {
-      const connectMessage = slotState.bus.send.mock.calls
-        .map((call) => call[1])
-        .find((message) => message.messageType === "bridge-connect");
-      expect(connectMessage).toBeDefined();
-      expect(connectMessage?.payload).toEqual({ pairingUrl });
-    });
-    expect(
-      slotState.bus.send.mock.calls.some((call) => call[1].messageType === "daemon-connect"),
-    ).toBe(false);
   });
 });

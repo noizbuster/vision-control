@@ -1,0 +1,51 @@
+.flex-resize-status,
+.move-rejection-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vc-space-1);
+  padding: var(--vc-space-2);
+  border: 1px solid var(--vc-border);
+  border-radius: var(--vc-radius-sm);
+  background: var(--vc-bg-3);
+}
+
+.flex-resize-status__heading,
+.flex-resize-status__message,
+.move-rejection-status__heading,
+.move-rejection-status__message {
+  margin: 0;
+}
+
+.flex-resize-status__heading,
+.move-rejection-status__heading {
+  font-size: var(--vc-text-xs);
+  color: var(--vc-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.flex-resize-status__message,
+.move-rejection-status__message {
+  font-size: var(--vc-text-sm);
+  color: var(--vc-text-1);
+}
+
+.flex-resize-status--valid .flex-resize-status__message {
+  color: var(--vc-success);
+}
+
+.flex-resize-status--active .flex-resize-status__message {
+  color: var(--vc-accent);
+}
+
+.flex-resize-status--disabled-edge .flex-resize-status__message {
+  color: var(--vc-warning);
+}
+
+.flex-resize-status--blocked .flex-resize-status__message {
+  color: var(--vc-error);
+}
+
+.move-rejection-status__message {
+  color: var(--vc-error);
+}

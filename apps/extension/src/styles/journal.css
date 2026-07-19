@@ -176,7 +176,7 @@
   max-width: 100%;
   font-family: var(--vc-font-mono);
   font-size: var(--vc-text-sm);
-  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .journal-summary__subject {

@@ -3,7 +3,6 @@
   flex-direction: column;
   gap: var(--vc-space-3);
   padding: var(--vc-space-3);
-  overflow-y: auto;
   font-family: var(--vc-font-sans);
   font-size: var(--vc-text-base);
   color: var(--vc-text-1);

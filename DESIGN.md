@@ -75,13 +75,41 @@ panels should use the repository's existing 4px rhythm.
 ### Selection Overlay
 
 - **Structure**: shadow-root outline, floating label, confidence badge.
-- **Variants**: hover, selected, drop indicator, parent outline, resize handles.
+- **Variants**: hover, selected, drop indicator, parent outline, resize handles,
+  and paired Flex Resize feedback.
 - **Spacing**: `--vc-space-*`, `--vc-outline-width`, `--vc-handle-size`.
-- **States**: hidden, hover, selected, drag/drop valid, drag/drop invalid.
+- **States**: hidden, hover, selected, drag/drop valid, drag/drop invalid,
+  pair candidate, active pair, disabled edge, and blocked reason.
 - **Accessibility**: overlay artifacts stay inside the shadow DOM and do not
-  leak into page DOM queries.
-- **Motion**: fast positional transitions only where they do not fight direct
-  manipulation.
+  leak into page DOM queries. Paired-neighbor labels and disabled side handles
+  are shadow-root-only visual affordances; the DevTools panel provides the
+  announced, semantic status through native controls and live regions.
+- **Motion**: pair feedback follows direct manipulation immediately. It may not
+  animate layout properties or introduce decorative motion.
+
+### Flex Pair Resize Feedback
+
+- **Structure**: a shadow-root-only outline and compact label identify the
+  adjacent paired neighbor. The selected member remains the selection outline;
+  the pair outline supplements it rather than replacing it.
+- **Variants**: a valid pair uses `--vc-drop-valid`; an active held pair adds
+  `--vc-handle`; a disabled edge and a blocked reason use
+  `--vc-drop-invalid`. The disabled handle keeps its existing geometry and is
+  made non-interactive rather than removed, so the rejected affordance is
+  visible without changing the inspected page.
+- **Panel status**: status is additive through the existing InspectorPanel slot
+  contract and remains absent until Resize data arrives. It reuses
+  `--vc-success`, `--vc-warning`, `--vc-error`, panel text, border, spacing,
+  type, radius, and focus tokens; it introduces no colors, spacing scale, or
+  aesthetic system.
+- **Accessibility**: active and valid feedback uses a polite live status;
+  blocked feedback uses an alert with the typed rejection reason. Any panel
+  control keeps native disabled and `aria-pressed` semantics. The overlay never
+  becomes an inspected-page DOM artifact.
+- **Motion**: held-state updates are immediate with no easing; candidate state
+  changes may use the existing fast token only for paint/compositor properties.
+- **Accepted visual debt**: none. This pass intentionally avoids a new toolbar
+  mode, persistent panel surface, or decorative treatment.
 
 ### Floating Property Inspector
 

@@ -21,6 +21,7 @@ export interface ResizeHandles {
   readonly hideResizeHandles: () => void;
   /** Update the CSS cursor for one handle. */
   readonly updateHandleCursor: (handle: ResizeHandlePosition, cursor: string) => void;
+  readonly setHandleDisabled: (handle: ResizeHandlePosition, disabled: boolean) => void;
   /** Read the DOM element for a handle, or null if not rendered. */
   readonly getHandleElement: (handle: ResizeHandlePosition) => HTMLElement | null;
   /** Remove the handle layer from the DOM. */
@@ -51,8 +52,10 @@ export function createResizeHandles(container: HTMLElement): ResizeHandles {
 
   container.appendChild(layer);
 
-  const createHandle = (position: ResizeHandlePosition): HTMLElement => {
-    const handle = document.createElement("div");
+  const createHandle = (position: ResizeHandlePosition): HTMLButtonElement => {
+    const handle = document.createElement("button");
+    handle.type = "button";
+    handle.setAttribute("aria-label", `Resize ${position}`);
     handle.className = `vc-handle vc-handle-${position}`;
     handle.dataset.handlePosition = position;
     layer.appendChild(handle);
@@ -139,6 +142,13 @@ export function createResizeHandles(container: HTMLElement): ResizeHandles {
     }
   };
 
+  const setHandleDisabled = (handle: ResizeHandlePosition, disabled: boolean): void => {
+    const element = entries[handle].element;
+    if (element instanceof HTMLButtonElement) {
+      element.disabled = disabled;
+    }
+  };
+
   const getHandleElement = (handle: ResizeHandlePosition): HTMLElement | null => {
     return entries[handle].element;
   };
@@ -154,6 +164,7 @@ export function createResizeHandles(container: HTMLElement): ResizeHandles {
     showResizeHandles,
     hideResizeHandles,
     updateHandleCursor,
+    setHandleDisabled,
     getHandleElement,
     destroy,
   };

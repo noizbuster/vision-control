@@ -6,8 +6,6 @@ export {
   type BridgeClientOptions,
   type BridgeConnectionState,
   type TimerHandle,
-  type WebSocketFactory,
-  type WebSocketLike,
 } from "./client.js";
 export {
   BRIDGE_ENDPOINT_STORAGE_KEY,
@@ -41,6 +39,8 @@ export {
 } from "./endpoint-store.js";
 export {
   assertLoopbackHost,
+  BridgePathPolicyError,
+  BridgePortPolicyError,
   isLoopbackHost,
   NonLoopbackHostError,
 } from "./loopback.js";
@@ -48,6 +48,8 @@ export {
   type BuildEnvelopeOptions,
   buildCommandAckPayload,
   buildHeartbeatPayload,
+  buildProjectionTabClosedPayload,
+  buildProjectionTabFocusedPayload,
   buildSnapshotPushPayload,
   buildVerificationResultPayload,
   wrapBridgeEnvelope,
@@ -67,3 +69,4 @@ export {
   type SwWakeDecision,
   type SwWakeInput,
 } from "./reconnect-policy.js";
+export type { WebSocketFactory, WebSocketLike } from "./websocket.js";

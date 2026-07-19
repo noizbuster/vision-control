@@ -14,7 +14,7 @@ import {
   parseEnvelope,
   parseMessage,
 } from "@vision-control/protocol";
-import type { WebSocket } from "ws";
+import type { RawData, WebSocket } from "ws";
 
 import type { CommandQueue } from "./command-queue.js";
 import type { ProjectionCache } from "./projection-cache.js";
@@ -44,6 +44,18 @@ export function createBridgeSession(options: BridgeSessionOptions): BridgeSessio
   const now = options.now ?? Date.now;
   const uuid = options.uuid ?? (() => globalThis.crypto.randomUUID());
   let socket: WebSocket | undefined;
+  let releaseSocketListeners: (() => void) | undefined;
+
+  const invalidateCurrentSocket = (reason: string): void => {
+    const current = socket;
+    socket = undefined;
+    const release = releaseSocketListeners;
+    releaseSocketListeners = undefined;
+    cache.markUnpaired();
+    commands.clear();
+    release?.();
+    current?.close(1000, reason);
+  };
 
   const handleRaw = (raw: string): void => {
     let parsed: unknown;
@@ -78,6 +90,12 @@ export function createBridgeSession(options: BridgeSessionOptions): BridgeSessio
         });
         return;
       }
+      case "projection.tab.closed":
+        cache.clearTab(msg.tabId, msg.sessionId);
+        return;
+      case "projection.tab.focused":
+        cache.setActiveTab(msg.tabId, msg.sessionId);
+        return;
       case "command.ack":
         commands.ack(msg.commandId, msg.ok, msg.reason);
         return;
@@ -98,33 +116,33 @@ export function createBridgeSession(options: BridgeSessionOptions): BridgeSessio
 
   return {
     attach(ws: WebSocket): void {
-      if (socket !== undefined) {
-        socket.removeAllListeners();
-        socket.close(1000, "replaced");
-      }
+      invalidateCurrentSocket("replaced");
       socket = ws;
-      cache.markPaired(now());
-      ws.on("message", (data) => {
+      const onMessage = (data: RawData): void => {
+        if (socket !== ws) return;
         const text = typeof data === "string" ? data : data.toString("utf8");
         handleRaw(text);
-      });
-      ws.on("close", () => {
-        if (socket === ws) {
-          socket = undefined;
-          cache.markUnpaired();
-          commands.clear();
-        }
-      });
+      };
+      const onClose = (): void => {
+        if (socket !== ws) return;
+        const release = releaseSocketListeners;
+        socket = undefined;
+        releaseSocketListeners = undefined;
+        cache.markUnpaired();
+        commands.clear();
+        release?.();
+      };
+      releaseSocketListeners = () => {
+        ws.off("message", onMessage);
+        ws.off("close", onClose);
+      };
+      ws.on("message", onMessage);
+      ws.on("close", onClose);
+      cache.markPaired(now());
     },
 
     detach(): void {
-      if (socket !== undefined) {
-        socket.removeAllListeners();
-        socket.close(1000, "session detach");
-        socket = undefined;
-      }
-      cache.markUnpaired();
-      commands.clear();
+      invalidateCurrentSocket("session detach");
     },
 
     isAttached(): boolean {

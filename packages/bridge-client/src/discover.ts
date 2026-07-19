@@ -7,16 +7,26 @@ import {
   DEFAULT_BRIDGE_PORT,
   DISCOVER_PATH,
 } from "./constants.js";
-import { assertLoopbackHost, isLoopbackHost } from "./loopback.js";
+import {
+  BridgePortPolicyError,
+  hasApprovedBridgeUrlAuthority,
+  isApprovedBridgeHost,
+  isApprovedBridgePath,
+  isApprovedBridgePort,
+  NonLoopbackHostError,
+} from "./loopback.js";
+import { isUnknownRecord } from "./record.js";
 
 /** Discover JSON — never includes a token field (ADR-020 C3). */
-export const DiscoverResponseSchema = z.object({
-  host: z.string().min(1),
-  port: z.number().int().positive(),
-  wsPath: z.string().min(1),
-  pairTokenRequired: z.literal(true),
-  protocolVersion: z.string().min(1),
-});
+export const DiscoverResponseSchema = z
+  .object({
+    host: z.string().min(1).refine(isApprovedBridgeHost),
+    port: z.number().int().positive().refine(isApprovedBridgePort),
+    wsPath: z.string().min(1).refine(isApprovedBridgePath),
+    pairTokenRequired: z.literal(true),
+    protocolVersion: z.string().min(1),
+  })
+  .strict();
 
 export type DiscoverResponse = z.infer<typeof DiscoverResponseSchema>;
 
@@ -62,11 +72,20 @@ export async function probeDiscover(
   if (parsedBase.protocol !== "http:" && parsedBase.protocol !== "https:") {
     return { success: false, reason: `unsupported scheme "${parsedBase.protocol}"` };
   }
-  if (!isLoopbackHost(parsedBase.hostname)) {
+  if (!isApprovedBridgeHost(parsedBase.hostname)) {
     return {
       success: false,
-      reason: `host "${parsedBase.hostname}" is not loopback; refusing discover probe`,
+      reason: new NonLoopbackHostError(baseUrl).message,
     };
+  }
+  if (!hasApprovedBridgeUrlAuthority(baseUrl)) {
+    return {
+      success: false,
+      reason: new BridgePortPolicyError(parsedBase.port).message,
+    };
+  }
+  if (parsedBase.pathname !== "/" || parsedBase.search.length > 0 || parsedBase.hash.length > 0) {
+    return { success: false, reason: "discover base URL must contain only the approved authority" };
   }
 
   const url = new URL(DISCOVER_PATH, parsedBase);
@@ -102,28 +121,27 @@ export async function probeDiscover(
 
 /** Parse and validate a discover JSON body (secret-free). */
 export function parseDiscoverResponse(body: unknown): DiscoverProbeResult {
-  if (typeof body !== "object" || body === null) {
+  if (!isUnknownRecord(body)) {
     return { success: false, reason: "discover body is not an object" };
   }
-  const record = body as Record<string, unknown>;
   for (const key of FORBIDDEN_DISCOVER_KEYS) {
-    if (key in record) {
+    if (key in body) {
       return { success: false, reason: `discover body contains forbidden key "${key}"` };
     }
+  }
+
+  const host = body.host;
+  if (typeof host === "string" && !isApprovedBridgeHost(host)) {
+    return { success: false, reason: new NonLoopbackHostError(host).message };
+  }
+  const port = body.port;
+  if (typeof port === "number" && !isApprovedBridgePort(port)) {
+    return { success: false, reason: new BridgePortPolicyError(port).message };
   }
 
   const parsed = DiscoverResponseSchema.safeParse(body);
   if (!parsed.success) {
     return { success: false, reason: "discover body failed schema validation" };
-  }
-
-  try {
-    assertLoopbackHost(parsed.data.host);
-  } catch {
-    return {
-      success: false,
-      reason: `discover host "${parsed.data.host}" is not loopback`,
-    };
   }
 
   return { success: true, discover: parsed.data };

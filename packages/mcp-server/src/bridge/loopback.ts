@@ -3,24 +3,24 @@
  * Never bind 0.0.0.0 or a public interface.
  */
 
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+import { DEFAULT_BRIDGE_HOST } from "./constants.js";
 
 export class NonLoopbackHostError extends Error {
   constructor(public readonly host: string) {
     super(
-      `Refusing to bind MCP bridge to "${host}". Loopback only (ADR-020). ` +
-        `Use 127.0.0.1, ::1, or localhost. Binding 0.0.0.0 would expose the bridge.`,
+      `Refusing to bind MCP bridge to "${host}". ADR-020 requires exactly ` +
+        `"${DEFAULT_BRIDGE_HOST}"; hostnames, IPv6, wildcard, and non-loopback values are unsupported.`,
     );
     this.name = "NonLoopbackHostError";
   }
 }
 
-/** True when `host` is an exact loopback name/address. */
+/** True only for the product-approved bridge bind literal. */
 export function isLoopbackHost(host: string): boolean {
-  return LOOPBACK_HOSTS.has(host);
+  return host === DEFAULT_BRIDGE_HOST;
 }
 
-/** Throws {@link NonLoopbackHostError} when `host` is not loopback. */
+/** Throws {@link NonLoopbackHostError} when `host` differs from the approved bind literal. */
 export function validateLoopbackHost(host: string): void {
   if (!isLoopbackHost(host)) {
     throw new NonLoopbackHostError(host);

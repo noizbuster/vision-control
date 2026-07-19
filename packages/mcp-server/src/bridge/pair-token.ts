@@ -84,9 +84,11 @@ export function formatPairingStderrLines(
   port: number,
 ): readonly string[] {
   const minutes = Math.max(1, Math.round((state.expiresAt - state.issuedAt) / 60_000));
+  const safePairingUrl = new URL(state.pairingUrl);
+  safePairingUrl.searchParams.set("token", "[REDACTED]");
   return [
     `[vision-control-mcp] pair token (valid ${minutes}m): ${state.token}`,
-    `[vision-control-mcp] pair URL: ${state.pairingUrl}`,
+    `[vision-control-mcp] pair URL: ${safePairingUrl.toString()}`,
     `[vision-control-mcp] discover: http://${host}:${port}/discover  bridge: ws://${host}:${port}/bridge`,
   ];
 }

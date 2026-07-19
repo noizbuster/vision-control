@@ -9,14 +9,24 @@ import {
 } from "./constants.js";
 import type { DiscoverResponse } from "./discover.js";
 import { defaultDiscoverResponse } from "./discover.js";
-import { isLoopbackHost } from "./loopback.js";
+import {
+  assertBridgeEndpoint,
+  BridgePortPolicyError,
+  hasApprovedBridgeUrlAuthority,
+  isApprovedBridgeHost,
+  isApprovedBridgePath,
+  isApprovedBridgePort,
+  NonLoopbackHostError,
+} from "./loopback.js";
 
-export const BridgeTargetSchema = z.object({
-  token: z.string().min(1),
-  host: z.string().min(1),
-  port: z.number().int().positive(),
-  wsPath: z.string().min(1),
-});
+export const BridgeTargetSchema = z
+  .object({
+    token: z.string().min(1),
+    host: z.string().min(1).refine(isApprovedBridgeHost),
+    port: z.number().int().positive().refine(isApprovedBridgePort),
+    wsPath: z.string().min(1).refine(isApprovedBridgePath),
+  })
+  .strict();
 
 export type BridgeTarget = z.infer<typeof BridgeTargetSchema>;
 
@@ -59,6 +69,19 @@ export function resolveBridgePairingInput(
       reason: `unsupported scheme "${parsed.protocol}" (expected "${PAIRING_PROTOCOL}")`,
     };
   }
+  if (
+    parsed.hostname !== "pair" ||
+    parsed.port.length > 0 ||
+    parsed.pathname !== "" ||
+    parsed.hash.length > 0 ||
+    parsed.username.length > 0 ||
+    parsed.password.length > 0
+  ) {
+    return { success: false, reason: "invalid pairing URL authority" };
+  }
+  if (!hasCanonicalPairingQuery(parsed.searchParams, CUSTOM_PAIRING_QUERY_KEYS)) {
+    return { success: false, reason: "invalid pairing query parameter" };
+  }
 
   const token = parsed.searchParams.get("token");
   if (token === null || token.length === 0) {
@@ -73,10 +96,10 @@ export function resolveBridgePairingInput(
       : parsed.hostname.length > 0
         ? parsed.hostname
         : discover.host;
-  const port = portParam === null ? discover.port : Number.parseInt(portParam, 10);
-  if (Number.isNaN(port) || port <= 0 || port > 65535) {
-    return { success: false, reason: `invalid port "${portParam ?? ""}"` };
+  if (portParam !== null && portParam !== String(DEFAULT_BRIDGE_PORT)) {
+    return { success: false, reason: new BridgePortPolicyError(portParam).message };
   }
+  const port = portParam === null ? discover.port : DEFAULT_BRIDGE_PORT;
   if (hostParam.length === 0) {
     return { success: false, reason: "missing host" };
   }
@@ -88,9 +111,9 @@ export function resolveBridgePairingInput(
 
 /** Build the authenticated bridge WebSocket URL (`/bridge?token=…`). */
 export function toBridgeWebSocketUrl(target: BridgeTarget, secure = false): string {
+  assertBridgeEndpoint(target.host, target.port, target.wsPath);
   const scheme = secure ? "wss" : "ws";
-  const path = target.wsPath.startsWith("/") ? target.wsPath : `/${target.wsPath}`;
-  return `${scheme}://${target.host}:${target.port}${path}?token=${encodeURIComponent(target.token)}`;
+  return `${scheme}://${target.host}:${target.port}${target.wsPath}?token=${encodeURIComponent(target.token)}`;
 }
 
 /** Synthesize a `vision-control://pair?...` URL for bare-token panel paste. */
@@ -99,6 +122,7 @@ export function synthesizeBridgePairingUrl(
   host: string = DEFAULT_BRIDGE_HOST,
   port: number = DEFAULT_BRIDGE_PORT,
 ): string {
+  assertBridgeEndpoint(host, port);
   const params = new URLSearchParams({
     token,
     port: String(port),
@@ -131,11 +155,17 @@ export function synthesizePairingUrlFromHttpPairPage(input: string): SynthesizeP
       reason: `unsupported scheme "${parsed.protocol}" (expected http: or https:)`,
     };
   }
-  const pageHost = normalizeHostname(parsed.hostname);
-  if (!isLoopbackHost(pageHost)) {
+  const pageHost = parsed.hostname;
+  if (!isApprovedBridgeHost(pageHost)) {
     return {
       success: false,
-      reason: `host "${parsed.hostname}" is not loopback`,
+      reason: new NonLoopbackHostError(input).message,
+    };
+  }
+  if (!hasApprovedBridgeUrlAuthority(input)) {
+    return {
+      success: false,
+      reason: new BridgePortPolicyError(parsed.port).message,
     };
   }
   if (parsed.pathname !== PAIRING_PAIR_PATH) {
@@ -143,6 +173,12 @@ export function synthesizePairingUrlFromHttpPairPage(input: string): SynthesizeP
       success: false,
       reason: `path "${parsed.pathname}" is not ${PAIRING_PAIR_PATH}`,
     };
+  }
+  if (
+    parsed.hash.length > 0 ||
+    !hasCanonicalPairingQuery(parsed.searchParams, PAIR_PAGE_QUERY_KEYS)
+  ) {
+    return { success: false, reason: "invalid pair-page query parameter" };
   }
 
   const token = parsed.searchParams.get("token");
@@ -155,17 +191,17 @@ export function synthesizePairingUrlFromHttpPairPage(input: string): SynthesizeP
   if (portParam === null) {
     return { success: false, reason: "missing port query parameter" };
   }
-  const port = Number.parseInt(portParam, 10);
-  if (Number.isNaN(port) || port <= 0 || port > 65535) {
-    return { success: false, reason: `invalid port "${portParam}"` };
+  if (portParam !== String(DEFAULT_BRIDGE_PORT)) {
+    return { success: false, reason: new BridgePortPolicyError(portParam).message };
   }
+  const port = DEFAULT_BRIDGE_PORT;
   if (hostParam.length === 0) {
     return { success: false, reason: "missing host" };
   }
-  if (!isLoopbackHost(hostParam)) {
+  if (!isApprovedBridgeHost(hostParam)) {
     return {
       success: false,
-      reason: `query host "${hostParam}" is not loopback`,
+      reason: new NonLoopbackHostError(hostParam).message,
     };
   }
 
@@ -175,12 +211,23 @@ export function synthesizePairingUrlFromHttpPairPage(input: string): SynthesizeP
   };
 }
 
-function normalizeHostname(hostname: string): string {
-  return hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
+function looksLikeBareToken(input: string): boolean {
+  return input.length > 0 && !input.includes(":") && !input.includes("/");
 }
 
-function looksLikeBareToken(input: string): boolean {
-  return input.length > 0 && !input.includes("://") && !input.includes("/");
+const CUSTOM_PAIRING_QUERY_KEYS = new Set<string>(["token", "host", "port", "wsPath"]);
+const PAIR_PAGE_QUERY_KEYS = new Set<string>(["token", "host", "port"]);
+
+function hasCanonicalPairingQuery(
+  searchParams: URLSearchParams,
+  allowedKeys: ReadonlySet<string>,
+): boolean {
+  for (const key of searchParams.keys()) {
+    if (!allowedKeys.has(key) || searchParams.getAll(key).length !== 1) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function buildTarget(input: {
@@ -189,10 +236,16 @@ function buildTarget(input: {
   readonly port: number;
   readonly wsPath: string;
 }): BridgePairingResult {
-  if (!isLoopbackHost(input.host)) {
+  if (!isApprovedBridgeHost(input.host)) {
     return {
       success: false,
-      reason: `host "${input.host}" is not loopback; refusing pair`,
+      reason: new NonLoopbackHostError(input.host).message,
+    };
+  }
+  if (!isApprovedBridgePort(input.port)) {
+    return {
+      success: false,
+      reason: new BridgePortPolicyError(input.port).message,
     };
   }
   const result = BridgeTargetSchema.safeParse(input);

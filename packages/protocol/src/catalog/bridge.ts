@@ -39,6 +39,26 @@ export const SnapshotPushSchema = z.object({
 });
 export type SnapshotPush = z.infer<typeof SnapshotPushSchema>;
 
+const ProjectionTabIdentitySchema = z.object({
+  tabId: z.string().min(1),
+  sessionId: z.string().min(1).optional(),
+});
+
+export const ProjectionTabClosedSchema = ProjectionTabIdentitySchema.extend({
+  type: z.literal("projection.tab.closed"),
+});
+export type ProjectionTabClosed = z.infer<typeof ProjectionTabClosedSchema>;
+
+export const ProjectionTabFocusedSchema = ProjectionTabIdentitySchema.extend({
+  type: z.literal("projection.tab.focused"),
+});
+export type ProjectionTabFocused = z.infer<typeof ProjectionTabFocusedSchema>;
+
+export const bridgeLifecycleSchemas = [
+  ProjectionTabClosedSchema,
+  ProjectionTabFocusedSchema,
+] as const;
+
 /**
  * MCP → extension: enqueue a coordination command (clear preview, verify,
  * patch markers). Does not write source or mutate the journal from MCP.

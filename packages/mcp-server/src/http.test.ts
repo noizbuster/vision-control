@@ -1,4 +1,5 @@
-import type { IncomingMessage } from "node:http";
+import { IncomingMessage } from "node:http";
+import { Socket } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -133,19 +134,30 @@ describe("mcp-server HTTP transport", () => {
     expect(response.status).toBe(401);
   });
 
-  it("refuses to bind to non-loopback hosts", async () => {
+  it.each([
+    "localhost",
+    "::1",
+    "[::1]",
+    "0.0.0.0",
+    "*",
+    "192.168.1.1",
+  ])("Given prohibited host %s, when HTTP transport starts, then an actionable typed error is thrown", async (host) => {
     const server = createMcpServer(createStubDeps());
+
     await expect(
-      startHttpTransport(server, { port: 0, host: "0.0.0.0", auth: { token: AUTH_TOKEN } }),
-    ).rejects.toThrow("Loopback only");
+      startHttpTransport(server, { port: 0, host, auth: { token: AUTH_TOKEN } }),
+    ).rejects.toMatchObject({
+      name: "NonLoopbackHostError",
+      host,
+      message: expect.stringContaining("127.0.0.1"),
+    });
   });
 });
 
 function mockRequest(url: string, headers: Record<string, string>): IncomingMessage {
-  const req = {
-    headers,
-    url,
-  } as unknown as IncomingMessage;
+  const req = new IncomingMessage(new Socket());
+  req.headers = headers;
+  req.url = url;
   return req;
 }
 

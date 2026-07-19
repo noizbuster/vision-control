@@ -11,6 +11,7 @@ describe("startMcpProcess — no daemon required (ADR-020 C2)", () => {
       await processHandle.stop();
       processHandle = undefined;
     }
+    vi.restoreAllMocks();
   });
 
   it("starts without VC_DAEMON_URL and serves discover on the bound port", async () => {
@@ -30,8 +31,23 @@ describe("startMcpProcess — no daemon required (ADR-020 C2)", () => {
     expect(stderr.join("\n")).toContain(processHandle.pairToken);
   });
 
+  it("accepts an explicit 127.0.0.1 configuration on the existing bridge path", async () => {
+    processHandle = await startMcpProcess({
+      host: "127.0.0.1",
+      port: 0,
+      skipStdio: true,
+      writeStderr: () => {},
+    });
+
+    const response = await fetch(`http://127.0.0.1:${processHandle.port}/discover`);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(processHandle.host).toBe("127.0.0.1");
+    expect(body.host).toBe("127.0.0.1");
+  });
+
   it("prints the pair token on stderr only (never via discover or stdout channel)", async () => {
     const stderr: string[] = [];
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     processHandle = await startMcpProcess({
       port: 0,
       skipStdio: true,
@@ -43,12 +59,16 @@ describe("startMcpProcess — no daemon required (ADR-020 C2)", () => {
     expect(stderrText).toMatch(/pair token/i);
 
     const tokenOccurrences = stderrText.split(processHandle.pairToken).length - 1;
-    expect(tokenOccurrences).toBeGreaterThanOrEqual(1);
-    expect(tokenOccurrences).toBeLessThanOrEqual(2);
+    expect(tokenOccurrences).toBe(1);
+
+    const stdoutText = stdoutWrite.mock.calls.map(([chunk]) => String(chunk)).join("");
+    const stdoutOccurrences = stdoutText.split(processHandle.pairToken).length - 1;
+    expect(stdoutOccurrences).toBe(0);
 
     const discover = await fetch(`http://127.0.0.1:${processHandle.port}/discover`);
     const discoverText = await discover.text();
-    expect(discoverText).not.toContain(processHandle.pairToken);
+    const discoverOccurrences = discoverText.split(processHandle.pairToken).length - 1;
+    expect(discoverOccurrences).toBe(0);
   });
 
   it("discover body never contains the pair token", async () => {
@@ -59,17 +79,22 @@ describe("startMcpProcess — no daemon required (ADR-020 C2)", () => {
     expect(text).not.toMatch(/"token"\s*:/);
   });
 
-  it("refuses non-loopback host and reports on stderr", async () => {
+  it.each([
+    "localhost",
+    "::1",
+    "0.0.0.0",
+    "192.168.1.1",
+  ])("refuses prohibited host %s and reports the required literal on stderr", async (host) => {
     const stderr: string[] = [];
     await expect(
       startMcpProcess({
-        host: "0.0.0.0",
+        host,
         port: 0,
         skipStdio: true,
         writeStderr: (line) => stderr.push(line),
       }),
     ).rejects.toThrow(NonLoopbackHostError);
-    expect(stderr.join("\n")).toMatch(/Loopback only|Refusing to bind/i);
+    expect(stderr.join("\n")).toContain("127.0.0.1");
   });
 
   it("createStubDeps works without a daemon (unpaired shape)", async () => {

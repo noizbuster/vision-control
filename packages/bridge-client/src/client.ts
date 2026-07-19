@@ -3,37 +3,22 @@ import type { ProtocolEnvelope } from "@vision-control/protocol";
 import { HEARTBEAT_INTERVAL_MS, PAIR_TOKEN_TTL_MS } from "./constants.js";
 import type { BridgeEndpoint } from "./endpoint-store.js";
 import { endpointFromTarget } from "./endpoint-store.js";
+import { parseIncoming } from "./incoming.js";
 import {
   buildCommandAckPayload,
   buildHeartbeatPayload,
+  buildProjectionTabClosedPayload,
+  buildProjectionTabFocusedPayload,
   buildSnapshotPushPayload,
   buildVerificationResultPayload,
   wrapBridgeEnvelope,
 } from "./messages.js";
 import type { BridgeTarget } from "./pairing.js";
 import { toBridgeWebSocketUrl } from "./pairing.js";
+import { createNativeWebSocket, type WebSocketFactory, type WebSocketLike } from "./websocket.js";
 
 /** Connection lifecycle states. */
 export type BridgeConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
-
-/**
- * Minimal WebSocket surface. Native WebSocket (browsers + Node 22+) satisfies
- * this; tests inject a fake. Keeps the package free of `ws`.
- */
-export interface WebSocketLike {
-  readonly readyState: number;
-  readonly OPEN: number;
-  close(code?: number, reason?: string): void;
-  send(data: string): void;
-  onopen: ((this: WebSocketLike) => void) | null;
-  onmessage: ((this: WebSocketLike, ev: { readonly data: string }) => void) | null;
-  onclose:
-    | ((this: WebSocketLike, ev: { readonly code?: number; readonly reason?: string }) => void)
-    | null;
-  onerror: ((this: WebSocketLike) => void) | null;
-}
-
-export type WebSocketFactory = (url: string) => WebSocketLike;
 
 export type TimerHandle = ReturnType<typeof setTimeout>;
 
@@ -69,11 +54,10 @@ export class BridgeClient {
   private readonly pairTokenTtlMs: number;
   private readonly onStateChange: ((state: BridgeConnectionState) => void) | undefined;
   private readonly messageHandlers = new Set<(envelope: ProtocolEnvelope) => void>();
+  private pendingConnectReject: ((reason: Error) => void) | undefined;
 
   constructor(options: BridgeClientOptions = {}) {
-    this.factory =
-      options.factory ??
-      ((url: string) => new globalThis.WebSocket(url) as unknown as WebSocketLike);
+    this.factory = options.factory ?? createNativeWebSocket;
     this.setTimeoutFn = options.setTimeout ?? globalThis.setTimeout;
     this.clearTimeoutFn = options.clearTimeout ?? globalThis.clearTimeout;
     this.uuid = options.uuid ?? globalThis.crypto.randomUUID.bind(globalThis.crypto);
@@ -84,39 +68,64 @@ export class BridgeClient {
   }
 
   /** Open the bridge socket. Resolves when the WebSocket is open (paired). */
-  connect(target: BridgeTarget): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      this.disconnectSocketOnly();
+  async connect(target: BridgeTarget): Promise<void> {
+    const url = toBridgeWebSocketUrl(target);
+    const socket = this.factory(url);
+    await new Promise<void>((resolve, reject) => {
+      this.disconnectSocketOnly(new Error("Bridge pair attempt superseded"));
       this.target = target;
       this.tokenExpiresAt = this.now() + this.pairTokenTtlMs;
       this.setState("connecting");
 
-      const url = toBridgeWebSocketUrl(target);
-      const socket = this.factory(url);
       this.socket = socket;
+      this.pendingConnectReject = reject;
 
       socket.onopen = () => {
+        if (this.socket !== socket) {
+          return;
+        }
+        this.pendingConnectReject = undefined;
         this.setState("connected");
         this.startHeartbeat();
         resolve();
       };
 
       socket.onmessage = (ev) => {
+        if (this.socket !== socket) {
+          return;
+        }
         this.handleMessage(ev);
       };
 
-      socket.onclose = () => {
-        this.stopHeartbeat();
-        if (this.state === "disconnected") {
+      socket.onclose = (event) => {
+        if (this.socket !== socket) {
           return;
         }
+        this.stopHeartbeat();
+        const wasConnecting = this.state === "connecting";
+        const rejectPending = this.pendingConnectReject;
+        this.pendingConnectReject = undefined;
+        this.clearSocketHandlers(socket);
+        this.socket = undefined;
+        if (wasConnecting) {
+          this.target = undefined;
+          this.tokenExpiresAt = undefined;
+        }
         this.setState("disconnected");
+        if (wasConnecting) {
+          rejectPending?.(
+            new Error(`WebSocket closed during bridge pair (${event.code ?? "unknown"})`),
+          );
+        }
       };
 
       socket.onerror = () => {
-        if (this.state === "connecting") {
+        if (this.socket === socket && this.state === "connecting") {
           this.setState("disconnected");
-          reject(new Error("WebSocket error during bridge pair"));
+          this.stopHeartbeat();
+          this.target = undefined;
+          this.tokenExpiresAt = undefined;
+          this.disconnectSocketOnly(new Error("WebSocket error during bridge pair"));
         }
       };
     });
@@ -128,15 +137,13 @@ export class BridgeClient {
     this.stopHeartbeat();
     this.target = undefined;
     this.tokenExpiresAt = undefined;
-    this.disconnectSocketOnly();
+    this.disconnectSocketOnly(new Error("Bridge pair attempt cancelled"));
   }
 
   /** Subscribe to incoming envelopes. Returns unsubscribe. */
   onMessage(handler: (envelope: ProtocolEnvelope) => void): () => void {
     this.messageHandlers.add(handler);
-    return () => {
-      this.messageHandlers.delete(handler);
-    };
+    return () => this.messageHandlers.delete(handler);
   }
 
   /** Send a protocol envelope to the bridge. */
@@ -165,8 +172,15 @@ export class BridgeClient {
     readonly sessionId?: string;
     readonly snapshot: unknown;
   }): void {
-    const payload = buildSnapshotPushPayload(input);
-    this.send("snapshot.push", payload, input.tabId);
+    this.send("snapshot.push", buildSnapshotPushPayload(input), input.tabId);
+  }
+
+  clearTab(input: { readonly tabId: string; readonly sessionId?: string }): void {
+    this.send("projection.tab.closed", buildProjectionTabClosedPayload(input), input.tabId);
+  }
+
+  focusTab(input: { readonly tabId: string; readonly sessionId?: string }): void {
+    this.send("projection.tab.focused", buildProjectionTabFocusedPayload(input), input.tabId);
   }
 
   /** Acknowledge a command.enqueue from MCP. */
@@ -176,8 +190,7 @@ export class BridgeClient {
     readonly reason?: string;
     readonly tabId?: string;
   }): void {
-    const payload = buildCommandAckPayload(input);
-    this.send("command.ack", payload, input.tabId);
+    this.send("command.ack", buildCommandAckPayload(input), input.tabId);
   }
 
   pushVerificationResult(input: {
@@ -188,8 +201,7 @@ export class BridgeClient {
     readonly details: unknown;
     readonly commandId?: string;
   }): void {
-    const payload = buildVerificationResultPayload(input);
-    this.send("verification.result", payload, input.tabId);
+    this.send("verification.result", buildVerificationResultPayload(input), input.tabId);
   }
 
   /** In-memory pair token (never persisted by this client). */
@@ -203,21 +215,16 @@ export class BridgeClient {
 
   /** Endpoint suitable for chrome.storage.local (no token). */
   getEndpoint(): BridgeEndpoint | undefined {
-    if (this.target === undefined) {
-      return undefined;
-    }
-    return endpointFromTarget(this.target);
+    return this.target === undefined ? undefined : endpointFromTarget(this.target);
   }
 
   isInMemoryTokenValid(now: number = this.now()): boolean {
     const token = this.getInMemoryToken();
-    if (token === undefined || token.length === 0) {
-      return false;
-    }
-    if (this.tokenExpiresAt !== undefined && now >= this.tokenExpiresAt) {
-      return false;
-    }
-    return true;
+    return (
+      token !== undefined &&
+      token.length > 0 &&
+      (this.tokenExpiresAt === undefined || now < this.tokenExpiresAt)
+    );
   }
 
   private startHeartbeat(): void {
@@ -247,15 +254,23 @@ export class BridgeClient {
     }
   }
 
-  private disconnectSocketOnly(): void {
-    if (this.socket !== undefined) {
-      this.socket.onclose = null;
-      this.socket.onerror = null;
-      this.socket.onmessage = null;
-      this.socket.onopen = null;
-      this.socket.close(1000, "client disconnect");
+  private disconnectSocketOnly(reason: Error): void {
+    const socket = this.socket;
+    if (socket !== undefined) {
+      this.clearSocketHandlers(socket);
+      socket.close(1000, "client disconnect");
       this.socket = undefined;
     }
+    const rejectPending = this.pendingConnectReject;
+    this.pendingConnectReject = undefined;
+    rejectPending?.(reason);
+  }
+
+  private clearSocketHandlers(socket: WebSocketLike): void {
+    socket.onclose = null;
+    socket.onerror = null;
+    socket.onmessage = null;
+    socket.onopen = null;
   }
 
   private setState(state: BridgeConnectionState): void {
@@ -265,32 +280,11 @@ export class BridgeClient {
 
   private handleMessage(ev: { readonly data: string }): void {
     const envelope = parseIncoming(ev.data);
-    if (envelope === undefined) {
-      return;
-    }
+    if (envelope === undefined) return;
     for (const handler of this.messageHandlers) {
       handler(envelope);
     }
   }
 }
 
-function parseIncoming(data: string): ProtocolEnvelope | undefined {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(data);
-  } catch {
-    return undefined;
-  }
-  if (typeof parsed !== "object" || parsed === null) {
-    return undefined;
-  }
-  const obj = parsed as Record<string, unknown>;
-  if (
-    typeof obj.protocolVersion !== "string" ||
-    typeof obj.messageId !== "string" ||
-    typeof obj.messageType !== "string"
-  ) {
-    return undefined;
-  }
-  return parsed as ProtocolEnvelope;
-}
+export type { WebSocketFactory, WebSocketLike } from "./websocket.js";

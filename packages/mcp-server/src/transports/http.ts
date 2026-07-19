@@ -20,8 +20,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
 import { type AuthConfig, checkAuth } from "../auth.js";
-
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+import { DEFAULT_BRIDGE_HOST } from "../bridge/constants.js";
+import { validateLoopbackHost } from "../bridge/loopback.js";
 
 export interface HttpTransportOptions {
   /** Bind port. 0 = ephemeral. */
@@ -49,12 +49,8 @@ export async function startHttpTransport(
   mcpServer: McpServer,
   opts: HttpTransportOptions,
 ): Promise<HttpTransportHandle> {
-  const host = opts.host ?? "127.0.0.1";
-  if (!LOOPBACK_HOSTS.has(host)) {
-    throw new Error(
-      `Refusing to bind HTTP transport to "${host}". Loopback only (PRD section 27.1).`,
-    );
-  }
+  const host = opts.host ?? DEFAULT_BRIDGE_HOST;
+  validateLoopbackHost(host);
 
   const httpServer: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     void handleRequest(req, res, mcpServer, opts.auth);

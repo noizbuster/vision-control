@@ -20,6 +20,18 @@ import {
   validatePairToken,
 } from "./index.js";
 
+function captureBindHostError(host: string): NonLoopbackHostError {
+  try {
+    validateLoopbackHost(host);
+  } catch (error) {
+    if (error instanceof NonLoopbackHostError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error("expected NonLoopbackHostError");
+}
+
 describe("discover response shape (ADR-020 C3)", () => {
   it("returns host, port, wsPath, pairTokenRequired, protocolVersion", () => {
     const body = buildDiscoverResponse();
@@ -46,6 +58,15 @@ describe("discover response shape (ADR-020 C3)", () => {
     expect(DEFAULT_BRIDGE_PORT).toBe(4322);
     expect(DISCOVER_PATH).toBe("/discover");
     expect(BRIDGE_WS_PATH).toBe("/bridge");
+  });
+
+  it.each([
+    "localhost",
+    "::1",
+    "0.0.0.0",
+    "192.168.1.1",
+  ])("Given prohibited host %s, when discover configuration is built, then it throws the typed host error", (host) => {
+    expect(() => buildDiscoverResponse({ host })).toThrow(NonLoopbackHostError);
   });
 });
 
@@ -74,22 +95,30 @@ describe("pair token (ADR-020 C3)", () => {
     const state = mintPairToken({ now: () => 0 });
     const lines = formatPairingStderrLines(state, "127.0.0.1", 4322);
     const joined = lines.join("\n");
-    expect(joined).toContain(state.token);
+    const tokenOccurrences = joined.split(state.token).length - 1;
+    expect(tokenOccurrences).toBe(1);
     expect(joined).toContain("127.0.0.1:4322/discover");
     expect(joined).toContain("127.0.0.1:4322/bridge");
   });
 });
 
-describe("loopback bind guard", () => {
-  it("accepts loopback hosts", () => {
+describe("exact bridge bind guard", () => {
+  it("Given the approved literal, when the bind host is validated, then it is accepted", () => {
     expect(() => validateLoopbackHost("127.0.0.1")).not.toThrow();
-    expect(() => validateLoopbackHost("localhost")).not.toThrow();
-    expect(() => validateLoopbackHost("::1")).not.toThrow();
   });
 
-  it("refuses non-loopback hosts including 0.0.0.0", () => {
-    expect(() => validateLoopbackHost("0.0.0.0")).toThrow(NonLoopbackHostError);
-    expect(() => validateLoopbackHost("192.168.1.1")).toThrow(NonLoopbackHostError);
+  it.each([
+    "localhost",
+    "::1",
+    "[::1]",
+    "0.0.0.0",
+    "*",
+    "192.168.1.1",
+  ])("Given prohibited host %s, when the bind host is validated, then an actionable typed error is thrown", (host) => {
+    const thrown = captureBindHostError(host);
+
+    expect(thrown.host).toBe(host);
+    expect(thrown.message).toContain("127.0.0.1");
   });
 });
 
@@ -121,9 +150,15 @@ describe("bridge server integration", () => {
     expect(JSON.stringify(body)).not.toContain(pairToken.token);
   });
 
-  it("refuses non-loopback bind before listen", async () => {
+  it.each([
+    "localhost",
+    "::1",
+    "0.0.0.0",
+    "192.168.1.1",
+  ])("Given prohibited host %s, when the bridge starts, then bind fails before listen", async (host) => {
     const pairToken = mintPairToken();
-    await expect(startBridgeServer({ host: "0.0.0.0", port: 0, pairToken })).rejects.toThrow(
+
+    await expect(startBridgeServer({ host, port: 0, pairToken })).rejects.toThrow(
       NonLoopbackHostError,
     );
   });

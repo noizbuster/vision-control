@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { bridgeSchemas } from "./catalog/bridge.js";
+import { bridgeLifecycleSchemas, bridgeSchemas } from "./catalog/bridge.js";
 import { browserToDaemonSchemas } from "./catalog/browser-to-daemon.js";
 import { daemonToBrowserSchemas } from "./catalog/daemon-to-browser.js";
 import { type ParseResult, ProtocolErrorCodeSchema, protocolError } from "./errors.js";
@@ -14,8 +14,8 @@ import { type ParseResult, ProtocolErrorCodeSchema, protocolError } from "./erro
  *    These handle transport-level session establishment and acknowledgement.
  * 2. **§25 business catalog** — 15 typed messages (8 browser→daemon per §25.1,
  *    7 daemon→browser per §25.2) that flow after the handshake completes.
- * 3. **ADR-020 bridge catalog** — `snapshot.push`, `command.enqueue`,
- *    `command.ack` (heartbeat reuses `session.heartbeat` from §25.1).
+ * 3. **ADR-020 bridge catalog** — snapshot, tab lifecycle, command, and
+ *    verification projection messages (heartbeat reuses `session.heartbeat`).
  *
  * Each variant is keyed by its `type` literal. The envelope carries the message
  * in its `payload` field; callers narrow via {@link parseMessage}.
@@ -71,6 +71,7 @@ export const MessageSchema = z.discriminatedUnion("type", [
   ...browserToDaemonSchemas,
   ...daemonToBrowserSchemas,
   ...bridgeSchemas,
+  ...bridgeLifecycleSchemas,
 ]);
 
 // ── Type re-exports ─────────────────────────────────────────────────────────

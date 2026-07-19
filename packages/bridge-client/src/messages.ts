@@ -6,6 +6,8 @@
 import {
   type CommandAck,
   PROTOCOL_VERSION,
+  type ProjectionTabClosed,
+  type ProjectionTabFocused,
   type ProtocolEnvelope,
   type SessionHeartbeat,
   type SnapshotPush,
@@ -35,6 +37,28 @@ export function buildSnapshotPushPayload(input: {
     return { ...payload, sessionId: input.sessionId };
   }
   return payload;
+}
+
+export function buildProjectionTabClosedPayload(input: {
+  readonly tabId: string;
+  readonly sessionId?: string;
+}): ProjectionTabClosed {
+  return {
+    type: "projection.tab.closed",
+    tabId: input.tabId,
+    ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
+  };
+}
+
+export function buildProjectionTabFocusedPayload(input: {
+  readonly tabId: string;
+  readonly sessionId?: string;
+}): ProjectionTabFocused {
+  return {
+    type: "projection.tab.focused",
+    tabId: input.tabId,
+    ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
+  };
 }
 
 export function buildCommandAckPayload(input: {

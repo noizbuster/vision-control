@@ -47,7 +47,8 @@ Discover JSON shape (no token field):
 ```
 
 Port **4322** is fixed. If busy, the process fails with a clear error (no
-multi-port scan). Bind is loopback only (`127.0.0.1` / `::1` / `localhost`).
+multi-port scan). Bridge bind accepts only lexical `127.0.0.1`; this product
+configuration contract is separate from extension inspected-page host permissions.
 
 Agent Bearer (`VC_MCP_TOKEN` for optional HTTP MCP transport) is a **separate**
 secret from the extension pair token.
@@ -72,6 +73,11 @@ read from the extension projection cache when paired; unpaired returns
 CLI/tooling with Bearer auth; product path for agents is stdio + bridge.
 
 ## Public API
+
+These library exports support the single-process bridge. They do not create a
+daemon-backed product mode or a second product startup path. The supported
+product entrypoint is `vision-control mcp`; extension state reaches the server
+only through the paired bridge projection.
 
 - `createMcpServer(deps)` — unconnected `McpServer` with tools registered
 - `startMcpProcess` / `startBridgeServer` — single-process bridge foundation

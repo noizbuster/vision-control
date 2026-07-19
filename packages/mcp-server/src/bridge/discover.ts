@@ -10,6 +10,7 @@ import {
   DEFAULT_BRIDGE_HOST,
   DEFAULT_BRIDGE_PORT,
 } from "./constants.js";
+import { validateLoopbackHost } from "./loopback.js";
 
 /** Discover JSON — never includes a token field. */
 export interface DiscoverResponse {
@@ -29,8 +30,10 @@ export interface BuildDiscoverResponseInput {
 
 /** Build the public discover payload (no secrets). */
 export function buildDiscoverResponse(input: BuildDiscoverResponseInput = {}): DiscoverResponse {
+  const host = input.host ?? DEFAULT_BRIDGE_HOST;
+  validateLoopbackHost(host);
   return {
-    host: input.host ?? DEFAULT_BRIDGE_HOST,
+    host,
     port: input.port ?? DEFAULT_BRIDGE_PORT,
     wsPath: input.wsPath ?? BRIDGE_WS_PATH,
     pairTokenRequired: true,

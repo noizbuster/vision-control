@@ -70,6 +70,7 @@ describe("content-safe id generation", () => {
         { rect: { x: 0, y: 50, width: 100, height: 50 } },
       ],
       layoutRole: "normal-flow-block",
+      flow: { kind: "block" },
     };
     const reorder = endReorder(
       updateReorder(

@@ -34,6 +34,7 @@ export function createBridgeBackgroundController(
 ): BridgeBackgroundController {
   let bridgeClient: BridgeClient | undefined;
   let connectionState: ConnectionState = "disconnected";
+  let pairGeneration = 0;
 
   const setState = (state: ConnectionState): void => {
     connectionState = state;
@@ -41,7 +42,10 @@ export function createBridgeBackgroundController(
   };
 
   const pairWithInput = async (pairingUrl: string): Promise<void> => {
+    const generation = pairGeneration + 1;
+    pairGeneration = generation;
     const discover = await probeDiscover();
+    if (generation !== pairGeneration) return;
     const discoverBody = discover.success ? discover.discover : undefined;
     const parsed = resolveBridgePairingInput(pairingUrl, discoverBody);
     if (!parsed.success) {
@@ -52,7 +56,9 @@ export function createBridgeBackgroundController(
     bridgeClient?.disconnect();
     const client = new BridgeClient({
       onStateChange: (state) => {
-        setState(connectionStateFromBridge(state));
+        if (generation === pairGeneration) {
+          setState(connectionStateFromBridge(state));
+        }
       },
     });
     bridgeClient = client;
@@ -63,15 +69,19 @@ export function createBridgeBackgroundController(
       if (endpoint !== undefined) {
         await persistBridgeEndpoint(options.storage, endpoint);
       }
+      if (generation !== pairGeneration || bridgeClient !== client) return;
       setState("connected");
       options.onClientReady?.(client);
     } catch {
-      bridgeClient = undefined;
-      setState("disconnected");
+      if (bridgeClient === client) {
+        bridgeClient = undefined;
+        setState("disconnected");
+      }
     }
   };
 
   const unpair = (): void => {
+    pairGeneration += 1;
     bridgeClient?.disconnect();
     bridgeClient = undefined;
     setState("disconnected");

@@ -1,4 +1,6 @@
+import { createChromeMessageContext } from "./chrome-message-context.js";
 import { checkSendPermission } from "./context-permissions.js";
+import { createTrustedPanelOperationMessage } from "./operation-relay.js";
 import type { TabSessionStore } from "./tab-session.js";
 import type { BusMessage, MessageContext } from "./types.js";
 
@@ -74,6 +76,19 @@ export class MessageRouter {
     }
 
     if (message.targetRoute === "panel") {
+      if (sender.route === "content") {
+        const trustedMessage = createTrustedPanelOperationMessage(message, sender.tabId);
+        if (trustedMessage !== null) {
+          await this.transport.broadcast(trustedMessage);
+          return;
+        }
+        if (
+          message.messageType === "interaction-operation" ||
+          message.messageType === "inspector-edit"
+        ) {
+          return;
+        }
+      }
       await this.transport.broadcast(message);
       return;
     }
@@ -163,12 +178,7 @@ export function createChromeRouterTransport(): RouterTransport {
         if (!isBusMessage(msg)) {
           return;
         }
-        const context: MessageContext = {
-          route: msg.sourceRoute ?? "unknown",
-          tabId: sender.tab?.id,
-          frameId: sender.frameId,
-          sessionId: msg.sessionId,
-        };
+        const context = createChromeMessageContext(sender, msg.sourceRoute, msg.sessionId);
         void handler(msg, context);
         return undefined;
       };
@@ -179,15 +189,21 @@ export function createChromeRouterTransport(): RouterTransport {
 }
 
 function isBusMessage(value: unknown): value is BusMessage {
-  if (typeof value !== "object" || value === null) {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("protocolVersion" in value) ||
+    !("messageId" in value) ||
+    !("messageType" in value) ||
+    !("timestamp" in value)
+  ) {
     return false;
   }
-  const obj = value as Record<string, unknown>;
   return (
-    typeof obj.protocolVersion === "string" &&
-    typeof obj.messageId === "string" &&
-    typeof obj.messageType === "string" &&
-    typeof obj.timestamp === "number" &&
-    "payload" in obj
+    typeof value.protocolVersion === "string" &&
+    typeof value.messageId === "string" &&
+    typeof value.messageType === "string" &&
+    typeof value.timestamp === "number" &&
+    "payload" in value
   );
 }

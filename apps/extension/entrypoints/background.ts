@@ -5,12 +5,8 @@ import { createBackgroundTabLifecycle } from "../src/background-tab-lifecycle.js
 import { refreshHostAccess } from "../src/host-access-refresh.js";
 import { isAllowedUrl, STORAGE_KEY } from "../src/host-allowlist.js";
 import { HostAllowlistCache } from "../src/host-allowlist-sync.js";
-import { installBackgroundJournalHandlers } from "../src/journal/background-journal-handlers.js";
-import {
-  createBridgeSnapshotPushController,
-  parseSelectionSummaryPayload,
-} from "../src/journal/bridge-snapshot-push.js";
-import { SessionJournalStore } from "../src/journal/session-journal-store.js";
+import { createBackgroundJournalRuntime } from "../src/journal/background-journal-runtime.js";
+import { parseSelectionSummaryPayload } from "../src/journal/bridge-snapshot-push.js";
 import {
   ActiveSessionTracker,
   createBackgroundBus,
@@ -21,16 +17,12 @@ import {
   createSessionUpdateMessage,
   createWebNavigationFrameProvider,
   discoverFrames,
+  installBackgroundOperationRelay,
   MessageRouter,
   TabSessionStore,
 } from "../src/messaging/index.js";
 import type { BusMessage, TabSession } from "../src/messaging/types.js";
-import {
-  BRIDGE_COMMAND_RESULT_MESSAGE_TYPE,
-  createBackgroundCommandRouter,
-  LOCAL_VERIFY_MESSAGE_TYPE,
-  LOCAL_VERIFY_RESULT_MESSAGE_TYPE,
-} from "../src/verification/index.js";
+import { LOCAL_VERIFY_MESSAGE_TYPE } from "../src/verification/index.js";
 
 function broadcastToPanel(message: BusMessage): void {
   if (typeof chrome === "undefined" || chrome.runtime?.sendMessage === undefined) {
@@ -59,7 +51,7 @@ function chromeLocalStorageArea():
   }
   const area = chrome.storage.local;
   return {
-    get: (key) => area.get(key) as Promise<Record<string, unknown>>,
+    get: async (key) => area.get(key),
     set: (items) => area.set(items),
     remove: (key) => area.remove(key),
   };
@@ -84,11 +76,6 @@ const background: BackgroundDefinition = defineBackground(() => {
   });
 
   void store.restore();
-
-  const journalStore = new SessionJournalStore({
-    storage: chrome.storage?.session,
-  });
-  void journalStore.restore();
 
   const tabLifecycle = createBackgroundTabLifecycle({
     store,
@@ -130,70 +117,50 @@ const background: BackgroundDefinition = defineBackground(() => {
   router.start();
 
   const backgroundBus = createBackgroundBus();
+  installBackgroundOperationRelay({ bus: backgroundBus, broadcastToPanel });
 
   const sendToTabContent = (tabId: number, message: BusMessage): void => {
     if (typeof chrome === "undefined" || chrome.tabs?.sendMessage === undefined) {
       return;
     }
-    void chrome.tabs.sendMessage(tabId, message).catch(() => {
+    const delivery =
+      message.frameId === undefined
+        ? chrome.tabs.sendMessage(tabId, message)
+        : chrome.tabs.sendMessage(tabId, message, { frameId: message.frameId });
+    void delivery.catch(() => {
       // no-excuse-ok: catch — content script may not be loaded yet.
     });
   };
 
   let bridgeRef: ReturnType<typeof createBridgeBackgroundController> | undefined;
 
-  const snapshotPush = createBridgeSnapshotPushController({
-    getClient: () => bridgeRef?.getClient(),
-    getJournal: (tabId) => journalStore.get(tabId),
-    getSessionId: (tabId) => store.get(tabId)?.sessionId,
-  });
-
-  const journalHandlers = installBackgroundJournalHandlers({
-    store: journalStore,
+  const journalRuntime = createBackgroundJournalRuntime({
+    storage: chrome.storage?.session,
     bus: backgroundBus,
     broadcastToPanel,
     sendToTabContent,
-    onJournalChanged: (tabId) => {
-      snapshotPush.noteJournalChanged(tabId);
-    },
-  });
-
-  const commandRouter = createBackgroundCommandRouter({
     getClient: () => bridgeRef?.getClient(),
     getActiveTabId: () => activeSessions.getActiveTabId() ?? activeSessions.getPairedTabIds()[0],
-    getJournal: (tabId) => journalStore.get(tabId),
     getSessionId: (tabId) => store.get(tabId)?.sessionId,
-    sendToTabContent,
-    broadcastToPanel,
+    onTaskError: reportBackgroundError("journal task failed"),
   });
+  const { handlers: journalHandlers, snapshotPush } = journalRuntime;
 
   const bridge = createBridgeBackgroundController({
     storage: localStorage,
     onStateChange: (state) => {
       broadcastToPanel(createConnectionStateMessage(state));
     },
-    onClientReady: (client) => {
-      commandRouter.attachClient(client);
-      const activeTabId = activeSessions.getActiveTabId() ?? activeSessions.getPairedTabIds()[0];
-      if (activeTabId !== undefined) {
-        snapshotPush.pushForTab(activeTabId);
-      }
-    },
+    onClientReady: journalRuntime.handleClientReady,
   });
   bridgeRef = bridge;
 
   void bridge.runSwWakePolicy().catch(reportBackgroundError("bridge SW wake policy failed"));
 
-  backgroundBus.on(BRIDGE_COMMAND_RESULT_MESSAGE_TYPE, (message) => {
-    commandRouter.handleContentResult(message);
-  });
-  backgroundBus.on(LOCAL_VERIFY_RESULT_MESSAGE_TYPE, (message) => {
-    commandRouter.handleContentResult(message);
-  });
   backgroundBus.on(LOCAL_VERIFY_MESSAGE_TYPE, (message, sender) => {
     const tabId = message.tabId ?? sender?.tabId;
     if (tabId !== undefined) {
-      commandRouter.requestLocalVerify(tabId);
+      journalRuntime.requestLocalVerify(tabId);
     }
   });
 
@@ -213,15 +180,20 @@ const background: BackgroundDefinition = defineBackground(() => {
     if (selection === undefined) {
       return;
     }
-    snapshotPush.noteSelection(tabId, selection);
+    journalRuntime.noteSelection(tabId, selection);
   });
 
   const handleBridgeConnect = (message: BusMessage): void => {
-    const payload = message.payload as { readonly pairingUrl: string } | undefined;
-    const pairingUrl = payload?.pairingUrl;
-    if (pairingUrl === undefined) {
+    const payload = message.payload;
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("pairingUrl" in payload) ||
+      typeof payload.pairingUrl !== "string"
+    ) {
       return;
     }
+    const pairingUrl = payload.pairingUrl;
     if (message.tabId !== undefined) {
       activeSessions.markPaired(message.tabId);
       activeSessions.setFocused(message.tabId);
@@ -277,14 +249,19 @@ const background: BackgroundDefinition = defineBackground(() => {
   });
 
   chrome.tabs.onRemoved.addListener((tabId) => {
+    snapshotPush.clearTab(tabId);
     tabLifecycle.handleRemoved(tabId);
     journalHandlers.handleTabRemoved(tabId);
-    snapshotPush.clearTab(tabId);
     activeSessions.markUnpaired(tabId);
+    const activeTabId = activeSessions.getActiveTabId();
+    if (activeTabId !== undefined) snapshotPush.focusTab(activeTabId);
   });
 
   chrome.tabs.onActivated?.addListener((activeInfo) => {
     activeSessions.setFocused(activeInfo.tabId);
+    if (activeSessions.getActiveTabId() === activeInfo.tabId) {
+      snapshotPush.focusTab(activeInfo.tabId);
+    }
   });
 
   chrome.runtime.onConnect.addListener((port) => {

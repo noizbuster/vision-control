@@ -1,3 +1,5 @@
+import { createChromeMessageContext } from "./chrome-message-context.js";
+import { checkSendPermission } from "./context-permissions.js";
 import type { BusMessage, BusMessageHandler, BusRoute, MessageContext } from "./types.js";
 
 export interface BusTransport {
@@ -10,33 +12,27 @@ export interface MessageBusOptions {
   readonly route: BusRoute;
   readonly transport: BusTransport;
   /** Override the default filter. Used by the background router to see all traffic. */
-  readonly accept?: (message: BusMessage) => boolean;
+  readonly accept?: (message: BusMessage, sender: MessageContext) => boolean;
 }
 
 function isBusMessage(value: unknown): value is BusMessage {
-  if (typeof value !== "object" || value === null) {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("protocolVersion" in value) ||
+    !("messageId" in value) ||
+    !("messageType" in value) ||
+    !("timestamp" in value)
+  ) {
     return false;
   }
-  const obj = value as Record<string, unknown>;
   return (
-    typeof obj.protocolVersion === "string" &&
-    typeof obj.messageId === "string" &&
-    typeof obj.messageType === "string" &&
-    typeof obj.timestamp === "number" &&
-    "payload" in obj
+    typeof value.protocolVersion === "string" &&
+    typeof value.messageId === "string" &&
+    typeof value.messageType === "string" &&
+    typeof value.timestamp === "number" &&
+    "payload" in value
   );
-}
-
-function senderContextFromChrome(
-  sender: chrome.runtime.MessageSender,
-  sourceRoute?: BusRoute,
-): MessageContext {
-  return {
-    route: sourceRoute ?? "unknown",
-    tabId: sender.tab?.id,
-    frameId: sender.frameId,
-    sessionId: undefined,
-  };
 }
 
 function createRuntimeTransport(route: BusRoute): BusTransport {
@@ -62,7 +58,7 @@ function createRuntimeTransport(route: BusRoute): BusTransport {
         if (!isBusMessage(message)) {
           return;
         }
-        const context = senderContextFromChrome(sender, message.sourceRoute);
+        const context = createChromeMessageContext(sender, message.sourceRoute);
         void handler(message, context);
         return undefined;
       };
@@ -83,7 +79,7 @@ function createRuntimeTransport(route: BusRoute): BusTransport {
 export class MessageBus {
   private readonly route: BusRoute;
   private readonly transport: BusTransport;
-  private readonly accept: (message: BusMessage) => boolean;
+  private readonly accept: (message: BusMessage, sender: MessageContext) => boolean;
   private readonly handlers = new Map<string, Set<BusMessageHandler>>();
   private unsubscribeTransport: (() => void) | undefined;
 
@@ -145,7 +141,7 @@ export class MessageBus {
   }
 
   private receive(message: BusMessage, sender: MessageContext): void {
-    if (!this.accept(message)) {
+    if (!this.accept(message, sender)) {
       return;
     }
     const set = this.handlers.get(message.messageType);
@@ -166,6 +162,6 @@ export function createBackgroundBus(): MessageBus {
   return new MessageBus({
     route: "background",
     transport: createRuntimeTransport("background"),
-    accept: () => true,
+    accept: (message, sender) => checkSendPermission(sender, message).allowed,
   });
 }

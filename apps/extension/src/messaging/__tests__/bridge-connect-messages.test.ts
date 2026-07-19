@@ -17,17 +17,19 @@ const PAIRING_URL = "vision-control://pair?token=t&port=4321&host=127.0.0.1";
 
 describe("bridge connect message aliases", () => {
   it("emits preferred bridge-connect with pairing payload", () => {
-    const message = createBridgeConnectMessage(PAIRING_URL);
+    const message = createBridgeConnectMessage(PAIRING_URL, 42);
     expect(message.messageType).toBe(BRIDGE_CONNECT_MESSAGE_TYPE);
     expect(message.targetRoute).toBe("background");
+    expect(message.tabId).toBe(42);
     expect(message.payload).toEqual({ pairingUrl: PAIRING_URL });
     expect(isBridgeConnectMessageType(message.messageType)).toBe(true);
   });
 
   it("emits preferred bridge-disconnect", () => {
-    const message = createBridgeDisconnectMessage();
+    const message = createBridgeDisconnectMessage(42);
     expect(message.messageType).toBe(BRIDGE_DISCONNECT_MESSAGE_TYPE);
     expect(message.targetRoute).toBe("background");
+    expect(message.tabId).toBe(42);
     expect(isBridgeDisconnectMessageType(message.messageType)).toBe(true);
   });
 

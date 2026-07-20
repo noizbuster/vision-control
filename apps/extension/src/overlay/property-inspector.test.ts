@@ -120,6 +120,44 @@ describe("property inspector", () => {
     expect(inspectorEl(h).querySelector(".vc-inspector__title")?.textContent).toBe("button");
   });
 
+  it("collapse toggle hides body and keeps title; state survives re-select", () => {
+    const h = harness;
+    if (h === null) return;
+    const first = document.createElement("div");
+    first.setAttribute("data-vc-source", "src-a");
+    document.body.appendChild(first);
+    selectElement(h, first);
+
+    const toggle = inspectorEl(h).querySelector<HTMLButtonElement>(
+      '[data-testid="vc-inspector-collapse"]',
+    );
+    if (toggle === null) throw new Error("collapse toggle missing");
+    expect(inspectorEl(h).classList.contains("vc-inspector--collapsed")).toBe(false);
+    expect(inspectorEl(h).querySelector("[data-inspector-body]")).not.toBeNull();
+
+    toggle.click();
+    expect(inspectorEl(h).classList.contains("vc-inspector--collapsed")).toBe(true);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toBe("+");
+
+    const second = document.createElement("span");
+    document.body.appendChild(second);
+    h.previewDom.registerElement("vc-test-element-2", second);
+    h.inspector.showFor(second, { runtimeId: "vc-test-element-2" });
+
+    expect(inspectorEl(h).classList.contains("vc-inspector--collapsed")).toBe(true);
+    expect(inspectorEl(h).querySelector(".vc-inspector__title")?.textContent).toBe("span");
+    expect(
+      inspectorEl(h).querySelector<HTMLButtonElement>('[data-testid="vc-inspector-collapse"]')
+        ?.textContent,
+    ).toBe("+");
+
+    inspectorEl(h)
+      .querySelector<HTMLButtonElement>('[data-testid="vc-inspector-collapse"]')
+      ?.click();
+    expect(inspectorEl(h).classList.contains("vc-inspector--collapsed")).toBe(false);
+  });
+
   it("background-color change applies via previewManager and journals a style-edit op", () => {
     const h = harness;
     if (h === null) return;
@@ -373,5 +411,60 @@ describe("property inspector", () => {
     setAndFire(colorInput, initial);
 
     expect(lastInspectorEdit(h)).toBeNull();
+  });
+
+  it("shows Auto Layout section inside vc-inspector for flex containers", () => {
+    const h = harness;
+    if (h === null) return;
+    const el = document.createElement("div");
+    el.style.display = "flex";
+    el.style.flexDirection = "row";
+    el.style.gap = "4px";
+    el.append(document.createElement("span"), document.createElement("span"));
+    document.body.appendChild(el);
+    selectElement(h, el);
+
+    const section = inspectorEl(h).querySelector('[data-testid="vc-inspector-auto-layout"]');
+    expect(section).not.toBeNull();
+    expect(
+      inspectorEl(h).querySelector('[data-testid="auto-layout-overlay-direction"]'),
+    ).not.toBeNull();
+  });
+
+  it("omits Auto Layout section for non flex/grid elements", () => {
+    const h = harness;
+    if (h === null) return;
+    const el = document.createElement("p");
+    el.style.display = "block";
+    document.body.appendChild(el);
+    selectElement(h, el);
+
+    expect(inspectorEl(h).querySelector('[data-testid="vc-inspector-auto-layout"]')).toBeNull();
+  });
+
+  it("Auto Layout direction change journals set-container-layout from vc-inspector", () => {
+    const h = harness;
+    if (h === null) return;
+    const el = document.createElement("div");
+    el.style.display = "flex";
+    el.style.flexDirection = "row";
+    el.append(document.createElement("span"), document.createElement("span"));
+    document.body.appendChild(el);
+    selectElement(h, el);
+
+    const select = inspectorEl(h).querySelector<HTMLSelectElement>(
+      '[data-testid="auto-layout-overlay-direction"]',
+    );
+    if (select === null) throw new Error("direction select missing");
+    select.value = "column";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+
+    const op = lastInspectorEdit(h);
+    expect(op).not.toBeNull();
+    if (op === null) return;
+    expect(op.kind).toBe("set-container-layout");
+    expect((op as { property: string }).property).toBe("flex-direction");
+    expect((op as { value: string }).value).toBe("column");
+    expect((op as { origin: string }).origin).toBe("canvas-drag");
   });
 });

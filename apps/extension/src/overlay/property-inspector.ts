@@ -27,6 +27,7 @@ import type { PreviewManager } from "@vision-control/preview-engine";
 import type { BusMessage, BusRoute } from "../messaging/index.js";
 import { createInspectorEditMessage } from "../messaging/index.js";
 import { makeDraggableFixedPanel } from "./draggable-panel.js";
+import { appendAutoLayoutToPropertyInspector } from "./property-inspector-auto-layout.js";
 
 /** Source marker attribute (matches integrations; enriches the op target). */
 const SOURCE_ATTR = "data-vc-source";
@@ -44,6 +45,7 @@ export interface PropertyInspectorOptions {
   readonly shadowRoot: ShadowRoot;
   readonly previewManager: PreviewManager;
   readonly bus: PropertyInspectorBus;
+  readonly registerElement?: (runtimeId: string, element: Element) => void;
 }
 
 /** Minimal element identity the inspector needs to build operation targets. */
@@ -112,6 +114,7 @@ function readSourceId(element: Element): string | undefined {
 // to draggable-panel.ts; future inspector changes should split section renderers.
 export function createPropertyInspector(options: PropertyInspectorOptions): PropertyInspector {
   const { document: doc, shadowRoot, previewManager, bus } = options;
+  const registerElement = options.registerElement ?? (() => {});
 
   const style = doc.createElement("style");
   style.textContent = INSPECTOR_CSS;
@@ -126,10 +129,20 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
   let current: { element: Element; ref: InspectorElementRef } | null = null;
   const previousValues = new Map<StyleControlId, string>();
   let previousText = "";
+  let collapsed = false;
   const listeners: Array<() => void> = [];
 
   const trackListener = (cleanup: () => void): void => {
     listeners.push(cleanup);
+  };
+
+  const applyCollapsedState = (): void => {
+    root.classList.toggle("vc-inspector--collapsed", collapsed);
+    const toggle = root.querySelector<HTMLButtonElement>("[data-collapse-toggle]");
+    if (toggle === null) return;
+    toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    toggle.setAttribute("aria-label", collapsed ? "Expand inspector" : "Collapse inspector");
+    toggle.textContent = collapsed ? "+" : "−";
   };
 
   const emit = (operation: Operation): void => {
@@ -236,6 +249,30 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
       badge.textContent = ref.sourceId;
       header.appendChild(badge);
     }
+    const spacer = doc.createElement("span");
+    spacer.className = "vc-inspector__header-spacer";
+    header.appendChild(spacer);
+    const collapseBtn = doc.createElement("button");
+    collapseBtn.type = "button";
+    collapseBtn.className = "vc-inspector__collapse";
+    collapseBtn.setAttribute("data-collapse-toggle", "");
+    collapseBtn.setAttribute("data-testid", "vc-inspector-collapse");
+    const onToggle = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      collapsed = !collapsed;
+      applyCollapsedState();
+    };
+    const stopDrag = (event: Event): void => {
+      event.stopPropagation();
+    };
+    collapseBtn.addEventListener("click", onToggle);
+    collapseBtn.addEventListener("pointerdown", stopDrag);
+    trackListener(() => {
+      collapseBtn.removeEventListener("click", onToggle);
+      collapseBtn.removeEventListener("pointerdown", stopDrag);
+    });
+    header.appendChild(collapseBtn);
     const draggable = makeDraggableFixedPanel({
       panel: root,
       handle: header,
@@ -245,7 +282,18 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
     root.appendChild(header);
   };
 
-  const renderClassSection = (): void => {
+  const bodyHost = (): HTMLElement => {
+    let body = root.querySelector<HTMLElement>("[data-inspector-body]");
+    if (body === null) {
+      body = doc.createElement("div");
+      body.className = "vc-inspector__body";
+      body.setAttribute("data-inspector-body", "");
+      root.appendChild(body);
+    }
+    return body;
+  };
+
+  const renderClassSection = (parent: HTMLElement): void => {
     const section = doc.createElement("div");
     section.className = "vc-inspector__section";
     const label = doc.createElement("span");
@@ -295,10 +343,10 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
     addRow.appendChild(input);
     addRow.appendChild(addButton);
     section.appendChild(addRow);
-    root.appendChild(section);
+    parent.appendChild(section);
   };
 
-  const renderTextSection = (element: Element): void => {
+  const renderTextSection = (parent: HTMLElement, element: Element): void => {
     if (!isLeafTextElement(element)) return;
     const section = doc.createElement("div");
     section.className = "vc-inspector__section";
@@ -329,10 +377,10 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
     textarea.addEventListener("input", onInput);
     trackListener(() => textarea.removeEventListener("input", onInput));
     section.appendChild(textarea);
-    root.appendChild(section);
+    parent.appendChild(section);
   };
 
-  const renderColorRow = (control: StyleControlId, labelText: string): void => {
+  const renderColorRow = (parent: HTMLElement, control: StyleControlId, labelText: string): void => {
     const computed = previousValues.get(control) ?? "";
     const row = doc.createElement("div");
     row.className = "vc-inspector__row";
@@ -349,10 +397,14 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
     trackListener(() => input.removeEventListener("input", onInput));
     row.appendChild(label);
     row.appendChild(input);
-    root.appendChild(row);
+    parent.appendChild(row);
   };
 
-  const renderLengthRow = (control: StyleControlId, labelText: string): void => {
+  const renderLengthRow = (
+    parent: HTMLElement,
+    control: StyleControlId,
+    labelText: string,
+  ): void => {
     const computed = previousValues.get(control) ?? "0px";
     const parsed = parseLength(computed);
     const row = doc.createElement("div");
@@ -385,10 +437,10 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
     row.appendChild(label);
     row.appendChild(numberInput);
     row.appendChild(unitSelect);
-    root.appendChild(row);
+    parent.appendChild(row);
   };
 
-  const renderStyleSection = (element: Element): void => {
+  const renderStyleSection = (parent: HTMLElement, element: Element): void => {
     const computed = doc.defaultView?.getComputedStyle(element);
     if (computed === undefined) return;
     previousValues.set("background-color", rgbToHex(computed.backgroundColor));
@@ -403,13 +455,13 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
     label.className = "vc-inspector__label";
     label.textContent = "style";
     section.appendChild(label);
-    root.appendChild(section);
-    renderColorRow("background-color", "bg");
-    renderColorRow("color", "text");
-    renderLengthRow("padding", "pad");
-    renderLengthRow("margin", "margin");
-    renderLengthRow("font-size", "font");
-    renderLengthRow("border-radius", "radius");
+    parent.appendChild(section);
+    renderColorRow(parent, "background-color", "bg");
+    renderColorRow(parent, "color", "text");
+    renderLengthRow(parent, "padding", "pad");
+    renderLengthRow(parent, "margin", "margin");
+    renderLengthRow(parent, "font-size", "font");
+    renderLengthRow(parent, "border-radius", "radius");
   };
 
   const showFor = (element: Element, elementRef: InspectorElementRef): void => {
@@ -421,10 +473,22 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
     };
     current = { element, ref };
     renderHeader(element, ref);
-    renderClassSection();
+    const body = bodyHost();
+    renderClassSection(body);
     renderClassChips();
-    renderTextSection(element);
-    renderStyleSection(element);
+    renderTextSection(body, element);
+    renderStyleSection(body, element);
+    appendAutoLayoutToPropertyInspector({
+      document: doc,
+      shadowRoot,
+      inspectorRoot: body,
+      element,
+      elementRef: ref,
+      emit,
+      registerElement,
+      trackCleanup: trackListener,
+    });
+    applyCollapsedState();
     root.style.display = "";
   };
 
@@ -484,6 +548,53 @@ const INSPECTOR_CSS = /* css */ `
   }
   .vc-inspector__header > * {
     pointer-events: none;
+  }
+  .vc-inspector__header-spacer {
+    flex: 1;
+    min-width: 4px;
+  }
+  .vc-inspector__collapse {
+    all: initial;
+    pointer-events: auto;
+    cursor: pointer;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid oklch(30% 0.02 260);
+    border-radius: 3px;
+    background: oklch(26% 0.02 260);
+    color: oklch(90% 0.08 240);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .vc-inspector__collapse:hover {
+    border-color: oklch(50% 0.08 240);
+    color: oklch(95% 0.1 240);
+  }
+  .vc-inspector__body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .vc-inspector--collapsed {
+    width: auto;
+    max-width: 220px;
+    max-height: none;
+    overflow: hidden;
+  }
+  .vc-inspector--collapsed .vc-inspector__header {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+  .vc-inspector--collapsed .vc-inspector__badge {
+    display: none;
+  }
+  .vc-inspector--collapsed .vc-inspector__body {
+    display: none;
   }
   .vc-inspector__title {
     font-weight: 600;

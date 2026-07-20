@@ -196,6 +196,9 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     shadowRoot: overlayRoot.shadowRoot,
     previewManager,
     bus,
+    registerElement: (runtimeId, element) => {
+      previewDom.registerElement(runtimeId, element);
+    },
   });
 
   // Grid-placement emission (plan task 4): on selection of a grid child,

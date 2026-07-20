@@ -79,8 +79,8 @@ export function HostAllowlistPanel(): ReactElement {
     <section className="host-allowlist" data-testid="host-allowlist-panel">
       <h2 className="host-allowlist__title">Site Access</h2>
       <p className="host-allowlist__hint">
-        Loopback sites are always allowed. Add a custom hostname to inspect non-loopback dev
-        servers.
+        All http and https pages are allowed by default. Optional host entries remain available for
+        tracking preferred dev servers.
       </p>
       <div className="host-allowlist__form">
         <input

@@ -6,6 +6,9 @@ const PAGE_HOST_PERMISSIONS = ["http://*/*", "https://*/*"] as const;
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
   manifest: () => ({
+    name: "Vision Control",
+    description:
+      "Visually edit live pages and share redacted context with a local coding agent.",
     permissions: ["devtools", "storage", "activeTab", "scripting", "tabs", "webNavigation"],
     host_permissions: [...PAGE_HOST_PERMISSIONS],
     optional_permissions: ["debugger"],

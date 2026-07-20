@@ -15,7 +15,7 @@ import {
 import type { ContentCommandWiring } from "../src/verification/content-command-wiring.js";
 import { wireContentCommandHandlers } from "../src/verification/content-command-wiring.js";
 
-const LOOPBACK_MATCHES = ["http://localhost/*", "http://127.0.0.1/*", "http://[::1]/*"] as const;
+const PAGE_MATCHES = ["http://*/*", "https://*/*"] as const;
 
 export interface ContentEntrypointBus extends OverlayRuntimeBus {
   readonly dispose: () => void;
@@ -198,7 +198,7 @@ export function runVisionControlContentScript(deps = createDefaultDependencies()
 }
 
 const contentScript: ContentScriptDefinition = defineContentScript({
-  matches: [...LOOPBACK_MATCHES],
+  matches: [...PAGE_MATCHES],
   world: "ISOLATED",
 
   main() {

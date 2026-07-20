@@ -127,8 +127,8 @@ describe("isLoopbackUrl", () => {
     expect(isLoopbackUrl("http://127.0.0.1.evil.test/")).toBe(false);
   });
 
-  it("returns false for non-http loopback-like URLs", () => {
-    expect(isLoopbackUrl("https://localhost:3000/")).toBe(false);
+  it("returns true for https loopback URLs", () => {
+    expect(isLoopbackUrl("https://localhost:3000/")).toBe(true);
   });
 
   it("returns false for undefined", () => {
@@ -167,12 +167,12 @@ describe("isAllowedUrl", () => {
     expect(isAllowedUrl("http://localhost:3000/", [])).toBe(true);
   });
 
-  it("returns true for a granted host URL", () => {
-    expect(isAllowedUrl("http://subshell:10601/", ["subshell"])).toBe(true);
+  it("returns true for any http hostname without a grant", () => {
+    expect(isAllowedUrl("http://subshell:10601/", [])).toBe(true);
   });
 
-  it("returns false for a non-loopback URL not in the granted list", () => {
-    expect(isAllowedUrl("http://subshell:10601/", [])).toBe(false);
+  it("returns true for any https hostname without a grant", () => {
+    expect(isAllowedUrl("https://app.example.com/path", [])).toBe(true);
   });
 
   it("returns false for undefined", () => {

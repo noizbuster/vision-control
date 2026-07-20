@@ -1,17 +1,3 @@
-/**
- * Runtime host allowlist — pure logic for granting non-loopback origins.
- *
- * Chrome match patterns do NOT support port numbers. A pattern like
- * `http://subshell/*` matches ALL ports on host `subshell` (including :10601,
- * :3000, etc.). Therefore we normalise user input to a bare hostname and request
- * `http://<hostname>/*` + `https://<hostname>/*`. The port the user typed is
- * discarded — the permission covers every port on that host.
- *
- * Loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) are always-on via the
- * static manifest `host_permissions` and are excluded from the dynamic grant
- * flow.
- */
-
 /** Storage key for the persisted granted-host list in `chrome.storage.local`. */
 export const STORAGE_KEY = "visionControlGrantedHosts";
 
@@ -103,7 +89,23 @@ export function isLoopbackUrl(url: string | undefined): boolean {
   } catch {
     return false;
   }
-  return parsed.protocol === "http:" && isLoopbackHost(parsed.hostname);
+  return (
+    (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+    isLoopbackHost(parsed.hostname)
+  );
+}
+
+export function isInspectablePageUrl(url: string | undefined): boolean {
+  if (url === undefined) {
+    return false;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === "http:" || parsed.protocol === "https:";
 }
 
 /**
@@ -126,16 +128,9 @@ export function urlMatchesGrantedHosts(url: string, grantedHosts: readonly strin
   return grantedHosts.some((host) => host.toLowerCase() === hostname);
 }
 
-/**
- * The unified allow predicate: loopback OR a granted host.
- * Used by the background service worker to gate tab tracking.
- */
-export function isAllowedUrl(url: string | undefined, grantedHosts: readonly string[]): boolean {
-  if (isLoopbackUrl(url)) {
-    return true;
-  }
-  if (url === undefined) {
-    return false;
-  }
-  return urlMatchesGrantedHosts(url, grantedHosts);
+export function isAllowedUrl(
+  url: string | undefined,
+  _grantedHosts: readonly string[] = [],
+): boolean {
+  return isInspectablePageUrl(url);
 }

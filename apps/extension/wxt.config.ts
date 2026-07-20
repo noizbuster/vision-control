@@ -1,21 +1,13 @@
 import { defineConfig } from "wxt";
 
-const LOOPBACK_HOST_PERMISSIONS = [
-  "http://localhost/*",
-  "http://127.0.0.1/*",
-  "http://[::1]/*",
-] as const;
-
-const OPTIONAL_CHROME_HOST_PERMISSIONS = ["http://*/*", "https://*/*"] as const;
+/** All http(s) pages — Vision Control is a local development tool and needs to inspect any hostname. */
+const PAGE_HOST_PERMISSIONS = ["http://*/*", "https://*/*"] as const;
 
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
-  manifest: ({ browser }) => ({
+  manifest: () => ({
     permissions: ["devtools", "storage", "activeTab", "scripting", "tabs", "webNavigation"],
-    host_permissions: [...LOOPBACK_HOST_PERMISSIONS],
-    ...(browser === "firefox"
-      ? {}
-      : { optional_host_permissions: [...OPTIONAL_CHROME_HOST_PERMISSIONS] }),
+    host_permissions: [...PAGE_HOST_PERMISSIONS],
     optional_permissions: ["debugger"],
   }),
   // Vision Control collects no user data. The Firefox data-collection prompt is

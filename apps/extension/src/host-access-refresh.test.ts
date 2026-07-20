@@ -5,7 +5,7 @@ import {
   type TabLifecycleStore,
 } from "./background-tab-lifecycle.js";
 import { refreshHostAccess } from "./host-access-refresh.js";
-import { CONTENT_SCRIPT_PATH, STORAGE_KEY } from "./host-allowlist.js";
+import { STORAGE_KEY } from "./host-allowlist.js";
 import { HostAllowlistCache } from "./host-allowlist-sync.js";
 import type { FrameInfo } from "./messaging/index.js";
 
@@ -76,8 +76,7 @@ function installChrome(
 }
 
 describe("refreshHostAccess", () => {
-  it("imports native Chrome Site Access grants before injecting already-open tabs", async () => {
-    // Given: Chrome has a concrete Site Access grant, but extension storage is stale.
+  it("imports native Chrome Site Access grants and refreshes open tabs", async () => {
     const storage = createStorageMock({});
     const permissions: PermissionsMock = {
       getAll: vi.fn(async () => ({ origins: ["http://localhost/*", "http://subshell/*"] })),
@@ -92,15 +91,10 @@ describe("refreshHostAccess", () => {
       queryTabs: vi.fn(async () => [{ id: 7, url: "http://subshell:10601/" }]),
     });
 
-    // When: the background refreshes host access after panel connect or permission change.
     await refreshHostAccess({ hostAllowlist, injectOpenTabs: tabLifecycle.injectOpenTabs });
 
-    // Then: the grant is imported and the already-open custom-host tab is injected.
     expect(hostAllowlist.getHosts()).toEqual(["subshell"]);
     expect(storage.set).toHaveBeenCalledWith({ [STORAGE_KEY]: ["subshell"] });
-    expect(scripting.executeScript).toHaveBeenCalledWith({
-      target: { tabId: 7 },
-      files: [CONTENT_SCRIPT_PATH],
-    });
+    expect(scripting.executeScript).not.toHaveBeenCalled();
   });
 });

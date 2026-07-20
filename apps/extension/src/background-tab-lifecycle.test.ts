@@ -3,7 +3,6 @@ import {
   createBackgroundTabLifecycle,
   type TabLifecycleStore,
 } from "./background-tab-lifecycle.js";
-import { CONTENT_SCRIPT_PATH } from "./host-allowlist.js";
 import type { FrameInfo } from "./messaging/index.js";
 
 interface ScriptingMock {
@@ -60,22 +59,22 @@ describe("createBackgroundTabLifecycle", () => {
     vi.restoreAllMocks();
   });
 
-  it("injects the content script when a granted non-loopback tab completes loading", () => {
+  it("tracks any http(s) tab without dynamic executeScript injection", () => {
     const scripting = createScriptingMock();
     installChrome(scripting);
+    const store = createStore();
+    const discoverFrames = createFrameDiscoveryMock();
     const lifecycle = createBackgroundTabLifecycle({
-      store: createStore(),
-      getGrantedHosts: () => ["subshell"],
-      discoverFrames: createFrameDiscoveryMock(),
+      store,
+      getGrantedHosts: () => [],
+      discoverFrames,
     });
 
     lifecycle.handleUpdated(42, { status: "complete" }, { url: "http://subshell:10601/" });
 
-    expect(scripting.executeScript).toHaveBeenCalledTimes(1);
-    expect(scripting.executeScript).toHaveBeenCalledWith({
-      target: { tabId: 42 },
-      files: [CONTENT_SCRIPT_PATH],
-    });
+    expect(store.ensure).toHaveBeenCalledWith(42);
+    expect(discoverFrames).toHaveBeenCalledWith(42);
+    expect(scripting.executeScript).not.toHaveBeenCalled();
   });
 
   it("does not dynamically inject loopback tabs", () => {
@@ -83,7 +82,7 @@ describe("createBackgroundTabLifecycle", () => {
     installChrome(scripting);
     const lifecycle = createBackgroundTabLifecycle({
       store: createStore(),
-      getGrantedHosts: () => ["subshell"],
+      getGrantedHosts: () => [],
       discoverFrames: createFrameDiscoveryMock(),
     });
 
@@ -92,34 +91,31 @@ describe("createBackgroundTabLifecycle", () => {
     expect(scripting.executeScript).not.toHaveBeenCalled();
   });
 
-  it("removes stale session state when a completed tab URL is no longer allowed", () => {
-    // Given: a tab that used to be tracked but whose host is no longer granted.
+  it("removes session state for non-http schemes", () => {
     const scripting = createScriptingMock();
     installChrome(scripting);
     const store = createStore();
     const discoverFrames = createFrameDiscoveryMock();
     const lifecycle = createBackgroundTabLifecycle({
       store,
-      getGrantedHosts: () => ["subshell"],
+      getGrantedHosts: () => [],
       discoverFrames,
     });
 
-    // When: Chrome reports the tab complete on an unallowed non-loopback URL.
-    lifecycle.handleUpdated(8, { status: "complete" }, { url: "http://other-host:3000/" });
+    lifecycle.handleUpdated(8, { status: "complete" }, { url: "chrome://extensions" });
 
-    // Then: no session or route state is created for that tab.
     expect(store.remove).toHaveBeenCalledWith(8);
     expect(store.ensure).not.toHaveBeenCalled();
     expect(discoverFrames).not.toHaveBeenCalled();
     expect(scripting.executeScript).not.toHaveBeenCalled();
   });
 
-  it("injects already-loaded granted tabs after Site Access changes", async () => {
+  it("does not dynamically inject already-loaded http tabs", async () => {
     const scripting = createScriptingMock();
     installChrome(scripting);
     const lifecycle = createBackgroundTabLifecycle({
       store: createStore(),
-      getGrantedHosts: () => ["subshell"],
+      getGrantedHosts: () => [],
       discoverFrames: createFrameDiscoveryMock(),
       queryTabs: vi.fn().mockResolvedValue([
         { id: 1, url: "http://localhost:5173/" },
@@ -130,15 +126,10 @@ describe("createBackgroundTabLifecycle", () => {
 
     await lifecycle.injectOpenTabs();
 
-    expect(scripting.executeScript).toHaveBeenCalledTimes(1);
-    expect(scripting.executeScript).toHaveBeenCalledWith({
-      target: { tabId: 2 },
-      files: [CONTENT_SCRIPT_PATH],
-    });
+    expect(scripting.executeScript).not.toHaveBeenCalled();
   });
 
-  it("prunes already-loaded tabs after Site Access revokes their host", async () => {
-    // Given: Chrome still has an open non-loopback tab after its host was revoked.
+  it("keeps already-loaded http tabs after grant list is empty", async () => {
     const scripting = createScriptingMock();
     installChrome(scripting);
     const store = createStore();
@@ -149,33 +140,27 @@ describe("createBackgroundTabLifecycle", () => {
       queryTabs: vi.fn().mockResolvedValue([{ id: 2, url: "http://subshell:10601/" }]),
     });
 
-    // When: permission reconciliation scans already-loaded tabs.
     await lifecycle.injectOpenTabs();
 
-    // Then: stale routing state is removed and no dynamic injection is attempted.
-    expect(store.remove).toHaveBeenCalledWith(2);
+    expect(store.remove).not.toHaveBeenCalled();
     expect(scripting.executeScript).not.toHaveBeenCalled();
   });
 
-  it("does not restore frame state when Site Access is revoked before discovery resolves", async () => {
-    // Given: a granted tab starts frame discovery, then loses its grant mid-flight.
+  it("still restores frame state when the grant list is empty", async () => {
     const scripting = createScriptingMock();
     installChrome(scripting);
     const store = createStore();
-    let hosts: readonly string[] = ["subshell"];
     let resolveFrames: ((frames: readonly FrameInfo[]) => void) | undefined;
     const framesPromise = new Promise<readonly FrameInfo[]>((resolve) => {
       resolveFrames = resolve;
     });
     const lifecycle = createBackgroundTabLifecycle({
       store,
-      getGrantedHosts: () => hosts,
+      getGrantedHosts: () => [],
       discoverFrames: vi.fn(() => framesPromise),
     });
 
-    // When: revocation happens before webNavigation frame discovery completes.
     lifecycle.handleUpdated(4, { status: "complete" }, { url: "http://subshell:10601/" });
-    hosts = [];
     if (resolveFrames === undefined) {
       throw new Error("frame discovery promise was not requested");
     }
@@ -190,9 +175,15 @@ describe("createBackgroundTabLifecycle", () => {
     await framesPromise;
     await Promise.resolve();
 
-    // Then: stale frame state is pruned instead of being reintroduced.
-    expect(store.remove).toHaveBeenCalledWith(4);
-    expect(store.updateFrameTree).not.toHaveBeenCalled();
+    expect(store.remove).not.toHaveBeenCalled();
+    expect(store.updateFrameTree).toHaveBeenCalledWith(4, [
+      {
+        frameId: 0,
+        url: "http://subshell:10601/",
+        origin: "http://subshell:10601",
+        routeable: true,
+      },
+    ]);
   });
 
   it("clears injection state on reload and tab removal", () => {
@@ -201,21 +192,21 @@ describe("createBackgroundTabLifecycle", () => {
     const store = createStore();
     const lifecycle = createBackgroundTabLifecycle({
       store,
-      getGrantedHosts: () => ["subshell"],
+      getGrantedHosts: () => [],
       discoverFrames: createFrameDiscoveryMock(),
     });
 
     lifecycle.handleUpdated(9, { status: "complete" }, { url: "http://subshell:10601/" });
     lifecycle.handleUpdated(9, { status: "complete" }, { url: "http://subshell:10601/" });
-    expect(scripting.executeScript).toHaveBeenCalledTimes(1);
+    expect(scripting.executeScript).not.toHaveBeenCalled();
 
     lifecycle.handleUpdated(9, { status: "loading" }, { url: "http://subshell:10601/" });
     lifecycle.handleUpdated(9, { status: "complete" }, { url: "http://subshell:10601/" });
-    expect(scripting.executeScript).toHaveBeenCalledTimes(2);
+    expect(scripting.executeScript).not.toHaveBeenCalled();
 
     lifecycle.handleRemoved(9);
     lifecycle.handleUpdated(9, { status: "complete" }, { url: "http://subshell:10601/" });
-    expect(scripting.executeScript).toHaveBeenCalledTimes(3);
+    expect(scripting.executeScript).not.toHaveBeenCalled();
     expect(store.resetForReload).toHaveBeenCalledWith(9);
     expect(store.remove).toHaveBeenCalledWith(9);
   });

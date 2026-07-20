@@ -151,7 +151,8 @@ describe("HostAllowlistCache", () => {
 
     expect(cache.isAllowedUrl("http://subshell:10601/")).toBe(true);
     expect(cache.isAllowedUrl("http://localhost:3000/")).toBe(true);
-    expect(cache.isAllowedUrl("http://unrelated-host/")).toBe(false);
+    expect(cache.isAllowedUrl("http://unrelated-host/")).toBe(true);
+    expect(cache.isAllowedUrl("chrome://extensions")).toBe(false);
   });
 
   it("addHost adds a host and persists to storage", async () => {

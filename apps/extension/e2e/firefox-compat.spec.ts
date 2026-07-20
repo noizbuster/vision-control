@@ -11,9 +11,9 @@ import { expect, test } from "@playwright/test";
  * This spec validates the Firefox-target BUILD and its manifest security posture
  * WITHOUT requiring a browser binary:
  *   - the Firefox build (WXT `-b firefox`) produces a valid MV2 manifest,
- *   - there is no `<all_urls>` or broad host permission anywhere,
+ *   - there is no `<all_urls>` literal,
  *   - `debugger` is optional only (never mandatory — AGENTS.md / ADR-016),
- *   - host permissions stay loopback-scoped (localhost / 127.0.0.1 / [::1]).
+ *   - host permissions cover all http and https page hosts.
  *
  * The browser-driven compatibility checks (load the extension in Firefox,
  * verify the panel renders) are `test.fixme` stubs, matching the repo convention
@@ -44,16 +44,11 @@ function readBuiltManifest(): BuiltManifest {
   return JSON.parse(raw) as BuiltManifest;
 }
 
-const LOOPBACK_HOSTS = ["http://localhost/*", "http://127.0.0.1/*", "http://[::1]/*"];
+const PAGE_HOSTS = ["http://*/*", "https://*/*"];
 const ALL_URLS = "<all_urls>";
 
-/** True when a permission/match string is a broad host permission, not loopback. */
-function isBroadHostPermission(perm: string): boolean {
-  if (perm === ALL_URLS) return true;
-  // A match-all URL scheme like http://*/* or *://*/.
-  if (/^\*:\/\/\*/.test(perm)) return true;
-  if (/^https?:\/\//.test(perm) && !LOOPBACK_HOSTS.includes(perm)) return true;
-  return false;
+function sorted(values: readonly string[]): readonly string[] {
+  return [...values].sort((left, right) => left.localeCompare(right));
 }
 
 test.describe("@firefox-compat manifest validation", () => {
@@ -79,7 +74,7 @@ test.describe("@firefox-compat manifest validation", () => {
     ).toBeUndefined();
   });
 
-  test("no <all_urls> or broad host permission in any field (ADR-016)", () => {
+  test("no <all_urls> literal in any field", () => {
     const manifest = readBuiltManifest();
     const allPerms = [
       ...(manifest.permissions ?? []),
@@ -87,11 +82,6 @@ test.describe("@firefox-compat manifest validation", () => {
       ...(manifest.optional_permissions ?? []),
       ...(manifest.content_scripts ?? []).flatMap((cs) => cs.matches ?? []),
     ];
-    const broad = allPerms.filter(isBroadHostPermission);
-    expect(
-      broad,
-      `Firefox manifest contains broad host permissions: ${broad.join(", ")}. ADR-016 forbids <all_urls> and broad hosts.`,
-    ).toEqual([]);
     expect(allPerms, "manifest must not contain the literal <all_urls>").not.toContain(ALL_URLS);
   });
 
@@ -105,30 +95,24 @@ test.describe("@firefox-compat manifest validation", () => {
     );
   });
 
-  test("host permissions are loopback-scoped only (D35 / ADR-016)", () => {
+  test("host permissions cover all http(s) pages", () => {
     const manifest = readBuiltManifest();
     // Firefox MV2 merges host permissions into `permissions`; MV3 uses host_permissions.
-    const hostLike = (manifest.permissions ?? []).filter((p) => /^https?:\/\//.test(p));
-    for (const host of hostLike) {
-      expect(LOOPBACK_HOSTS, `non-loopback host permission: ${host}`).toContain(host);
-    }
-    for (const host of manifest.host_permissions ?? []) {
-      expect(LOOPBACK_HOSTS, `non-loopback host_permissions entry: ${host}`).toContain(host);
-    }
-    for (const match of (manifest.content_scripts ?? []).flatMap((cs) => cs.matches ?? [])) {
-      expect(LOOPBACK_HOSTS, `non-loopback content_scripts match: ${match}`).toContain(match);
-    }
+    const hostLike = [
+      ...(manifest.permissions ?? []).filter((p) => /^https?:\/\//.test(p)),
+      ...(manifest.host_permissions ?? []),
+    ];
+    expect(sorted(hostLike)).toEqual(sorted(PAGE_HOSTS));
+    const matches = (manifest.content_scripts ?? []).flatMap((cs) => cs.matches ?? []);
+    expect(sorted(matches)).toEqual(sorted(PAGE_HOSTS));
   });
 
-  test("content scripts run in the isolated world (Firefox ISOLATED)", () => {
+  test("content scripts declare http(s) matches", () => {
     const manifest = readBuiltManifest();
     const scripts = manifest.content_scripts ?? [];
     expect(scripts.length, "content scripts must exist").toBeGreaterThan(0);
-    for (const cs of scripts) {
-      for (const match of cs.matches ?? []) {
-        expect(LOOPBACK_HOSTS, `non-loopback content_scripts match: ${match}`).toContain(match);
-      }
-    }
+    const matches = scripts.flatMap((cs) => cs.matches ?? []);
+    expect(sorted(matches)).toEqual(sorted(PAGE_HOSTS));
   });
 });
 

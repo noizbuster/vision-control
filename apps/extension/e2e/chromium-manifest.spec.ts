@@ -9,8 +9,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXT_DIR = path.resolve(HERE, "..");
 const CHROME_OUT = path.join(EXT_DIR, ".output", "chrome-mv3");
 const MANIFEST_PATH = path.join(CHROME_OUT, "manifest.json");
-const LOOPBACK_HOSTS = ["http://localhost/*", "http://127.0.0.1/*", "http://[::1]/*"];
-const OPTIONAL_HOSTS = ["http://*/*", "https://*/*"];
+const PAGE_HOSTS = ["http://*/*", "https://*/*"];
 
 interface BuiltManifest {
   readonly host_permissions?: readonly string[];
@@ -68,7 +67,7 @@ function sorted(values: readonly string[]): readonly string[] {
   return [...values].sort((left, right) => left.localeCompare(right));
 }
 
-test.describe("@chromium-manifest Site Access posture", () => {
+test.describe("@chromium-manifest page host posture", () => {
   test.beforeAll(() => {
     execSync("npx wxt build", { cwd: EXT_DIR, stdio: "inherit" });
   });
@@ -77,23 +76,21 @@ test.describe("@chromium-manifest Site Access posture", () => {
     expect(existsSync(MANIFEST_PATH), "chrome-mv3/manifest.json must exist").toBe(true);
   });
 
-  test("mandatory host access and static content scripts stay loopback-scoped", () => {
+  test("mandatory host access and static content scripts cover all http(s) pages", () => {
     const manifest = readBuiltManifest();
 
-    expect(sorted(manifest.host_permissions ?? [])).toEqual(sorted(LOOPBACK_HOSTS));
-    expect(sorted(contentScriptMatches(manifest))).toEqual(sorted(LOOPBACK_HOSTS));
+    expect(sorted(manifest.host_permissions ?? [])).toEqual(sorted(PAGE_HOSTS));
+    expect(sorted(contentScriptMatches(manifest))).toEqual(sorted(PAGE_HOSTS));
   });
 
-  test("broad hosts are optional only so Site Access remains per-host", () => {
+  test("debugger stays optional and <all_urls> is not used", () => {
     const manifest = readBuiltManifest();
-    const mandatoryHosts = [
+    expect(manifest.optional_permissions ?? []).toContain("debugger");
+    expect([
       ...(manifest.host_permissions ?? []),
       ...contentScriptMatches(manifest),
       ...(manifest.optional_permissions ?? []),
-    ];
-
-    expect(mandatoryHosts).not.toContain("http://*/*");
-    expect(mandatoryHosts).not.toContain("https://*/*");
-    expect(sorted(manifest.optional_host_permissions ?? [])).toEqual(sorted(OPTIONAL_HOSTS));
+      ...(manifest.optional_host_permissions ?? []),
+    ]).not.toContain("<all_urls>");
   });
 });

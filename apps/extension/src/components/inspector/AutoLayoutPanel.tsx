@@ -10,16 +10,24 @@ import {
   AUTO_LAYOUT_WRAP,
   type AutoLayoutAlignCross,
   type AutoLayoutAlignMain,
-  type AutoLayoutContainerContext,
   type AutoLayoutDirection,
   type AutoLayoutWrap,
   isAutoLayoutSupported,
-  resolveAutoLayoutCandidate,
-  suggestTokens,
   type TokenSuggestionProvider,
 } from "@vision-control/layout-engine";
 import type { ReactElement } from "react";
 import { useMemo, useState } from "react";
+
+import {
+  buildAutoLayoutOperations,
+  deriveAutoLayoutContainerContext,
+  toElementRefFromIdentity,
+} from "./auto-layout-operations.js";
+import {
+  AutoLayoutField,
+  AutoLayoutSelectControl,
+  AutoLayoutTokenHint,
+} from "./auto-layout-panel-controls.js";
 
 interface AutoLayoutPanelProps {
   readonly summary: SelectionSummary;
@@ -27,95 +35,20 @@ interface AutoLayoutPanelProps {
   readonly tokenProviders?: readonly TokenSuggestionProvider[];
 }
 
-function deriveContainerContext(summary: SelectionSummary): AutoLayoutContainerContext {
-  const display = summary.computedStyle.display;
-  const flexDirection = summary.computedStyle.flexDirection;
-  if (display === "flex" || display === "inline-flex") {
-    return { layoutRole: "flex-container", display, flexDirection };
-  }
-  if (display === "grid" || display === "inline-grid") {
-    return { layoutRole: "grid-container", display, flexDirection };
-  }
-  if (display === "inline" || display === "inline-block") {
-    return { layoutRole: display as "inline" | "inline-block", display, flexDirection };
-  }
-  if (display === "block" || display === "list-item" || display === "flow-root") {
-    return { layoutRole: "normal-flow-block", display, flexDirection };
-  }
-  return { layoutRole: "unknown", display, flexDirection };
-}
-
-function toElementRef(summary: SelectionSummary): SetContainerLayoutOperation["container"] {
-  const id = summary.identity;
-  return {
-    runtimeId: id.runtimeId,
-    ...(id.sourceId !== undefined ? { sourceId: id.sourceId } : {}),
-    ...(id.selector !== undefined ? { selector: id.selector } : {}),
-  };
-}
-
-function newId(): string {
-  return crypto.randomUUID();
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }): ReactElement {
-  return (
-    <div className="auto-layout__field">
-      <span className="auto-layout__label">{label}</span>
-      <div className="auto-layout__control">{children}</div>
-    </div>
-  );
-}
-
-function TokenHint({
-  providers,
-  property,
-  value,
-}: {
-  providers: readonly TokenSuggestionProvider[];
-  property: string;
-  value: string;
-}): ReactElement | null {
-  const suggestions = suggestTokens(providers, property, value);
-  if (suggestions.length === 0) return null;
-  const best = suggestions[0];
-  return (
-    <span className="auto-layout__token-hint" title={best?.rawValue ?? ""}>
-      {" "}
-      ≈ {best?.utility}
-    </span>
-  );
-}
-
-function SelectControl<T extends string>({
-  value,
-  options,
-  onChange,
-  testId,
-}: {
-  value: T;
-  options: readonly T[];
-  onChange: (value: T) => void;
-  testId: string;
-}): ReactElement {
-  return (
-    <select data-testid={testId} value={value} onChange={(e) => onChange(e.target.value as T)}>
-      {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 export function AutoLayoutPanel({
   summary,
   onCommand,
   tokenProviders = [],
 }: AutoLayoutPanelProps): ReactElement {
-  const container = useMemo(() => deriveContainerContext(summary), [summary]);
-  const elementRef = useMemo(() => toElementRef(summary), [summary]);
+  const container = useMemo(
+    () =>
+      deriveAutoLayoutContainerContext(
+        summary.computedStyle.display,
+        summary.computedStyle.flexDirection,
+      ),
+    [summary],
+  );
+  const elementRef = useMemo(() => toElementRefFromIdentity(summary.identity), [summary]);
 
   const [gapValue, setGapValue] = useState("");
   const [paddingValue, setPaddingValue] = useState("");
@@ -143,137 +76,17 @@ export function AutoLayoutPanel({
 
   const isFlex = container.layoutRole === "flex-container";
 
-  const handleDirection = (dir: AutoLayoutDirection): void => {
-    setDirection(dir);
-    onCommand({
-      id: newId(),
-      kind: "set-container-layout",
-      container: elementRef,
-      property: "flex-direction",
-      value: dir,
-      timestamp: Date.now(),
-      runtime: false,
-      origin: "property-panel",
-      confidence: 1,
-    });
-  };
-
-  const handleGap = (): void => {
-    if (gapValue.trim() === "") return;
-    onCommand({
-      id: newId(),
-      kind: "set-container-layout",
-      container: elementRef,
-      property: "gap",
-      value: gapValue.trim(),
-      timestamp: Date.now(),
-      runtime: false,
-      origin: "property-panel",
-      confidence: 1,
-    });
-  };
-
-  const handlePadding = (): void => {
-    if (paddingMode === "individual") return;
-    if (paddingValue.trim() === "") return;
-    const result = resolveAutoLayoutCandidate(
-      { kind: "set-padding", mode: paddingMode, value: paddingValue.trim() },
+  const emit = (command: Parameters<typeof buildAutoLayoutOperations>[0]["command"]): void => {
+    const result = buildAutoLayoutOperations({
+      command,
       container,
-    );
-    if (!result.resolved) return;
-    for (const candidate of result.candidates) {
-      if (candidate.kind !== "container-layout") continue;
-      onCommand({
-        id: newId(),
-        kind: "set-container-layout",
-        container: elementRef,
-        property: candidate.property,
-        value: candidate.value,
-        timestamp: Date.now(),
-        runtime: false,
-        origin: "property-panel",
-        confidence: 1,
-      });
+      containerRef: elementRef,
+      origin: "property-panel",
+    });
+    if (!result.ok) return;
+    for (const operation of result.operations) {
+      onCommand(operation);
     }
-  };
-
-  const handleAlignMain = (val: AutoLayoutAlignMain): void => {
-    setAlignMain(val);
-    onCommand({
-      id: newId(),
-      kind: "set-container-layout",
-      container: elementRef,
-      property: "justify-content",
-      value: val,
-      timestamp: Date.now(),
-      runtime: false,
-      origin: "property-panel",
-      confidence: 1,
-    });
-  };
-
-  const handleAlignCross = (val: AutoLayoutAlignCross): void => {
-    setAlignCross(val);
-    onCommand({
-      id: newId(),
-      kind: "set-container-layout",
-      container: elementRef,
-      property: "align-items",
-      value: val,
-      timestamp: Date.now(),
-      runtime: false,
-      origin: "property-panel",
-      confidence: 1,
-    });
-  };
-
-  const handleWrap = (val: AutoLayoutWrap): void => {
-    setWrap(val);
-    onCommand({
-      id: newId(),
-      kind: "set-container-layout",
-      container: elementRef,
-      property: "flex-wrap",
-      value: val,
-      timestamp: Date.now(),
-      runtime: false,
-      origin: "property-panel",
-      confidence: 1,
-    });
-  };
-
-  const handleChildSizing = (): void => {
-    const result = resolveAutoLayoutCandidate(
-      {
-        kind: "set-child-sizing",
-        childIndex,
-        intent: childIntent,
-        ...(childIntent === "fixed" && childValue.trim() !== ""
-          ? { value: childValue.trim() }
-          : {}),
-      },
-      container,
-    );
-    if (!result.resolved) return;
-    const sizingCandidate = result.candidates.find((c) => c.kind === "child-sizing");
-    if (sizingCandidate?.kind !== "child-sizing") return;
-    const declarations = sizingCandidate.declarations
-      .map((d) => `${d.property}: ${d.value}`)
-      .join("; ");
-    const op: SetChildSizingOperation = {
-      id: newId(),
-      kind: "set-child-sizing",
-      container: elementRef,
-      childIndex,
-      child: elementRef,
-      sizing: childIntent,
-      timestamp: Date.now(),
-      runtime: false,
-      origin: "property-panel",
-      confidence: 1,
-      ...(declarations !== "" ? { value: declarations } : {}),
-    };
-    onCommand(op);
   };
 
   return (
@@ -283,17 +96,20 @@ export function AutoLayoutPanel({
       </div>
 
       {isFlex && (
-        <Field label="Direction">
-          <SelectControl
+        <AutoLayoutField label="Direction">
+          <AutoLayoutSelectControl
             value={direction}
             options={AUTO_LAYOUT_DIRECTIONS}
-            onChange={handleDirection}
+            onChange={(dir) => {
+              setDirection(dir);
+              emit({ kind: "set-direction", direction: dir });
+            }}
             testId="auto-layout-direction"
           />
-        </Field>
+        </AutoLayoutField>
       )}
 
-      <Field label="Gap">
+      <AutoLayoutField label="Gap">
         <input
           type="text"
           placeholder="e.g. 1rem"
@@ -301,16 +117,20 @@ export function AutoLayoutPanel({
           onChange={(e) => setGapValue(e.target.value)}
           data-testid="auto-layout-gap-input"
         />
-        <button type="button" onClick={handleGap} data-testid="auto-layout-gap-apply">
+        <button
+          type="button"
+          onClick={() => emit({ kind: "set-gap", value: gapValue })}
+          data-testid="auto-layout-gap-apply"
+        >
           Apply
         </button>
         {gapValue.trim() !== "" && (
-          <TokenHint providers={tokenProviders} property="gap" value={gapValue.trim()} />
+          <AutoLayoutTokenHint providers={tokenProviders} property="gap" value={gapValue.trim()} />
         )}
-      </Field>
+      </AutoLayoutField>
 
-      <Field label="Padding">
-        <SelectControl
+      <AutoLayoutField label="Padding">
+        <AutoLayoutSelectControl
           value={paddingMode}
           options={["all", "horizontal", "vertical", "individual"]}
           onChange={setPaddingMode}
@@ -323,43 +143,57 @@ export function AutoLayoutPanel({
           onChange={(e) => setPaddingValue(e.target.value)}
           data-testid="auto-layout-padding-input"
         />
-        <button type="button" onClick={handlePadding} data-testid="auto-layout-padding-apply">
+        <button
+          type="button"
+          onClick={() => {
+            if (paddingMode === "individual") return;
+            emit({ kind: "set-padding", mode: paddingMode, value: paddingValue });
+          }}
+          data-testid="auto-layout-padding-apply"
+        >
           Apply
         </button>
-      </Field>
+      </AutoLayoutField>
 
       {isFlex && (
         <>
-          <Field label="Main Align">
-            <SelectControl
+          <AutoLayoutField label="Main Align">
+            <AutoLayoutSelectControl
               value={alignMain}
               options={AUTO_LAYOUT_ALIGN_MAIN}
-              onChange={handleAlignMain}
+              onChange={(val) => {
+                setAlignMain(val);
+                emit({ kind: "set-align-main", value: val });
+              }}
               testId="auto-layout-align-main"
             />
-          </Field>
-
-          <Field label="Cross Align">
-            <SelectControl
+          </AutoLayoutField>
+          <AutoLayoutField label="Cross Align">
+            <AutoLayoutSelectControl
               value={alignCross}
               options={AUTO_LAYOUT_ALIGN_CROSS}
-              onChange={handleAlignCross}
+              onChange={(val) => {
+                setAlignCross(val);
+                emit({ kind: "set-align-cross", value: val });
+              }}
               testId="auto-layout-align-cross"
             />
-          </Field>
-
-          <Field label="Wrap">
-            <SelectControl
+          </AutoLayoutField>
+          <AutoLayoutField label="Wrap">
+            <AutoLayoutSelectControl
               value={wrap}
               options={AUTO_LAYOUT_WRAP}
-              onChange={handleWrap}
+              onChange={(val) => {
+                setWrap(val);
+                emit({ kind: "set-wrap", value: val });
+              }}
               testId="auto-layout-wrap"
             />
-          </Field>
+          </AutoLayoutField>
         </>
       )}
 
-      <Field label="Child Sizing">
+      <AutoLayoutField label="Child Sizing">
         <input
           type="number"
           min={0}
@@ -367,7 +201,7 @@ export function AutoLayoutPanel({
           onChange={(e) => setChildIndex(Number(e.target.value))}
           data-testid="auto-layout-child-index"
         />
-        <SelectControl
+        <AutoLayoutSelectControl
           value={childIntent}
           options={["hug", "fill", "fixed"]}
           onChange={setChildIntent}
@@ -382,10 +216,23 @@ export function AutoLayoutPanel({
             data-testid="auto-layout-child-value"
           />
         )}
-        <button type="button" onClick={handleChildSizing} data-testid="auto-layout-child-apply">
+        <button
+          type="button"
+          onClick={() =>
+            emit({
+              kind: "set-child-sizing",
+              childIndex,
+              intent: childIntent,
+              ...(childIntent === "fixed" && childValue.trim() !== ""
+                ? { value: childValue.trim() }
+                : {}),
+            })
+          }
+          data-testid="auto-layout-child-apply"
+        >
           Apply
         </button>
-      </Field>
+      </AutoLayoutField>
     </div>
   );
 }

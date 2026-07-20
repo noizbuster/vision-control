@@ -35,10 +35,11 @@ transport policy before any remote surface exists
 
 Firefox support is bounded by what the automated compatibility matrix validates
 ([ADR-016](./adr/ADR-016-firefox-support-level.md)). The matrix validates the
-build/package output and the manifest security posture (no `<all_urls>`, no broad
-host permissions, `debugger` optional only, loopback-scoped hosts). The
-browser-driven checks (load the extension in Firefox, verify the panel renders,
-verify element selection) are stubbed and require a Firefox binary to run.
+build/package output and the manifest security posture (no literal `<all_urls>`,
+`debugger` optional only, http(s) page hosts via `http://*/*` / `https://*/*`).
+The browser-driven checks (load the extension in Firefox, verify the panel
+renders, verify element selection) are stubbed and require a Firefox binary to
+run.
 
 v0.2.0 does **not** claim full Firefox parity. Features not validated on Firefox
 should be expected to produce explicit unsupported diagnostics rather than silent

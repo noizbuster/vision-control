@@ -42,7 +42,7 @@ WXT discovers entrypoints under [`entrypoints/`](./entrypoints/):
 - `devtools/index.html` + `main.ts` — DevTools page that registers the **Vision Control** panel via `chrome.devtools.panels.create`.
 - `panel/index.html` + `main.tsx` — The DevTools panel UI (React): inspector, editors, journal, and optional agent pairing state.
 - `background.ts` — Service worker: message router with per-tab/per-frame isolation, the extension-owned tab journal (`chrome.storage.session`), and optional MCP bridge pairing.
-- `content.ts` — Isolated-world content script for loopback pages: shadow-DOM overlay, element picker, hit testing, keyboard navigation. Non-loopback Site Access hosts are injected on demand by the background service worker after an explicit per-host grant.
+- `content.ts` — Isolated-world content script on all `http://*/*` and `https://*/*` pages: shadow-DOM overlay, element picker, hit testing, keyboard navigation.
 
 ## Scripts
 
@@ -83,9 +83,9 @@ The built `manifest.json` is intentionally scoped:
   same-origin routing.
 - `optional_permissions`: `debugger` only — it is **not** mandatory (PRD guardrail).
   The extension works without it for the MVP.
-- `host_permissions`: loopback only (`http://localhost/*`, `http://127.0.0.1/*`, `http://[::1]/*`).
-  No `"<all_urls>"` and no broad mandatory host access.
-- `optional_host_permissions`: Chromium MV3 carries `http://*/*` and `https://*/*` only as an allowed-to-ask envelope for the panel's **Site Access** flow. The panel still requests exact per-host origins, such as `http://subshell/*` and `https://subshell/*`, from a user gesture.
+- `host_permissions`: all http(s) pages (`http://*/*`, `https://*/*`) so any
+  hostname works without Site Access. No literal `"<all_urls>"`.
+- MCP bridge pairing remains loopback-only (`127.0.0.1:4322`).
 
 ## Loading the extension
 
@@ -93,7 +93,7 @@ The built `manifest.json` is intentionally scoped:
 2. Open Chromium and navigate to `chrome://extensions`.
 3. Enable **Developer mode**.
 4. Click **Load unpacked** and select `apps/extension/.output/chrome-mv3/`.
-5. Open DevTools on a loopback page — the **Vision Control** panel will appear.
+5. Open DevTools on any http(s) page — the **Vision Control** panel will appear.
 
 ## Notes
 

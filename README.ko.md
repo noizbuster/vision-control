@@ -67,18 +67,13 @@ pnpm nx run extension:build    # -> apps/extension/.output/chrome-mv3/
 1. `chrome://extensions`를 연다.
 2. **Developer mode**를 켠다.
 3. **Load unpacked**를 클릭하고 `apps/extension/.output/chrome-mv3/`를 선택한다.
-4. loopback 페이지(`http://localhost:*` / `http://127.0.0.1:*`)에서 DevTools를
+4. 임의의 http(s) 페이지(모든 호스트네임, 로컬 개발 서버 포함)에서 DevTools를
    연다. **Vision Control** 패널이 나타난다.
 
-빌드된 매니페스트는 의도적으로 좁다. `host_permissions`는 loopback 전용이고,
-`debugger`는 `optional_permissions`라 필수가 아니다. 권한 근거:
+빌드된 매니페스트는 모든 `http://*/*` / `https://*/*` 페이지를 커버한다.
+`debugger`는 `optional_permissions`라 필수가 아니다. MCP 브리지는 계속
+loopback 전용이다. 권한 근거:
 [apps/extension/README.md](./apps/extension/README.md).
-
-### loopback이 아닌 호스트 검사하기 (Site access)
-
-loopback이 기본값이다. 다른 로컬 개발 호스트(예: `http://subshell:10601/`)는
-패널의 **Site Access**에서 호스트를 입력하고 **Allow**한 뒤 Chrome 권한 프롬프트를
-승인한다. 와일드카드 자동 허용은 없다. 본인이 통제하는 호스트만 허용한다.
 
 ### 3. 오프라인 편집
 

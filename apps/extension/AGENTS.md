@@ -19,9 +19,8 @@ Four WXT contexts (one MessageBus each, filename-discovered):
 - `entrypoints/devtools/main.ts` - registers the panel via `chrome.devtools.panels.create`.
 - `entrypoints/panel/main.tsx` - React panel: inspector, editors, journal, and optional agent pairing state.
 - `entrypoints/background.ts` - service worker. Owns `MessageRouter`, `TabSessionStore`, the session journal writer, and optional bridge pairing.
-- `entrypoints/content.ts` - isolated world on loopback pages by static match;
-  non-loopback Site Access hosts are injected by the background service worker
-  after an explicit per-host grant. Shadow-DOM overlay, picker, hit testing,
+- `entrypoints/content.ts` - isolated world on all `http://*/*` and
+  `https://*/*` pages via static match. Shadow-DOM overlay, picker, hit testing,
   keyboard nav.
 
 `src/` subdomains:
@@ -50,12 +49,10 @@ Four WXT contexts (one MessageBus each, filename-discovered):
 - **Panel routes through background.** Selection, preview, and journal state stay extension-owned; MCP receives only an optional projection. See `context-permissions.ts`.
 - **Panel messages carry `tabId`.** Dropped at the permission check otherwise.
 - **Cross-origin frames are opaque.** Never receive edit messages. `frame-discovery` marks them `routeable: false`.
-- **Loopback mandatory access only.** `host_permissions` and static content-script
-  matches are `localhost` / `127.0.0.1` / `[::1]`. No `<all_urls>`, no broad
-  mandatory host access, and no automatic wildcard allowlist. Extra local
-  development hosts use the panel's Site Access flow: the user grants an exact
-  per-host optional permission, then the background service worker dynamically
-  injects eligible tabs. See [ADR-019](../../docs/adr/ADR-019-extension-source-of-truth.md),
+- **All http(s) page hosts.** `host_permissions` and static content-script matches
+  are `http://*/*` and `https://*/*` so any hostname works without Site Access.
+  Do not use the literal `<all_urls>`. MCP bridge bind remains loopback-only
+  (ADR-020). See [ADR-019](../../docs/adr/ADR-019-extension-source-of-truth.md),
   [ADR-020](../../docs/adr/ADR-020-mcp-bridge-projection.md), and
   [ADR-016](../../docs/adr/ADR-016-firefox-support-level.md).
 - **InspectorPanel slots are additive.** V1V2 panels render only when their slot

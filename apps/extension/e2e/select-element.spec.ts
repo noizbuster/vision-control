@@ -25,6 +25,10 @@ const BOARD_HTML = fixtureHtml(`
   <div style="height:2000px"></div>
 `);
 
+const DISABLED_BUTTON_HTML = fixtureHtml(`
+  <button id="disabled-btn" disabled style="padding:10px 20px;margin:30px">Unavailable</button>
+`);
+
 type OverlayRect = NonNullable<Awaited<ReturnType<typeof overlayElementInfo>>>;
 
 function requireOverlayRect(rect: OverlayRect | null, label: string): OverlayRect {
@@ -108,6 +112,21 @@ test.describe("@select-element browser", () => {
     );
     expect(Math.abs(select.x - btnRect.x)).toBeLessThanOrEqual(2);
     expect(Math.abs(select.width - btnRect.width)).toBeLessThanOrEqual(2);
+  });
+
+  test("click selects a disabled button from its pointerdown event", async ({ page }) => {
+    await serveFixture(page, DISABLED_BUTTON_HTML);
+    const buttonRect = await pageElementRect(page, "#disabled-btn");
+
+    await page.mouse.click(buttonRect.x + 5, buttonRect.y + 5);
+    await page.waitForTimeout(800);
+
+    const select = requireOverlayRect(
+      await overlayElementInfo(page, ".vc-select-outline"),
+      "selection outline for disabled button",
+    );
+    expect(Math.abs(select.x - buttonRect.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(select.width - buttonRect.width)).toBeLessThanOrEqual(2);
   });
 
   test("property inspector moves by dragging the element-name header", async ({ page }) => {

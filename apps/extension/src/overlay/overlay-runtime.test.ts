@@ -232,6 +232,31 @@ describe("overlay runtime", () => {
     );
   });
 
+  it("selects a native disabled control from its pointerdown event", () => {
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus });
+    runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
+
+    const host = document.querySelector("[data-vc-overlay-host]") as HTMLElement;
+    const shadowRoot = host.shadowRoot as ShadowRoot;
+    const button = document.createElement("button");
+    button.disabled = true;
+    document.body.appendChild(button);
+    setRect(button, { x: 10, y: 20, width: 100, height: 40 });
+
+    const pointerDown = new PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    button.dispatchEvent(pointerDown);
+
+    expect(pointerDown.defaultPrevented).toBe(true);
+    expect(readOutlineStyle(shadowRoot, ".vc-select-outline").display).toBe("block");
+    expect(selectionSummaryMessages(bus)).toHaveLength(1);
+  });
+
   it("uses preview runtime ids for the selected element and parent in selection-summary", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });

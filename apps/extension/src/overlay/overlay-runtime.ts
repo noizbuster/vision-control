@@ -250,6 +250,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     if (active === inspectListenersAttached) return;
     inspectListenersAttached = active;
     if (active) {
+      doc.addEventListener("pointerdown", onPointerDownCapture, true);
       doc.addEventListener("mousemove", onMouseMoveCapture, true);
       doc.addEventListener("click", onClickCapture, true);
       marquee.attach();
@@ -258,6 +259,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     }
     cancelHoverRaf();
     doc.removeEventListener("mousemove", onMouseMoveCapture, true);
+    doc.removeEventListener("pointerdown", onPointerDownCapture, true);
     doc.removeEventListener("click", onClickCapture, true);
     marquee.detach();
     inspector.setInspectMode(false);
@@ -311,6 +313,29 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   const onMouseMoveCapture = (event: MouseEvent): void => {
     const target = event.target as Element | null;
     scheduleHover(isInspectable(target) ? target : null);
+  };
+
+  const disabledControlFromTarget = (target: Element | null): Element | null => {
+    if (target === null) return null;
+    const disabledControl = target.closest(":disabled");
+    return isInspectable(disabledControl) ? disabledControl : null;
+  };
+
+  // Chromium does not dispatch click events for native disabled controls, but
+  // their pointerdown events still reach the document capture phase.
+  const onPointerDownCapture = (event: PointerEvent): void => {
+    if (event.button !== 0) return;
+    const disabledControl = disabledControlFromTarget(event.target as Element | null);
+    if (disabledControl === null) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (event.shiftKey) {
+      multiSelect.toggle(disabledControl);
+      return;
+    }
+    multiSelect.reset();
+    inspector.select(disabledControl);
+    notifySelection(disabledControl);
   };
 
   const onClickCapture = (event: MouseEvent): void => {

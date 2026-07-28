@@ -36,6 +36,7 @@ import type {
   MessageBus,
 } from "../messaging/index.js";
 import {
+  createInteractionModeClearedMessage,
   createSelectionOriginsClearedMessage,
   createSelectionOriginsMessage,
   type SelectionOriginsPayload,
@@ -172,6 +173,9 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     domAdapter,
     bus: inspectorBus,
     getRuntimeId: runtimeIdForElement,
+    onEscapeWhenIdle: () => {
+      bus.send("panel", createInteractionModeClearedMessage());
+    },
   });
 
   const previewDom = createBrowserPreviewDomAdapter();

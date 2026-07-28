@@ -63,6 +63,7 @@ export {
   createGridPlacementMessage,
   createHostAccessChangedMessage,
   createInspectorEditMessage,
+  createInteractionModeClearedMessage,
   createInteractionModeMessage,
   createMultiSelectGroupMessage,
   createRequestComponentPropsMessage,

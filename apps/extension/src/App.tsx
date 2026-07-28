@@ -63,6 +63,7 @@ export function App(): ReactElement {
     .map((frame) => frame.frameId)
     .join(",");
   const lastInteractionRouteRef = useRef<string | null>(null);
+  const setEditorMode = editor.actions.setMode;
   const dispatchOperation = useCallback(
     (operation: Parameters<typeof createEditorCommandMessage>[0]): void => {
       if (bus === undefined) return;
@@ -125,6 +126,15 @@ export function App(): ReactElement {
     lastInteractionRouteRef.current = routeKey;
     sendInteractionModeToRouteableFrames(bus, tabId, frames, routedInteractionMode);
   }, [bus, frames, routeableFrameKey, routedInteractionMode, tabId]);
+
+  useEffect(() => {
+    if (bus === undefined) return;
+    return bus.on("interaction-mode-cleared", (message) => {
+      if (message.payload === null) {
+        setEditorMode(null);
+      }
+    });
+  }, [bus, setEditorMode]);
 
   const handleEditorCommand = (command: Parameters<typeof createEditorCommandMessage>[0]): void => {
     editor.actions.addPendingOperation(command);

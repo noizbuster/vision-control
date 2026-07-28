@@ -1,5 +1,5 @@
 import type { OverlayElement, OverlayRoot } from "@vision-control/overlay-ui";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createBrowserDomAdapter,
@@ -221,6 +221,32 @@ describe("inspector", () => {
     expect(overlay.calls[overlay.calls.length - 1]).toEqual({ method: "clear" });
     expect(messages[messages.length - 1]).toEqual({ type: "deselect" });
 
+    inspector.dispose();
+  });
+
+  it("delegates Escape after clearing the active selection", () => {
+    const overlay = createFakeOverlay();
+    const { bus } = createFakeBus();
+    const onEscapeWhenIdle = vi.fn();
+    const inspector = createInspector({
+      overlayRoot: overlay.root,
+      overlayElement: overlay.element,
+      domAdapter: fakeDomAdapter(),
+      bus,
+      onEscapeWhenIdle,
+    });
+    const target = document.createElement("button");
+    document.body.appendChild(target);
+
+    inspector.setInspectMode(true);
+    inspector.select(target);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+    expect(onEscapeWhenIdle).not.toHaveBeenCalled();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+    expect(onEscapeWhenIdle).toHaveBeenCalledOnce();
     inspector.dispose();
   });
 

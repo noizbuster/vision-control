@@ -118,6 +118,21 @@ export interface InteractionModePayload {
   readonly mode: InteractionMode | null;
 }
 
+/**
+ * Content notifies the panel that Escape was pressed with no active selection.
+ * The panel clears the active editor mode and broadcasts the resulting state.
+ */
+export function createInteractionModeClearedMessage(): BusMessage {
+  return {
+    protocolVersion: "1.0.0",
+    messageId: `interaction-mode-cleared-${Date.now()}`,
+    messageType: "interaction-mode-cleared",
+    targetRoute: "panel",
+    payload: null,
+    timestamp: Date.now(),
+  };
+}
+
 export function createInteractionModeMessage(
   mode: InteractionMode | null,
   tabId: number,

@@ -129,6 +129,29 @@ test.describe("@select-element browser", () => {
     expect(Math.abs(select.width - buttonRect.width)).toBeLessThanOrEqual(2);
   });
 
+  test("second Escape clears the selected element and exits Inspect mode", async ({ page }) => {
+    await serveFixture(page, BOARD_HTML, { interactionMode: null });
+    const panel = await openExtensionPanel(page);
+    const inspectButton = panel.getByRole("button", { name: "Inspect" });
+
+    await inspectButton.click();
+    await page.bringToFront();
+    const buttonRect = await pageElementRect(page, "#btn");
+    await page.mouse.click(buttonRect.x + 5, buttonRect.y + 5);
+    await page.waitForTimeout(300);
+
+    await expect(inspectButton).toHaveAttribute("aria-pressed", "true");
+
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(150);
+    expect(isVisibleOverlayRect(await overlayElementInfo(page, ".vc-select-outline"))).toBe(false);
+
+    await page.keyboard.press("Escape");
+    await expect(inspectButton).toHaveAttribute("aria-pressed", "false");
+
+    await panel.close();
+  });
+
   test("property inspector moves by dragging the element-name header", async ({ page }) => {
     await serveFixture(page, BOARD_HTML);
     const btnRect = await pageElementRect(page, "#btn");

@@ -43,6 +43,8 @@ export interface InspectorOptions {
   readonly domAdapter: DomAdapter;
   readonly bus: InspectorBus;
   readonly getRuntimeId?: (element: Element) => string;
+  /** Invoked when Escape is pressed without a current selection. */
+  readonly onEscapeWhenIdle?: () => void;
 }
 
 /** State machine for the inspector. */
@@ -102,7 +104,14 @@ export function createInspector(options: InspectorOptions): Inspector {
   });
 
   const keyboard: KeyboardController = createKeyboardController({
-    onEscape: () => deselect(),
+    onEscape: () => {
+      if (selectedElement !== null) {
+        deselect();
+        return;
+      }
+      deselect();
+      options.onEscapeWhenIdle?.();
+    },
     onCycleChild: () => cycleChild(),
     onCycleParent: () => cycleParent(),
     onConfirm: () => confirm(),

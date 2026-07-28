@@ -257,6 +257,32 @@ describe("overlay runtime", () => {
     expect(selectionSummaryMessages(bus)).toHaveLength(1);
   });
 
+  it("notifies the panel to clear Inspect mode on a second Escape", () => {
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus });
+    runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
+
+    const button = document.createElement("button");
+    document.body.appendChild(button);
+    setRect(button, { x: 10, y: 20, width: 100, height: 40 });
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(selectionSummaryMessages(bus).at(-1)?.payload).toBeNull();
+    expect(
+      bus.sent.filter((entry) => entry.message.messageType === "interaction-mode-cleared"),
+    ).toHaveLength(0);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+    const modeClearedMessages = bus.sent.filter(
+      (entry) => entry.message.messageType === "interaction-mode-cleared",
+    );
+    expect(modeClearedMessages).toHaveLength(1);
+    expect(modeClearedMessages[0]?.message.payload).toBeNull();
+  });
+
   it("uses preview runtime ids for the selected element and parent in selection-summary", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document, bus });

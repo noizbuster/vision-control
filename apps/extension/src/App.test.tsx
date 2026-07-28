@@ -1,16 +1,17 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeGroup, makeSummary, setupChromeStubs } from "./App.test-fixtures.js";
 import type { SelectionOriginState } from "./hooks/useSelectionSummary.js";
-import type {
-  BusMessageHandler,
-  ComponentPropEntry,
-  FrameInfo,
-  GridPlacementMessage,
-  MessageBus,
+import {
+  type BusMessageHandler,
+  type ComponentPropEntry,
+  createInteractionModeClearedMessage,
+  type FrameInfo,
+  type GridPlacementMessage,
+  type MessageBus,
 } from "./messaging/index.js";
 
 const { slotState } = vi.hoisted(() => {
@@ -173,6 +174,35 @@ describe("App panel slots", () => {
       tabId: 42,
       frameId: 3,
       payload: { mode: "Inspect" },
+    });
+  });
+
+  it("clears the active Inspect mode when content reports a second Escape", async () => {
+    render(<App />);
+    const inspectButton = screen.getByRole("button", { name: "Inspect" });
+    slotState.bus.send.mockClear();
+
+    inspectButton.click();
+    await waitFor(() => expect(slotState.bus.send).toHaveBeenCalledTimes(1));
+    slotState.bus.send.mockClear();
+
+    const subscription = slotState.bus.on.mock.calls.find(
+      ([messageType]) => messageType === "interaction-mode-cleared",
+    );
+    const handler = subscription?.[1];
+    expect(handler).toBeDefined();
+    if (handler === undefined) return;
+
+    act(() => {
+      void handler(createInteractionModeClearedMessage(), { route: "content" });
+    });
+
+    await waitFor(() => {
+      expect(inspectButton.getAttribute("aria-pressed")).toBe("false");
+      expect(slotState.bus.send).toHaveBeenCalledWith(
+        "content",
+        expect.objectContaining({ messageType: "interaction-mode", payload: { mode: null } }),
+      );
     });
   });
 

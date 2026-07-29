@@ -114,6 +114,8 @@ export function createInspector(options: InspectorOptions): Inspector {
     },
     onCycleChild: () => cycleChild(),
     onCycleParent: () => cycleParent(),
+    onCyclePreviousSibling: () => cycleSibling(-1),
+    onCycleNextSibling: () => cycleSibling(1),
     onConfirm: () => confirm(),
   });
 
@@ -182,6 +184,18 @@ export function createInspector(options: InspectorOptions): Inspector {
     const [firstChild] = domAdapter.getChildren(target);
     if (firstChild !== undefined) {
       select(firstChild);
+    }
+  };
+
+  const cycleSibling = (offset: -1 | 1): void => {
+    const target = selectedElement ?? hoveredElement;
+    if (target === null) return;
+    const parent = domAdapter.getParent(target);
+    if (parent === null) return;
+    const siblings = domAdapter.getChildren(parent);
+    const sibling = siblings[siblings.indexOf(target) + offset];
+    if (sibling !== undefined) {
+      select(sibling);
     }
   };
 

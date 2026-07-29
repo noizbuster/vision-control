@@ -22,13 +22,22 @@ export interface ModifierState {
 }
 
 /** Keys handled by the inspect keyboard controller. */
-export type InspectKey = "Escape" | "Tab" | "ArrowDown" | "ArrowUp" | "Enter";
+export type InspectKey =
+  | "Escape"
+  | "Tab"
+  | "ArrowDown"
+  | "ArrowUp"
+  | "ArrowLeft"
+  | "ArrowRight"
+  | "Enter";
 
 /** Callbacks invoked for handled keys or modifier changes. */
 export interface KeyboardControllerCallbacks {
   readonly onEscape: () => void;
   readonly onCycleChild: () => void;
   readonly onCycleParent: () => void;
+  readonly onCyclePreviousSibling: () => void;
+  readonly onCycleNextSibling: () => void;
   readonly onConfirm: () => void;
   /** Move: Alt keydown signals duplicate intent (PRD §8.3). */
   readonly onDuplicateIntent?: () => void;
@@ -94,6 +103,14 @@ export function createKeyboardController(
       case "ArrowUp":
         event.preventDefault();
         callbacks.onCycleParent();
+        break;
+      case "ArrowLeft":
+        event.preventDefault();
+        callbacks.onCyclePreviousSibling();
+        break;
+      case "ArrowRight":
+        event.preventDefault();
+        callbacks.onCycleNextSibling();
         break;
       case "Enter":
         event.preventDefault();

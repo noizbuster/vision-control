@@ -123,8 +123,19 @@ function fakeDomAdapter(overrides?: Partial<DomAdapter>): DomAdapter {
   };
 }
 
-function createFakeBus(): { readonly bus: InspectorBus; readonly messages: unknown[] } {
-  const messages: unknown[] = [];
+type FakeInspectorMessage =
+  | {
+      readonly type: "selection";
+      readonly identity: Parameters<InspectorBus["sendSelection"]>[0];
+      readonly summary: Parameters<InspectorBus["sendSelection"]>[1];
+    }
+  | { readonly type: "deselect" };
+
+function createFakeBus(): {
+  readonly bus: InspectorBus;
+  readonly messages: FakeInspectorMessage[];
+} {
+  const messages: FakeInspectorMessage[] = [];
   return {
     bus: {
       sendSelection: (identity, summary) => messages.push({ type: "selection", identity, summary }),
@@ -302,6 +313,41 @@ describe("inspector", () => {
       identity: { tagName: string };
     };
     expect(last.identity.tagName).toBe("button");
+
+    inspector.dispose();
+  });
+
+  it("cycles between element siblings without wrapping at container boundaries", () => {
+    const parent = document.createElement("section");
+    const previous = document.createElement("button");
+    const selected = document.createElement("input");
+    const next = document.createElement("a");
+    parent.append(previous, selected, next);
+    document.body.appendChild(parent);
+
+    const overlay = createFakeOverlay();
+    const { bus, messages } = createFakeBus();
+    const inspector = createInspector({
+      overlayRoot: overlay.root,
+      overlayElement: overlay.element,
+      domAdapter: createBrowserDomAdapter(),
+      bus,
+    });
+    inspector.setInspectMode(true);
+    inspector.select(selected);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+
+    const selections = messages.filter((message) => message.type === "selection");
+    expect(selections.map((message) => message.identity.tagName)).toEqual([
+      "input",
+      "a",
+      "input",
+      "button",
+    ]);
 
     inspector.dispose();
   });

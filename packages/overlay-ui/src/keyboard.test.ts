@@ -7,6 +7,8 @@ function makeCallbacks() {
     onEscape: vi.fn(),
     onCycleChild: vi.fn(),
     onCycleParent: vi.fn(),
+    onCyclePreviousSibling: vi.fn(),
+    onCycleNextSibling: vi.fn(),
     onConfirm: vi.fn(),
     onDuplicateIntent: vi.fn(),
     onModifierChange: vi.fn(),
@@ -19,6 +21,8 @@ describe("keyboard controller", () => {
       onEscape: vi.fn(),
       onCycleChild: vi.fn(),
       onCycleParent: vi.fn(),
+      onCyclePreviousSibling: vi.fn(),
+      onCycleNextSibling: vi.fn(),
       onConfirm: vi.fn(),
     };
 
@@ -37,6 +41,12 @@ describe("keyboard controller", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
     expect(callbacks.onCycleParent).toHaveBeenCalledTimes(1);
 
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    expect(callbacks.onCyclePreviousSibling).toHaveBeenCalledTimes(1);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(callbacks.onCycleNextSibling).toHaveBeenCalledTimes(1);
+
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     expect(callbacks.onConfirm).toHaveBeenCalledTimes(1);
 
@@ -48,6 +58,8 @@ describe("keyboard controller", () => {
       onEscape: vi.fn(),
       onCycleChild: vi.fn(),
       onCycleParent: vi.fn(),
+      onCyclePreviousSibling: vi.fn(),
+      onCycleNextSibling: vi.fn(),
       onConfirm: vi.fn(),
     };
 
@@ -177,8 +189,12 @@ describe("keyboard controller — PRD §8.3 interaction modes", () => {
 
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
 
     expect(callbacks.onCycleParent).not.toHaveBeenCalled();
+    expect(callbacks.onCyclePreviousSibling).not.toHaveBeenCalled();
+    expect(callbacks.onCycleNextSibling).not.toHaveBeenCalled();
     expect(callbacks.onConfirm).not.toHaveBeenCalled();
 
     controller.deactivate();

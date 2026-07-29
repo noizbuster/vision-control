@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "nx run-many -t dev --projects=extension,playground-react-vite --parallel=4",
     "build": "nx run-many -t build",
+    "package:extension": "node scripts/package-extension.mjs",
     "check": "biome check",
     "lint": "biome check",
     "format": "biome format --write .",

@@ -8,6 +8,7 @@ build/
 .next-turbo/
 .nuxt/
 .output/
+/vision-control-extension.zip
 .turbo/
 coverage/
 

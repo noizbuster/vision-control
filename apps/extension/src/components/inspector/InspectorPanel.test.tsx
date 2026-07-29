@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { Operation } from "@vision-control/change-ir";
 import type { SelectionSummary } from "@vision-control/inspector-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -138,7 +138,7 @@ describe("InspectorPanel", () => {
       />,
     );
 
-    const selector = screen.getByText("#submit");
+    const selector = screen.getByTitle("#submit");
     const copyButton = screen.getByRole("button", { name: "Copy for agent" });
     const status = screen.getByTestId("selection-copy-status");
 
@@ -179,6 +179,89 @@ describe("InspectorPanel", () => {
     rerender(<InspectorPanel {...makeProps({ selectionCopyStatus: "error" })} />);
 
     expect(screen.getByTestId("selection-copy-status").textContent).toBe("Copy failed");
+  });
+
+  it("copies the full selector from the identity section", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    render(<InspectorPanel {...makeProps()} />);
+
+    screen.getByRole("button", { name: "Copy selector" }).click();
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("#submit"));
+    expect(screen.getByTestId("selector-copy-status").textContent).toBe("Selector copied");
+  });
+
+  it("ignores clipboard outcomes from an obsolete selector", async () => {
+    let rejectFirstCopy: ((error: Error) => void) | undefined;
+    const firstCopy = new Promise<void>((_resolve, reject) => {
+      rejectFirstCopy = reject;
+    });
+    const writeText = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockReturnValueOnce(firstCopy)
+      .mockResolvedValueOnce(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const firstSummary = makeSummary();
+    const { rerender } = render(<InspectorPanel {...makeProps({ summary: firstSummary })} />);
+
+    screen.getByRole("button", { name: "Copy selector" }).click();
+    const secondSummary = {
+      ...firstSummary,
+      identity: { ...firstSummary.identity, selector: "#secondary-submit" },
+    };
+    rerender(<InspectorPanel {...makeProps({ summary: secondSummary })} />);
+    screen.getByRole("button", { name: "Copy selector" }).click();
+    await waitFor(() =>
+      expect(screen.getByTestId("selector-copy-status").textContent).toBe("Selector copied"),
+    );
+
+    await act(async () => {
+      rejectFirstCopy?.(new Error("obsolete clipboard failure"));
+      await firstCopy.catch(() => undefined);
+    });
+
+    expect(screen.getByTestId("selector-copy-status").textContent).toBe("Selector copied");
+  });
+
+  it("shortens long selectors in the middle while retaining the full value", () => {
+    const fullSelector = "main.content > section[data-view='settings'] > button.primary-action";
+    const summary = makeSummary();
+    render(
+      <InspectorPanel
+        {...makeProps({
+          summary: {
+            ...summary,
+            identity: { ...summary.identity, selector: fullSelector },
+          },
+        })}
+      />,
+    );
+
+    const selector = screen.getByTitle(fullSelector);
+    expect(selector.querySelector("[aria-hidden='true']")?.textContent).toBe(
+      "main.content > s….primary-action",
+    );
+    expect(selector.getAttribute("title")).toBe(fullSelector);
+  });
+
+  it("does not split Unicode characters at the middle ellipsis", () => {
+    const fullSelector = "123456789012345😀abcdefghijklmnopqrst";
+    const summary = makeSummary();
+    render(
+      <InspectorPanel
+        {...makeProps({
+          summary: {
+            ...summary,
+            identity: { ...summary.identity, selector: fullSelector },
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByTitle(fullSelector).querySelector("[aria-hidden='true']")?.textContent).toBe(
+      "123456789012345😀…fghijklmnopqrst",
+    );
   });
 
   it("renders the breadcrumb and calls onSelectElement when clicked", () => {

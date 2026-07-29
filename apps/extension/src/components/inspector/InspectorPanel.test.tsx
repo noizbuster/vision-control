@@ -131,10 +131,10 @@ describe("InspectorPanel", () => {
     expect(screen.getAllByText("high").length).toBeGreaterThan(0);
   });
 
-  it("places an accessible disabled copy action beside the selector while source hints resolve", () => {
+  it("keeps the copy action available while source hints resolve", () => {
     render(
       <InspectorPanel
-        {...makeProps({ canCopySelectionContext: false, selectionCopyStatus: "resolving" })}
+        {...makeProps({ canCopySelectionContext: true, selectionCopyStatus: "resolving" })}
       />,
     );
 
@@ -143,12 +143,12 @@ describe("InspectorPanel", () => {
     const status = screen.getByTestId("selection-copy-status");
 
     expect(selector.closest(".inspector-semantic__row")?.contains(copyButton)).toBe(true);
-    expect(copyButton).toHaveProperty("disabled", true);
+    expect(copyButton).toHaveProperty("disabled", false);
     expect(status.getAttribute("aria-live")).toBe("polite");
     expect(status.textContent).toBe("Resolving source hints");
   });
 
-  it("keeps the copy action disabled when source hints are unavailable", () => {
+  it("keeps the copy action disabled when no selection context is available", () => {
     render(<InspectorPanel {...makeProps({ canCopySelectionContext: false })} />);
 
     expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty("disabled", true);

@@ -1,9 +1,15 @@
 import type { SelectionSummary } from "@vision-control/inspector-core";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { serializeSelectionCopyContext } from "../components/inspector/selection-copy-context.js";
 import type { SelectionOriginState } from "./useSelectionSummary.js";
 
 export type SelectionCopyStatus = "idle" | "resolving" | "copied" | "error";
+
+interface SelectionCopyOutcome {
+  readonly summary: SelectionSummary;
+  readonly pageUrl: string | null | undefined;
+  readonly status: "copied" | "error";
+}
 
 export function useSelectionCopyContext(input: {
   readonly summary: SelectionSummary | null;
@@ -16,7 +22,11 @@ export function useSelectionCopyContext(input: {
 } {
   const { summary, originState, pageUrl } = input;
   const attemptRef = useRef(0);
-  const [outcome, setOutcome] = useState<"idle" | "copied" | "error">("idle");
+  const [outcome, setOutcome] = useState<SelectionCopyOutcome | null>(null);
+  const currentSummaryRef = useRef(summary);
+  const currentPageUrlRef = useRef(pageUrl);
+  currentSummaryRef.current = summary;
+  currentPageUrlRef.current = pageUrl;
 
   const readyOriginsMatchSelection =
     summary !== null &&
@@ -24,27 +34,26 @@ export function useSelectionCopyContext(input: {
     originState.runtimeId === summary.identity.runtimeId;
 
   const selectionCopyContext = useMemo(() => {
-    if (!readyOriginsMatchSelection || summary === null || originState.status !== "ready") {
-      return null;
-    }
+    if (summary === null) return null;
     return serializeSelectionCopyContext({
       pageUrl: pageUrl ?? null,
       selection: summary,
-      origins: originState.origins,
-      originsTruncated: originState.originsTruncated,
+      origins:
+        readyOriginsMatchSelection && originState.status === "ready" ? originState.origins : [],
+      originsTruncated:
+        readyOriginsMatchSelection && originState.status === "ready"
+          ? originState.originsTruncated
+          : false,
     });
   }, [originState, pageUrl, readyOriginsMatchSelection, summary]);
 
-  useEffect(() => {
-    attemptRef.current += 1;
-    setOutcome("idle");
-  }, [selectionCopyContext]);
-
   const handleCopySelectionContext = useCallback((): void => {
-    if (selectionCopyContext === null) return;
+    if (selectionCopyContext === null || summary === null) return;
+    const copiedSummary = summary;
+    const copiedPageUrl = pageUrl;
     const clipboard = navigator.clipboard;
     if (clipboard === undefined) {
-      setOutcome("error");
+      setOutcome({ summary: copiedSummary, pageUrl: copiedPageUrl, status: "error" });
       return;
     }
 
@@ -52,22 +61,36 @@ export function useSelectionCopyContext(input: {
     attemptRef.current = attempt;
     void clipboard.writeText(selectionCopyContext).then(
       () => {
-        if (attemptRef.current !== attempt) return;
-        setOutcome("copied");
+        if (
+          attemptRef.current !== attempt ||
+          currentSummaryRef.current !== copiedSummary ||
+          currentPageUrlRef.current !== copiedPageUrl
+        ) {
+          return;
+        }
+        setOutcome({ summary: copiedSummary, pageUrl: copiedPageUrl, status: "copied" });
       },
       () => {
-        if (attemptRef.current !== attempt) return;
-        setOutcome("error");
+        if (
+          attemptRef.current !== attempt ||
+          currentSummaryRef.current !== copiedSummary ||
+          currentPageUrlRef.current !== copiedPageUrl
+        ) {
+          return;
+        }
+        setOutcome({ summary: copiedSummary, pageUrl: copiedPageUrl, status: "error" });
       },
     );
-  }, [selectionCopyContext]);
+  }, [pageUrl, selectionCopyContext, summary]);
 
-  const selectionCopyStatus: SelectionCopyStatus =
+  const sourceHintsResolving =
     originState.status === "pending" &&
     summary !== null &&
-    originState.runtimeId === summary.identity.runtimeId
-      ? "resolving"
-      : outcome;
+    originState.runtimeId === summary.identity.runtimeId;
+  const currentOutcome =
+    outcome?.summary === summary && outcome.pageUrl === pageUrl ? outcome.status : "idle";
+  const selectionCopyStatus: SelectionCopyStatus =
+    currentOutcome === "idle" && sourceHintsResolving ? "resolving" : currentOutcome;
 
   return {
     canCopySelectionContext: selectionCopyContext !== null,

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OperationSchema } from "@vision-control/change-ir";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
 import type { SelectionSummary } from "@vision-control/inspector-core";
@@ -78,7 +78,7 @@ describe("App context and optional pairing", () => {
   });
   afterEach(cleanup);
 
-  it("does not copy selection context while source hints are pending or foreign", async () => {
+  it("copies current selection context without stale origins while hints are unavailable", async () => {
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     slotState.summary = makeSummary("inline");
@@ -87,14 +87,104 @@ describe("App context and optional pairing", () => {
     await waitFor(() =>
       expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
     );
+
     const copyButton = screen.getByRole("button", { name: "Copy for agent" });
-    expect(copyButton).toHaveProperty("disabled", true);
+    expect(copyButton).toHaveProperty("disabled", false);
+    expect(screen.getByTestId("selection-copy-status").textContent).toBe("Resolving source hints");
     copyButton.click();
-    expect(writeText).not.toHaveBeenCalled();
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0]?.[0]).toContain("origins: []");
+    expect(writeText.mock.calls[0]?.[0]).toContain("origins_truncated: false");
+    await waitFor(() =>
+      expect(screen.getByTestId("selection-copy-status").textContent).toBe(
+        "Selection context copied",
+      ),
+    );
+
+    writeText.mockClear();
     slotState.originState = makeReadyOriginState("runtime-2");
     rerender(<App />);
-    expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty("disabled", true);
-    expect(writeText).not.toHaveBeenCalled();
+    screen.getByRole("button", { name: "Copy for agent" }).click();
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0]?.[0]).not.toContain("src/components/Checkout.tsx");
+    expect(writeText.mock.calls[0]?.[0]).not.toContain("src/styles/checkout.css");
+  });
+
+  it("reports a pending copy completion after source hints become ready", async () => {
+    let resolveWrite: (() => void) | undefined;
+    const writeText = vi.fn<(text: string) => Promise<void>>(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveWrite = resolve;
+        }),
+    );
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    slotState.summary = makeSummary("inline");
+    slotState.originState = { status: "pending", revision: 1, runtimeId: "runtime-1" };
+    const { rerender } = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
+    );
+    expect(screen.getByRole("button", { name: "Copy for agent" })).toHaveProperty(
+      "disabled",
+      false,
+    );
+
+    screen.getByRole("button", { name: "Copy for agent" }).click();
+    slotState.originState = makeReadyOriginState();
+    rerender(<App />);
+    await act(async () => resolveWrite?.());
+
+    await waitFor(() =>
+      expect(screen.getByTestId("selection-copy-status").textContent).toBe(
+        "Selection context copied",
+      ),
+    );
+  });
+
+  it("ignores an obsolete clipboard result after the selection changes", async () => {
+    const resolveWrites: Array<() => void> = [];
+    const writeText = vi.fn<(text: string) => Promise<void>>(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveWrites.push(resolve);
+        }),
+    );
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    slotState.summary = makeSummary("inline");
+    slotState.originState = { status: "pending", revision: 1, runtimeId: "runtime-1" };
+    const { rerender } = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId("inspected-url").textContent).toContain("http://localhost:3000/"),
+    );
+
+    screen.getByRole("button", { name: "Copy for agent" }).click();
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+
+    const nextSummary = makeSummary("block");
+    slotState.summary = {
+      ...nextSummary,
+      identity: {
+        ...nextSummary.identity,
+        runtimeId: "runtime-2",
+        selector: "#next",
+      },
+    };
+    slotState.originState = { status: "pending", revision: 2, runtimeId: "runtime-2" };
+    rerender(<App />);
+    expect(screen.getByTestId("selection-copy-status").textContent).toBe("Resolving source hints");
+
+    await act(async () => resolveWrites[0]?.());
+    expect(screen.getByTestId("selection-copy-status").textContent).toBe("Resolving source hints");
+
+    screen.getByRole("button", { name: "Copy for agent" }).click();
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
+    await act(async () => resolveWrites[1]?.());
+    await waitFor(() =>
+      expect(screen.getByTestId("selection-copy-status").textContent).toBe(
+        "Selection context copied",
+      ),
+    );
   });
 
   it("copies matching ready selection context with every origin and reports success", async () => {

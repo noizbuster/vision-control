@@ -1,14 +1,8 @@
-# AGENTS.md
+<!-- Generated: 2026-07-30 | Updated: 2026-07-30 -->
 
-This file is the brief for AI coding agents working in the Vision Control
-repository. Read it before writing any code. It tells you what the project is,
-where the boundaries are, and what you must never do.
+# Vision Control
 
-Human contributors should read [CONTRIBUTING.md](./CONTRIBUTING.md) instead.
-
----
-
-## What this project is
+## Purpose
 
 Vision Control turns visual editing of a live web page into structured
 source-change intent. A Chromium DevTools panel lets you pick an element,
@@ -24,7 +18,37 @@ Architecture contracts: [ADR-019](./docs/adr/ADR-019-extension-source-of-truth.m
 (extension SoT), [ADR-020](./docs/adr/ADR-020-mcp-bridge-projection.md) (MCP
 bridge). Full product scope history: [Vision-Control-PRD.md](./Vision-Control-PRD.md).
 
----
+## Key Files
+
+| File | Description |
+|------|-------------|
+| `package.json` | Root scripts (`check`, `typecheck`, `test`, `build`, `boundaries`) and engines |
+| `pnpm-workspace.yaml` | Workspace globs + shared dependency catalog |
+| `nx.json` | Nx monorepo task wiring |
+| `biome.json` | Sole formatter/linter (ADR-001) — no ESLint/Prettier/Stylelint |
+| `tsconfig.base.json` | Shared TypeScript strict baseline (ADR-002) |
+| `playwright.config.ts` | Root Playwright config for e2e |
+| `CONTRIBUTING.md` | Human contributor setup and conventional-commit scopes |
+| `DESIGN.md` | Product/UI decision source of truth |
+| `Vision-Control-PRD.md` | Full product requirements and constraints |
+| `README.md` / `README.ko.md` | Human-facing project overview |
+
+## Subdirectories
+
+| Directory | Purpose |
+|-----------|---------|
+| `apps/` | Product app (extension) and fixture apps (see `apps/AGENTS.md`) |
+| `packages/` | Shared libraries by platform tag (see `packages/AGENTS.md`) |
+| `integrations/` | Agent/editor MCP adapters (see `integrations/AGENTS.md`) |
+| `tools/` | Nx plugin, generators, boundary checker (see `tools/AGENTS.md`) |
+| `docs/` | ADRs, agent policy docs, schemas (see `docs/AGENTS.md`) |
+| `scripts/` | Root one-off scripts (see `scripts/AGENTS.md`) |
+| `.github/` | CI workflows (see `.github/AGENTS.md`) |
+
+Residual delete-disposition trees may still exist on disk as `dist/`/`node_modules`
+only (`apps/daemon`, several former packages/integrations per
+[docs/c7-package-inventory.md](./docs/c7-package-inventory.md)). Do not revive them
+as product paths.
 
 ## Package boundaries
 
@@ -48,23 +72,31 @@ under each package's `src/`.
 
 Full rules and examples: [docs/agents/package-boundaries.md](./docs/agents/package-boundaries.md).
 
----
+## For AI Agents
 
-## MUST do
+### Working In This Directory
+
+- Read this file before writing any code. Human contributors use
+  [CONTRIBUTING.md](./CONTRIBUTING.md) instead.
+- Prefer package-local `AGENTS.md` briefs under `apps/`, `packages/`, etc. for
+  area-specific contracts.
+- Read relevant ADRs under [docs/adr/](./docs/adr/) before changing architecture.
+  If a change contradicts an ADR, raise it — do not silently override.
+- Export public APIs from each package's `src/index.ts` only. No `any` in public
+  signatures.
+- Write evidence under `.omo/evidence/task-<N>-*.md` for plan tasks. Capture real
+  command output, not summaries.
+- Follow conventional commits with scopes listed in CONTRIBUTING.md.
+
+### MUST do
 
 - Run `pnpm check`, `pnpm typecheck`, and `pnpm test` before claiming a task is
   done. `pnpm build` too if you changed compilable code.
-- Read the relevant ADRs under [docs/adr/](./docs/adr/) before changing
-  architecture. If your change contradicts an ADR, raise it, do not silently
-  override. Prefer ADR-019/020 for SoT and MCP shape.
-- Add types for every public API. Export from `src/index.ts` only what consumers
-  need. No `any` in public signatures.
-- Write evidence under `.omo/evidence/task-<N>-*.md` for every plan task.
-  Capture real command output, not summaries.
-- Follow conventional commits with the scopes listed in
-  [CONTRIBUTING.md](./CONTRIBUTING.md).
+- Read ADR-019/020 first for SoT and MCP shape.
+- Add types for every public API.
+- Keep Biome as the only formatter/linter.
 
-## MUST NOT do
+### MUST NOT do
 
 These are hard guardrails. Violating them breaks the project contract.
 
@@ -91,7 +123,7 @@ These are hard guardrails. Violating them breaks the project contract.
     (ADR-018). Local panel export is the share path (ADR-015 supersession).
   - **A source-mutating MCP tool.** Patch apply is an agent file-tool action;
     it must never become an MCP tool. Product CLI codemod is dropped (ADR-014
-    supersession). See [docs/agents/mcp-policy.md](./docs/agents/mcp-policy.md).
+    supersession).
   - **Mandatory `chrome.debugger`.** It stays `optional_permissions`.
   - **Non-loopback MCP bind** or multi-port scan product path (ADR-020).
   - **Workspace index / component-props AST / marker HIGH** as product paths
@@ -115,7 +147,27 @@ These are hard guardrails. Violating them breaks the project contract.
 - **Do not put pair secrets on MCP stdout or in `/discover`.** Pair token on
   stderr / panel paste only (ADR-020 C3).
 
----
+### Testing Requirements
+
+Before declaring a task complete, run and capture real output:
+
+```bash
+pnpm check
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm boundaries
+```
+
+If the change touches e2e, also run `pnpm test:e2e`.
+
+### Common Patterns
+
+- Workspace packages use Nx tags + public barrel `src/index.ts`.
+- Catalog protocol in `pnpm-workspace.yaml` for shared external versions.
+- Evidence files under `.omo/evidence/` with real command output.
+- Hierarchical `AGENTS.md` files: each non-root file has
+  `<!-- Parent: ../AGENTS.md -->`.
 
 ## Where to find things
 
@@ -130,20 +182,18 @@ These are hard guardrails. Violating them breaks the project contract.
 | MCP read-only policy | [docs/agents/mcp-policy.md](./docs/agents/mcp-policy.md) |
 | Development setup and commits | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 | Root scripts | [package.json](./package.json) |
+| Keep/delete package inventory | [docs/c7-package-inventory.md](./docs/c7-package-inventory.md) |
 
----
+## Dependencies
 
-## Verification commands
+### Internal
 
-Before declaring a task complete, run these and capture the output into the
-evidence file:
+- Workspace packages under `apps/`, `packages/`, `integrations/`, `tools/` via
+  `@vision-control/*` public APIs only.
 
-```bash
-pnpm check
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm boundaries
-```
+### External
 
-If your change touches e2e, also run `pnpm test:e2e`.
+- pnpm 11 + Node >= 22, Nx, Biome, TypeScript, Vitest, Playwright, WXT, React 19,
+  Zod — versions pinned in `pnpm-workspace.yaml` catalog.
+
+<!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

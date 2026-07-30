@@ -1,106 +1,103 @@
-# AGENTS.md
+<!-- Parent: ../AGENTS.md -->
+<!-- Generated: 2026-07-30 | Updated: 2026-07-30 -->
 
-Package brief for AI coding agents working in `@vision-control/extension`.
-Read the [root brief](../../AGENTS.md) first; this file covers the
-package-specific contract only. Toolchain rationale:
-[ADR-006](../../docs/adr/ADR-006-wxt-react-extension.md).
+# extension
 
-## OVERVIEW
+## Purpose
 
-WXT + React DevTools extension. Four execution contexts, four MessageBus
-instances, and an extension-owned per-tab journal. The background service worker
-owns journal writes to `chrome.storage.session`; optional MCP pairing projects
-that extension state to an agent. Edits here are preview, not source.
+WXT + React Chromium DevTools extension (`@vision-control/extension`). Four
+execution contexts, four MessageBus instances, and an extension-owned per-tab
+journal. The background service worker owns journal writes to
+`chrome.storage.session`; optional MCP pairing projects that extension state to
+an agent. Edits here are preview, not source.
 
-## STRUCTURE
+Toolchain: [ADR-006](../../docs/adr/ADR-006-wxt-react-extension.md). SoT:
+[ADR-019](../../docs/adr/ADR-019-extension-source-of-truth.md). Bridge:
+[ADR-020](../../docs/adr/ADR-020-mcp-bridge-projection.md).
 
-Four WXT contexts (one MessageBus each, filename-discovered):
+## Key Files
 
-- `entrypoints/devtools/main.ts` - registers the panel via `chrome.devtools.panels.create`.
-- `entrypoints/panel/main.tsx` - React panel: inspector, editors, journal, and optional agent pairing state.
-- `entrypoints/background.ts` - service worker. Owns `MessageRouter`, `TabSessionStore`, the session journal writer, and optional bridge pairing.
-- `entrypoints/content.ts` - isolated world on all `http://*/*` and
-  `https://*/*` pages via static match. Shadow-DOM overlay, picker, hit testing,
-  keyboard nav.
+| File | Description |
+|------|-------------|
+| `wxt.config.ts` | WXT/manifest config and permissions |
+| `package.json` / `project.json` | Package metadata and Nx tags (`platform:browser`, `type:app`) |
+| `entrypoints/devtools/main.ts` | Registers the panel via `chrome.devtools.panels.create` |
+| `entrypoints/panel/main.tsx` | React panel entry |
+| `entrypoints/background.ts` | Service worker: router, tab session, journal, bridge pairing |
+| `entrypoints/content.ts` | Isolated-world content script: overlay, picker, hit testing |
+| `src/App.tsx` | Panel root wiring |
+| `README.md` | Human package overview |
 
-`src/` subdomains:
+## Subdirectories
 
-- `src/messaging/` - bus, router, context-permissions, frame-discovery, tab-session, reconnect. Shared across all four contexts.
-- `src/components/inspector/` - read-side UI. `InspectorPanel` takes optional additive slot props (`multiSelectGroup`, `alignmentPanel`, `autoLayoutPanel`, `gridPlacement`) for V1V2.
-- `src/components/interaction/` - pure-TS controllers run in CONTENT. Bind pointer events to interaction-machine + preview-engine + change-ir. `index.ts` re-exports only `Reparent*`. Import `ReorderController` / `ResizeController` by deep path.
-- `src/components/editors/`, `src/components/journal/`, `src/hooks/` - command editors, undo/redo surface, React glue for the panel.
+| Directory | Purpose |
+|-----------|---------|
+| `entrypoints/` | WXT filename-discovered contexts (see `entrypoints/AGENTS.md`) |
+| `src/` | Shared and panel/content implementation (see `src/AGENTS.md`) |
+| `e2e/` | Playwright e2e + risk gates (see `e2e/AGENTS.md`) |
+| `public/` | Extension icons |
 
-## WHERE TO LOOK
+## For AI Agents
 
-| Need | File |
-|---|---|
-| Context permission boundary | `src/messaging/context-permissions.ts` |
-| Per-tab / per-frame routing | `src/messaging/router.ts`, `tab-session.ts` |
-| Frame enumeration | `src/messaging/frame-discovery.ts` |
-| Optional MCP bridge pairing | `src/messaging/reconnect.ts` |
-| Panel root + wiring | `src/App.tsx` |
-| Interaction controllers | `src/components/interaction/` |
-| Manifest permissions | `wxt.config.ts` |
-| Permission rationale | [README.md](./README.md) |
-| Isolation risk gate | `e2e/risk-gates/tab-frame-isolation.spec.ts` |
+### Working In This Directory
 
-## CONVENTIONS
-
-- **Panel routes through background.** Selection, preview, and journal state stay extension-owned; MCP receives only an optional projection. See `context-permissions.ts`.
+- **Panel routes through background.** Selection, preview, and journal state stay
+  extension-owned; MCP receives only an optional projection.
 - **Panel messages carry `tabId`.** Dropped at the permission check otherwise.
-- **Cross-origin frames are opaque.** Never receive edit messages. `frame-discovery` marks them `routeable: false`.
+- **Cross-origin frames are opaque.** Never receive edit messages.
+  `frame-discovery` marks them `routeable: false`.
 - **All http(s) page hosts.** `host_permissions` and static content-script matches
-  are `http://*/*` and `https://*/*` so any hostname works without Site Access.
-  Do not use the literal `<all_urls>`. MCP bridge bind remains loopback-only
-  (ADR-020). See [ADR-019](../../docs/adr/ADR-019-extension-source-of-truth.md),
-  [ADR-020](../../docs/adr/ADR-020-mcp-bridge-projection.md), and
-  [ADR-016](../../docs/adr/ADR-016-firefox-support-level.md).
+  are `http://*/*` and `https://*/*`. Do not use the literal `<all_urls>`. MCP
+  bridge bind remains loopback-only (ADR-020).
 - **InspectorPanel slots are additive.** V1V2 panels render only when their slot
-  prop carries data (the additive-slot contract). The **emission side is wired**
-  (v0.2.0): the content runtime publishes the messages the panel hooks already
-  subscribe to — `multi-select-group` (`overlay/multi-select-controller.ts`),
-  `grid-placement` (`overlay/grid-placement-controller.ts`), the message-fed
-  `component-props` response (`hooks/useComponentProps.ts`), and the
-  `activeBreakpoint` enrichment on the selection summary
-  (`overlay/breakpoint-controller.ts`). A panel renders on data arrival, never on
-  a hard-wired unconditional mount. The slot prop is the rendering gate; the bus
-  message is the wiring surface.
-- **Controllers are pure TS, not React.** They bind to DOM in the content context, outside React's tree.
-- **WXT entrypoints are filename-discovered.** No manual registration. `.wxt/` is generated; do not edit or commit it.
+  prop carries data. Wire the **emission side** (`overlay/*-controller.ts`); never
+  hard-wire unconditional mounts in `App.tsx`.
+- **Controllers are pure TS, not React.** They bind to DOM in the content context.
+- **WXT entrypoints are filename-discovered.** `.wxt/` is generated — do not edit
+  or commit it.
 - **Manifest permission changes need a written rationale** in the PR.
 
-## ANTI-PATTERNS
-
-- Do not hard-wire a panel mount unconditionally in App.tsx. The additive-slot
-  contract is the rendering gate: a panel renders only when its slot prop carries
-  data. Wire the **emission side** — publish the bus message the panel hook
-  subscribes to (`overlay/*-controller.ts`), so the data arrives and the panel
-  mounts. Never short-circuit the slot by mounting a panel independent of data
-  arrival.
-- Do not make MCP a source of truth. Pairing is optional, and the extension owns selection, preview, and journal state.
-- Do not add a second router. One `MessageRouter` in `background.ts`; the permission layer assumes it.
-- Do not turn interaction controllers into React components. They own pointer / DOM lifecycle outside React.
-- Do not edit anything under `.wxt/`. Regenerate with `pnpm nx run extension:build`.
-- Do not treat `test.fixme` stubs in `e2e/*.spec.ts` as green coverage. As of
-  v0.2.0 the PRD §31.5 specs (reorder, reparent, resize, undo-redo, edit) are
-  real browser-driven e2e; multi-select has 2 real content-runtime tests; the
-  remaining fixme stubs (group-move, css-grid, alignment, auto-layout) are
-  blocked by the panel-automation harness and carry an explicit
-  `// OUT: panel-context` rationale (see
-  [docs/known-limitations.md](../../docs/known-limitations.md)). Run
-  `pnpm playwright install chromium` then `pnpm nx run extension:e2e` for real
-  status.
-- Do not add a source-mutating MCP tool. The bridge is read-only projection plus coordination signals; agents write source with their own file tools.
-
-## Verification
+### Testing Requirements
 
 ```bash
 pnpm nx run extension:build      # -> .output/chrome-mv3/
 pnpm nx run extension:test       # vitest unit + integration
-pnpm nx run extension:e2e        # root specs + risk-gates/ (7 PRD Appendix-D guardrails)
+pnpm nx run extension:e2e        # root specs + risk-gates/
 ```
 
 `build:firefox` produces a valid MV2 manifest; `e2e/firefox-compat.spec.ts`
-validates its security posture without a browser binary. See
-[ADR-016](../../docs/adr/ADR-016-firefox-support-level.md). Decisions live under
-[docs/adr/](../../docs/adr/).
+validates security posture without a browser binary (ADR-016).
+
+### Common Patterns
+
+- One `MessageRouter` in background; permission layer in `context-permissions.ts`.
+- Content runtime publishes bus messages; panel hooks subscribe; slot props gate UI.
+- Journal authority is background/session storage; panel is a view + command issuer.
+
+### Anti-Patterns
+
+- Do not hard-wire a panel mount unconditionally in `App.tsx`.
+- Do not make MCP a source of truth.
+- Do not add a second router.
+- Do not turn interaction controllers into React components.
+- Do not edit anything under `.wxt/`.
+- Do not treat `test.fixme` stubs as green coverage. Remaining fixme stubs carry
+  explicit `// OUT: panel-context` rationales — see
+  [docs/known-limitations.md](../../docs/known-limitations.md).
+- Do not add a source-mutating MCP tool.
+
+## Dependencies
+
+### Internal
+
+- `@vision-control/bridge-client`, `change-ir`, `change-journal`, `protocol`,
+  `preview-engine`, `verification-engine`, `inspector-core`, `overlay-ui`,
+  `layout-engine`, `interaction-machine`, `editor-core`, `element-identity`,
+  `geometry`, `context-compiler`, `security`, `map-origins`, `shared-ui`, etc.
+  via public APIs only. No `platform:node` source imports.
+
+### External
+
+- WXT, React, Chrome extension APIs, Vitest, Playwright.
+
+<!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

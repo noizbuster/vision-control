@@ -69,6 +69,8 @@ export function createMultiSelectController(
 ): MultiSelectController {
   const { document: doc, bus } = options;
   let selection = new Map<string, Entry>();
+  /** True after a valid group was published; drives null clears on reset. */
+  let publishedGroup = false;
 
   const ensurePreviewId = (element: Element): string => {
     const existing = element.getAttribute(PREVIEW_ID_ATTR);
@@ -110,8 +112,17 @@ export function createMultiSelectController(
     return chain.reverse();
   };
 
+  const publishClear = (): void => {
+    if (!publishedGroup) return;
+    publishedGroup = false;
+    bus.send("panel", createMultiSelectGroupMessage(null));
+  };
+
   const publish = (entries: readonly Entry[]): void => {
-    if (entries.length < 2) return;
+    if (entries.length < 2) {
+      publishClear();
+      return;
+    }
     const result = createMultiSelectGroup({
       id: createMultiSelectGroupId(`vc-group-${createOperationId()}`),
       members: entries.map((entry) => entry.member),
@@ -119,6 +130,7 @@ export function createMultiSelectController(
       parentChains: entries.map((entry) => buildParentChain(entry.element)),
     });
     if (result.ok) {
+      publishedGroup = true;
       bus.send("panel", createMultiSelectGroupMessage(result.group));
     }
     // A constraint failure here is unreachable: callers pre-check with
@@ -152,10 +164,12 @@ export function createMultiSelectController(
 
   const reset = (): void => {
     selection = new Map();
+    publishClear();
   };
 
   const dispose = (): void => {
     selection = new Map();
+    publishClear();
   };
 
   return { toggle, setFromMarquee, reset, dispose };

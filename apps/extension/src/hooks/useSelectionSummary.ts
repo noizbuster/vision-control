@@ -67,6 +67,8 @@ export function useSelectionSummary(bus: MessageBus | undefined): {
   readonly summary: SelectionSummary | null;
   readonly originState: SelectionOriginState;
   readonly selectElement: (selector: string) => void;
+  /** Drop panel selection state (navigation safety net). */
+  readonly resetSelection: () => void;
 } {
   const [selection, setSelection] = useState<SelectionState>(INITIAL_SELECTION_STATE);
 
@@ -161,9 +163,14 @@ export function useSelectionSummary(bus: MessageBus | undefined): {
     [bus],
   );
 
+  const resetSelection = useCallback((): void => {
+    setSelection(INITIAL_SELECTION_STATE);
+  }, []);
+
   return {
     summary: selection.summary,
     originState: selection.originState,
     selectElement,
+    resetSelection,
   };
 }

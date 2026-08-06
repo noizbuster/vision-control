@@ -154,6 +154,10 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
       bus.send("panel", createSelectionOriginsClearedMessage(selectionRevision)),
   });
 
+  // Assigned after property/grid/multi-select controllers exist so Escape and
+  // navigation deselect share one local-UI teardown path.
+  let clearLocalSelectionUi = (): void => {};
+
   const inspectorBus: InspectorBus = {
     sendSelection: (identity, summary) => {
       const element = elementsByRuntimeId.get(identity.runtimeId);
@@ -164,6 +168,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     sendDeselect: () => {
       elementsByRuntimeId.clear();
       selectionOrigins.clear();
+      clearLocalSelectionUi();
     },
   };
 
@@ -208,13 +213,26 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   // Grid-placement emission (plan task 4): on selection of a grid child,
   // derive the track geometry + cell via inferGridCells and publish
   // grid-placement so the useGridPlacement hook fills the InspectorPanel grid
-  // slot. Non-grid selections publish nothing (no crash).
+  // slot. Non-grid selections publish null to clear a previous grid slot.
   const gridPlacement: GridPlacementController = createGridPlacementController({ bus });
+
+  // Multi-select (PRD §9.1): shift+click toggles membership; a marquee drag in
+  // empty space replaces the group. The controller publishes the panel message.
+  const multiSelect: MultiSelectController = createMultiSelectController({ document: doc, bus });
+
+  clearLocalSelectionUi = (): void => {
+    controllers?.onSelectionChange(null);
+    gridPlacement.reset();
+    multiSelect.reset();
+    propertyInspector.hide();
+  };
 
   const notifySelection = (target: Element): void => {
     const captured = captureSelectionContext(target);
     if (!captured.ok) {
       controllers?.onSelectionChange(null);
+      gridPlacement.reset();
+      propertyInspector.hide();
       return;
     }
     const context = captured.context;
@@ -224,9 +242,6 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     propertyInspector.showFor(target, { runtimeId: context.elementRef.runtimeId });
   };
 
-  // Multi-select (PRD §9.1): shift+click toggles membership; a marquee drag in
-  // empty space replaces the group. The controller publishes the panel message.
-  const multiSelect: MultiSelectController = createMultiSelectController({ document: doc, bus });
   const marquee: MarqueeController = createMarqueeController({
     document: doc,
     overlayHost: overlayRoot.host,
@@ -387,13 +402,31 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     interactionModeUnsub = bus.on("interaction-mode", onInteractionMode);
   };
 
+  /**
+   * Publish a panel selection clear while the bus is still alive. Navigation
+   * dispose and runtime stop must do this: content-script selectionRevision
+   * counters restart at 0 after reload, so a sticky panel revision would reject
+   * every post-nav selection as stale.
+   */
+  const clearSelection = (): void => {
+    elementsByRuntimeId.clear();
+    // Prefer inspector.deselect so overlay + sendDeselect stay in lockstep when
+    // a selection is live; otherwise still force a summary clear for panel SoT.
+    if (inspector.getMode() === "selected") {
+      inspector.deselect();
+    } else {
+      selectionOrigins.clear();
+    }
+    clearLocalSelectionUi();
+  };
+
   const stop = (): void => {
     controllers?.detach();
     setInspectListeners(false);
     breakpoint.detach();
+    // clearSelection publishes selection-summary null before bus listeners drop.
+    clearSelection();
     breakpoint.invalidate();
-    elementsByRuntimeId.clear();
-    selectionOrigins.invalidate();
     selectElementUnsub?.();
     selectElementUnsub = null;
     interactionModeUnsub?.();
@@ -401,6 +434,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
   };
 
   const dispose = (): void => {
+    // stop() already cleared selection while the bus can still deliver it.
     stop();
     propertyInspector.dispose();
     controllers?.dispose();
@@ -416,8 +450,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
     previewManager.applyOperation(operation);
     if (operation.kind === "remove-element") {
       inspector.deselect();
-      controllers?.onSelectionChange(null);
-      propertyInspector.hide();
+      clearLocalSelectionUi();
     }
   };
 

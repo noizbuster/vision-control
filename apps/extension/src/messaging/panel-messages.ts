@@ -242,7 +242,7 @@ export interface GridPlacementMessage {
   readonly a11yWarning: string | null;
 }
 
-export function createMultiSelectGroupMessage(group: MultiSelectGroup): BusMessage {
+export function createMultiSelectGroupMessage(group: MultiSelectGroup | null): BusMessage {
   return {
     protocolVersion: "1.0.0",
     messageId: `multi-select-group-${Date.now()}`,
@@ -253,7 +253,7 @@ export function createMultiSelectGroupMessage(group: MultiSelectGroup): BusMessa
   };
 }
 
-export function createGridPlacementMessage(state: GridPlacementMessage): BusMessage {
+export function createGridPlacementMessage(state: GridPlacementMessage | null): BusMessage {
   return {
     protocolVersion: "1.0.0",
     messageId: `grid-placement-${Date.now()}`,

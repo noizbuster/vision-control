@@ -229,7 +229,7 @@ describe("multi-select emission (overlay runtime)", () => {
     expect(last.members).toHaveLength(2);
   });
 
-  it("shift+click down to one member resets internally; re-adding yields a fresh group (stale_state)", () => {
+  it("shift+click down to one member clears the panel group; re-adding yields a fresh group", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
@@ -245,8 +245,10 @@ describe("multi-select emission (overlay runtime)", () => {
     click(b, true); // [a,b] published
     expect(multiSelectGroupMessages(bus)).toHaveLength(1);
 
-    click(a, true); // -> [b] (1 member, no publish)
-    expect(multiSelectGroupMessages(bus)).toHaveLength(1);
+    click(a, true); // -> [b] publishes null so the panel cannot keep a stale group
+    const afterShrink = multiSelectGroupMessages(bus);
+    expect(afterShrink).toHaveLength(2);
+    expect(afterShrink[1]?.payload).toBeNull();
 
     // Re-add a fresh third element: group must be [b, d], not stale [a, b].
     const d = document.createElement("button");
@@ -254,12 +256,16 @@ describe("multi-select emission (overlay runtime)", () => {
     setRect(d, { x: 100, y: 0, width: 40, height: 40 });
     click(d, true); // [b, d] published
     const messages = multiSelectGroupMessages(bus);
-    expect(messages).toHaveLength(2);
-    const ids = (
-      messages[1]?.payload as { members: ReadonlyArray<{ runtimeId: string }> }
-    ).members.map((m) => m.runtimeId);
-    expect(ids).toHaveLength(2);
-    expect(ids).not.toContain(expect.stringContaining("a"));
+    expect(messages).toHaveLength(3);
+    const lastPayload = messages[2]?.payload;
+    expect(lastPayload).not.toBeNull();
+    expect(
+      lastPayload !== null &&
+        typeof lastPayload === "object" &&
+        "members" in lastPayload &&
+        Array.isArray(lastPayload.members) &&
+        lastPayload.members.length === 2,
+    ).toBe(true);
   });
 
   it("marquee drag in empty space selects the intersected elements and publishes the group", () => {

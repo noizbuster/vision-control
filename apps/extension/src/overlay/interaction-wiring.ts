@@ -132,6 +132,10 @@ export function createInteractionControllers(
   });
   const groupMove = createGroupMoveRouter({ reorder, reparent });
   const groupMoveUnsubscribe = bus.on("multi-select-group", (message) => {
+    if (message.payload === null) {
+      groupMove.setGroup(null);
+      return;
+    }
     if (isMultiSelectGroup(message.payload)) groupMove.setGroup(message.payload);
   });
   const gridDrag = createGridDragController({ reorder });

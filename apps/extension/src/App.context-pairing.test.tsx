@@ -45,6 +45,7 @@ vi.mock("./hooks/useSelectionSummary.js", () => ({
     summary: slotState.summary,
     originState: slotState.originState,
     selectElement: () => {},
+    resetSelection: () => {},
   }),
 }));
 vi.mock("./hooks/useFrameTree.js", () => ({ useFrameTree: () => slotState.frames }));

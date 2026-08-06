@@ -25,6 +25,10 @@ export function useGridPlacement(bus: MessageBus | undefined): {
     }
     return bus.on("grid-placement", (message: BusMessage) => {
       const payload = message.payload as unknown;
+      if (payload === null) {
+        setState(null);
+        return;
+      }
       if (isGridPlacementPayload(payload)) {
         setState(payload);
       }

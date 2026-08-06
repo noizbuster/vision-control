@@ -216,7 +216,7 @@ describe("grid-placement emission (overlay runtime)", () => {
     expect(payload.a11yWarning).toBeNull();
   });
 
-  it("non-grid element selection publishes NO grid-placement (malformed: no crash, no message)", () => {
+  it("non-grid element selection publishes a null grid-placement clear", () => {
     const bus = createFakeBus();
     runtime = createOverlayRuntime({ document: document, bus });
     runtime.start();
@@ -245,7 +245,9 @@ describe("grid-placement emission (overlay runtime)", () => {
 
     click(item);
 
-    expect(gridPlacementMessages(bus)).toHaveLength(0);
+    const messages = gridPlacementMessages(bus);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.payload).toBeNull();
   });
 
   it("re-selecting a grid child publishes a fresh grid-placement (stale_state)", () => {

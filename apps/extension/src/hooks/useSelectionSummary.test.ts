@@ -187,4 +187,59 @@ describe("useSelectionSummary", () => {
 
     expect(result.current.summary).toBeNull();
   });
+
+  it("resetSelection drops a sticky summary so a lower revision can apply again", () => {
+    const { bus, receive } = createFakeBus();
+    const { result } = renderHook(() => useSelectionSummary(bus));
+    const first = makeSummary();
+    const second = makeSummary();
+
+    act(() => {
+      receive({
+        protocolVersion: "1.0.0",
+        messageId: "msg-1",
+        messageType: "selection-summary",
+        sourceRoute: "background",
+        targetRoute: "panel",
+        selectionRevision: 5,
+        timestamp: Date.now(),
+        payload: first,
+      });
+    });
+    expect(result.current.summary).toEqual(first);
+
+    act(() => {
+      receive({
+        protocolVersion: "1.0.0",
+        messageId: "msg-2",
+        messageType: "selection-summary",
+        sourceRoute: "background",
+        targetRoute: "panel",
+        selectionRevision: 1,
+        timestamp: Date.now(),
+        payload: second,
+      });
+    });
+    // Stale relative to panel revision 5 — must not overwrite without a reset.
+    expect(result.current.summary).toEqual(first);
+
+    act(() => {
+      result.current.resetSelection();
+    });
+    expect(result.current.summary).toBeNull();
+
+    act(() => {
+      receive({
+        protocolVersion: "1.0.0",
+        messageId: "msg-3",
+        messageType: "selection-summary",
+        sourceRoute: "background",
+        targetRoute: "panel",
+        selectionRevision: 1,
+        timestamp: Date.now(),
+        payload: second,
+      });
+    });
+    expect(result.current.summary).toEqual(second);
+  });
 });

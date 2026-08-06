@@ -227,9 +227,51 @@ describe("overlay runtime", () => {
 
     const summaries = selectionSummaryMessages(bus);
     expect(summaries).toHaveLength(1);
-    expect((summaries[0]?.payload as { identity: { tagName: string } }).identity.tagName).toBe(
-      "button",
-    );
+    const firstPayload = summaries[0]?.payload;
+    expect(
+      firstPayload !== null &&
+        typeof firstPayload === "object" &&
+        "identity" in firstPayload &&
+        typeof firstPayload.identity === "object" &&
+        firstPayload.identity !== null &&
+        "tagName" in firstPayload.identity &&
+        firstPayload.identity.tagName === "button",
+    ).toBe(true);
+  });
+
+  it("publishes a selection-summary clear on stop so panel revision can restart", () => {
+    const bus = createFakeBus();
+    runtime = createOverlayRuntime({ document, bus });
+    runtime.start();
+    bus.emit("interaction-mode", { mode: "Inspect" });
+
+    const first = document.createElement("button");
+    first.id = "first";
+    document.body.appendChild(first);
+    setRect(first, { x: 10, y: 20, width: 100, height: 40 });
+    first.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    const second = document.createElement("button");
+    second.id = "second";
+    document.body.appendChild(second);
+    setRect(second, { x: 20, y: 30, width: 80, height: 30 });
+    second.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    const third = document.createElement("button");
+    third.id = "third";
+    document.body.appendChild(third);
+    setRect(third, { x: 30, y: 40, width: 70, height: 25 });
+    third.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    const beforeStop = selectionSummaryMessages(bus);
+    expect(beforeStop.length).toBeGreaterThanOrEqual(3);
+    expect(beforeStop.every((message) => message.payload !== null)).toBe(true);
+
+    runtime.stop();
+
+    const afterStop = selectionSummaryMessages(bus);
+    expect(afterStop.at(-1)?.payload).toBeNull();
+    expect(typeof afterStop.at(-1)?.selectionRevision).toBe("number");
   });
 
   it("selects a native disabled control from its pointerdown event", () => {
@@ -489,11 +531,16 @@ describe("overlay runtime", () => {
 
     runtime.stop();
 
+    // stop clears any live selection (null summary) so panel revision can restart.
+    expect(selectionSummaryMessages(bus).at(-1)?.payload).toBeNull();
+    const afterStopCount = selectionSummaryMessages(bus).length;
+
     button.dispatchEvent(new MouseEvent("mousemove", { bubbles: false }));
     await flushRaf();
     button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-    expect(selectionSummaryMessages(bus)).toHaveLength(0);
+    // No further selection-summary from detached listeners.
+    expect(selectionSummaryMessages(bus)).toHaveLength(afterStopCount);
   });
 
   it("emits the active breakpoint resolved from matchMedia on the selection summary", () => {

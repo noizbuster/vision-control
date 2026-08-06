@@ -48,7 +48,7 @@ export function App(): ReactElement {
   const connectionState = useConnectionState(bus);
   const session = useSession(bus, tabId);
   const frames = useFrameTree(bus, tabId);
-  const { summary, originState, selectElement } = useSelectionSummary(bus);
+  const { summary, originState, selectElement, resetSelection } = useSelectionSummary(bus);
   const { group: multiSelectGroup } = useMultiSelect(bus);
   const { state: gridPlacementState } = useGridPlacement(bus);
   const { componentProps } = useComponentProps(bus, summary);
@@ -119,6 +119,21 @@ export function App(): ReactElement {
   useEffect(() => {
     setAgentPromptCopyState("idle");
   }, [agentPrompt]);
+  // Safety net: full navigations should clear via content dispose, but SPA
+  // transitions and missed pagehide deliveries can leave a sticky summary whose
+  // revision blocks every post-nav select. Reset when the inspected page identity
+  // changes so the next selection-summary always wins.
+  const inspectedPageKey = `${tabId ?? "none"}:${url ?? ""}`;
+  const lastInspectedPageKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastInspectedPageKeyRef.current === null) {
+      lastInspectedPageKeyRef.current = inspectedPageKey;
+      return;
+    }
+    if (lastInspectedPageKeyRef.current === inspectedPageKey) return;
+    lastInspectedPageKeyRef.current = inspectedPageKey;
+    resetSelection();
+  }, [inspectedPageKey, resetSelection]);
   useEffect(() => {
     if (bus === undefined || tabId === undefined || tabId === null) return;
     const routeKey = `${tabId}:${routedInteractionMode ?? "none"}:${routeableFrameKey}`;

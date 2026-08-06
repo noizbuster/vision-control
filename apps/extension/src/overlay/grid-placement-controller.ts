@@ -7,10 +7,9 @@
  * `useGridPlacement` hook fills the V1V2 InspectorPanel grid slot (the slot was
  * subscribed but never fed — `createGridPlacementMessage` had zero callers).
  *
- * Non-grid selections publish nothing (the panel hook retains its last value —
- * same stale-display trade-off as the multi-select hook; the runtime's own
- * state is always correct, see plan task 2 learnings). `reorderChoice` is
- * `null` on selection (the candidate set is drag-driven); the panel's
+ * Non-grid selections and teardown publish `null` so the panel slot cannot
+ * retain a previous grid child's placement after inspect moves on. `reorderChoice`
+ * is `null` on selection (the candidate set is drag-driven); the panel's
  * `handleGridChoosePlacement` / `handleGridResizeSpan` handlers stop
  * short-circuiting as soon as a non-null `gridPlacementState` arrives.
  *
@@ -43,8 +42,9 @@ export interface GridPlacementControllerOptions {
 }
 
 export interface GridPlacementController {
-  /** Called on selection. Publishes `grid-placement` when the element is a grid child. */
+  /** Called on selection. Publishes placement for grid children, else null. */
   readonly onSelection: (element: Element) => void;
+  /** Clear any published grid placement (deselect / runtime stop). */
   readonly reset: () => void;
   readonly dispose: () => void;
 }
@@ -166,9 +166,17 @@ export function createGridPlacementController(
 
   const onSelection = (element: Element): void => {
     const parent = element.parentElement;
-    if (parent === null) return;
+    if (parent === null) {
+      bus.send("panel", createGridPlacementMessage(null));
+      return;
+    }
     const tracks = computeGridTracks(parent);
-    if (tracks === null) return; // not a grid child -> publish nothing (no crash).
+    if (tracks === null) {
+      // Not a grid child — clear any previous placement so the panel cannot
+      // keep showing a stale grid slot after inspect moves on.
+      bus.send("panel", createGridPlacementMessage(null));
+      return;
+    }
 
     const cells = inferGridCells(tracks, [buildChildInput(element)]);
     const placement = cells[0] ?? null;
@@ -187,8 +195,14 @@ export function createGridPlacementController(
     );
   };
 
-  const reset = (): void => {};
-  const dispose = (): void => {};
+  const reset = (): void => {
+    bus.send("panel", createGridPlacementMessage(null));
+  };
+
+  const dispose = (): void => {
+    // dispose runs after stop while the bus may already be tearing down; reset
+    // already published the clear on the live path.
+  };
 
   return { onSelection, reset, dispose };
 }

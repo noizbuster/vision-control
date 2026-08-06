@@ -101,6 +101,39 @@ describe("useMultiSelect", () => {
     expect(result.current.group).toBeNull();
   });
 
+  it("clears the group when a null multi-select-group payload arrives", () => {
+    const { bus, receive } = createFakeBus();
+    const { result } = renderHook(() => useMultiSelect(bus));
+    const group = makeGroup(2);
+
+    act(() => {
+      receive({
+        protocolVersion: "1.0.0",
+        messageId: "msg-group",
+        messageType: "multi-select-group",
+        sourceRoute: "background",
+        targetRoute: "panel",
+        timestamp: Date.now(),
+        payload: group,
+      });
+    });
+    expect(result.current.group).toEqual(group);
+
+    act(() => {
+      receive({
+        protocolVersion: "1.0.0",
+        messageId: "msg-clear",
+        messageType: "multi-select-group",
+        sourceRoute: "background",
+        targetRoute: "panel",
+        timestamp: Date.now(),
+        payload: null,
+      });
+    });
+
+    expect(result.current.group).toBeNull();
+  });
+
   it("returns null group when the bus is undefined", () => {
     const { result } = renderHook(() => useMultiSelect(undefined));
     expect(result.current.group).toBeNull();

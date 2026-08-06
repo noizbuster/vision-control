@@ -201,6 +201,13 @@ export function createInspector(options: InspectorOptions): Inspector {
 
   const sync = (): void => {
     if (selectedElement !== null) {
+      // SPA route changes and framework remounts detach the node without a
+      // full document teardown. Drop the stale selection so hover/select work
+      // again and the panel is cleared via sendDeselect.
+      if (!selectedElement.isConnected) {
+        deselect();
+        return;
+      }
       renderSelection(selectedElement);
     } else if (hoveredElement !== null) {
       renderHover(hoveredElement);

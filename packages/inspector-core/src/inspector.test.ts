@@ -235,6 +235,31 @@ describe("inspector", () => {
     inspector.dispose();
   });
 
+  it("deselects when sync runs after the selected element is detached", () => {
+    const overlay = createFakeOverlay();
+    const { bus, messages } = createFakeBus();
+    const inspector = createInspector({
+      overlayRoot: overlay.root,
+      overlayElement: overlay.element,
+      domAdapter: fakeDomAdapter(),
+      bus,
+      getRuntimeId: () => "runtime-detached",
+    });
+
+    const target = document.createElement("button");
+    document.body.appendChild(target);
+    inspector.select(target);
+    expect(inspector.getMode()).toBe("selected");
+
+    target.remove();
+    inspector.sync();
+
+    expect(inspector.getMode()).toBe("inspect");
+    expect(messages[messages.length - 1]).toEqual({ type: "deselect" });
+
+    inspector.dispose();
+  });
+
   it("delegates Escape after clearing the active selection", () => {
     const overlay = createFakeOverlay();
     const { bus } = createFakeBus();

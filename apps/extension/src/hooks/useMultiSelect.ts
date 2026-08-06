@@ -24,8 +24,12 @@ export function useMultiSelect(bus: MessageBus | undefined): {
     }
     return bus.on("multi-select-group", (message: BusMessage) => {
       const payload = message.payload as unknown;
+      if (payload === null) {
+        setGroup(null);
+        return;
+      }
       if (isMultiSelectGroupPayload(payload)) {
-        setGroup(payload as MultiSelectGroup);
+        setGroup(payload);
       }
     });
   }, [bus]);

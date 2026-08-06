@@ -27,6 +27,7 @@ vi.mock("./hooks/useSelectionSummary.js", () => ({
     summary: null,
     originState: { status: "idle" },
     selectElement: () => {},
+    resetSelection: () => {},
   }),
 }));
 vi.mock("./hooks/useFrameTree.js", () => ({ useFrameTree: () => [] }));

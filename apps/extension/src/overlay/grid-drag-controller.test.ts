@@ -28,19 +28,22 @@ import {
   type PreviewManager,
 } from "@vision-control/preview-engine";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReorderDiagnostic } from "../components/interaction/ReorderController.js";
 import type { BusMessage, BusMessageHandler, BusRoute } from "../messaging/index.js";
 import type { GridDragIntent, GridDragRouteResult } from "./grid-drag-controller.js";
 import {
   createInteractionControllers,
   type InteractionBus,
   type InteractionControllers,
+  type InteractionDiagnostic,
 } from "./interaction-wiring.js";
 
-type SentMessage = { readonly route: BusRoute; readonly message: BusMessage };
+type SentMessage = {
+  readonly route: BusRoute;
+  readonly message: BusMessage;
+};
 
 function installObserverMocks(): void {
-  const observerInstance = () => ({
+  const observerInstance = (): object => ({
     observe: vi.fn(),
     unobserve: vi.fn(),
     disconnect: vi.fn(),
@@ -113,7 +116,7 @@ describe("grid-drag controller (plan task 4)", () => {
   let previewManager: PreviewManager;
   let overlay: ReturnType<typeof createOverlayFixture>;
   let controllers: InteractionControllers;
-  let diagnostics: ReorderDiagnostic[];
+  let diagnostics: InteractionDiagnostic[];
 
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -198,7 +201,9 @@ describe("grid-drag controller (plan task 4)", () => {
 
     controllers.gridDrag.route(intent);
 
-    const a11y = diagnostics.find((d) => d.kind === "grid-a11y-warning");
+    const a11y = diagnostics.find(
+      (diagnostic) => "kind" in diagnostic && diagnostic.kind === "grid-a11y-warning",
+    );
     expect(
       a11y,
       "a grid-area drag that desyncs reading order must surface an a11y warning",

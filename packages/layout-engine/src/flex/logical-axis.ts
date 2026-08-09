@@ -75,6 +75,30 @@ export const resolveFlexAxis = (input: FlexAxisInput): FlexAxisResolution => {
   return { axis: base.axis, sign, mainStartHandle, mainEndHandle };
 };
 
+/**
+ * Resolves logical block progression. Block direction is independent of CSS
+ * `direction`; only vertical writing mode changes its physical sign.
+ */
+export const resolveBlockAxis = (writingMode: WritingMode): PhysicalProgression =>
+  LOGICAL_AXIS_ORACLE[writingMode].ltr.block;
+
+/**
+ * Resolves flex cross-axis progression. Main-axis reversal does not affect the
+ * cross axis; `wrap-reverse` is its only reversal.
+ */
+export const resolveFlexCrossAxis = (
+  input: FlexAxisInput,
+  wrap: "nowrap" | "wrap" | "wrap-reverse",
+): PhysicalProgression => {
+  const logicalAxis =
+    input.flexDirection === "row" || input.flexDirection === "row-reverse" ? "block" : "inline";
+  const base = LOGICAL_AXIS_ORACLE[input.writingMode][input.direction][logicalAxis];
+  return {
+    axis: base.axis,
+    sign: wrap === "wrap-reverse" ? (base.sign === 1 ? -1 : 1) : base.sign,
+  };
+};
+
 export type PhysicalHandleResolution =
   | { readonly kind: "main-axis"; readonly boundary: MainBoundary }
   | { readonly kind: "cross-axis" };

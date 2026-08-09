@@ -39,8 +39,18 @@ function moveChildToIndex(parent: Element, child: Element, toIndex: number): voi
   parent.insertBefore(child, refNode);
 }
 
-function restoreSnapshot(parent: Element, snapshot: readonly Element[]): void {
-  for (const node of snapshot) parent.appendChild(node);
+function restoreSnapshot(parent: Element, snapshot: readonly Node[]): void {
+  parent.replaceChildren(...snapshot);
+}
+
+function restoreParentSnapshots(
+  sourceParent: Element,
+  sourceSnapshot: readonly Node[],
+  targetParent: Element,
+  targetSnapshot: readonly Node[],
+): void {
+  restoreSnapshot(sourceParent, sourceSnapshot);
+  if (targetParent !== sourceParent) restoreSnapshot(targetParent, targetSnapshot);
 }
 
 export function applyReorderPreview(
@@ -50,11 +60,16 @@ export function applyReorderPreview(
   const parent = dom.resolveElement(operation.parent.runtimeId);
   if (parent === null) return noopRollback;
 
-  const snapshot = Array.from(parent.children);
-  const child = snapshot[operation.fromIndex];
+  const snapshot = Array.from(parent.childNodes);
+  const child = parent.children[operation.fromIndex];
   if (child === undefined) return noopRollback;
 
-  moveChildToIndex(parent, child, operation.toIndex);
+  try {
+    moveChildToIndex(parent, child, operation.toIndex);
+  } catch (error) {
+    restoreSnapshot(parent, snapshot);
+    throw error;
+  }
   return (): void => restoreSnapshot(parent, snapshot);
 }
 
@@ -69,17 +84,20 @@ export function applyReparentPreview(
     return noopRollback;
   }
 
-  const sourceSnapshot = Array.from(sourceParent.children);
-  const targetSnapshot = Array.from(targetParent.children);
+  const sourceSnapshot = Array.from(sourceParent.childNodes);
+  const targetSnapshot = Array.from(targetParent.childNodes);
 
-  sourceParent.removeChild(element);
-  const refNode = targetParent.children[operation.targetIndex] ?? null;
-  targetParent.insertBefore(element, refNode);
+  try {
+    sourceParent.removeChild(element);
+    const refNode = targetParent.children[operation.targetIndex] ?? null;
+    targetParent.insertBefore(element, refNode);
+  } catch (error) {
+    restoreParentSnapshots(sourceParent, sourceSnapshot, targetParent, targetSnapshot);
+    throw error;
+  }
 
-  return (): void => {
-    restoreSnapshot(sourceParent, sourceSnapshot);
-    restoreSnapshot(targetParent, targetSnapshot);
-  };
+  return (): void =>
+    restoreParentSnapshots(sourceParent, sourceSnapshot, targetParent, targetSnapshot);
 }
 
 /**
@@ -96,11 +114,17 @@ export function applyGridReorderPreview(
   const parent = dom.resolveElement(operation.grid.runtimeId);
   if (parent === null) return noopRollback;
 
-  const snapshot = Array.from(parent.children);
-  const child = dom.resolveElement(operation.child.runtimeId) ?? snapshot[operation.fromIndex];
+  const snapshot = Array.from(parent.childNodes);
+  const child =
+    dom.resolveElement(operation.child.runtimeId) ?? parent.children[operation.fromIndex];
   if (child === null || child === undefined) return noopRollback;
 
-  moveChildToIndex(parent, child, operation.toIndex);
+  try {
+    moveChildToIndex(parent, child, operation.toIndex);
+  } catch (error) {
+    restoreSnapshot(parent, snapshot);
+    throw error;
+  }
   return (): void => restoreSnapshot(parent, snapshot);
 }
 
@@ -111,10 +135,10 @@ export function applyGroupReorderPreview(
   const parent = dom.resolveElement(operation.parent.runtimeId);
   if (parent === null) return noopRollback;
 
-  const snapshot = Array.from(parent.children);
+  const snapshot = Array.from(parent.childNodes);
   // newOrder[i] = original index of the element that now sits at position i.
   const reordered = operation.newOrder
-    .map((originalIndex) => snapshot[originalIndex])
+    .map((originalIndex) => parent.children[originalIndex])
     .filter((node): node is Element => node !== undefined);
   for (const node of reordered) parent.appendChild(node);
 
@@ -129,17 +153,15 @@ export function applyGroupReparentPreview(
   const targetParent = dom.resolveElement(operation.targetParent.runtimeId);
   if (sourceParent === null || targetParent === null) return noopRollback;
 
-  const sourceSnapshot = Array.from(sourceParent.children);
-  const targetSnapshot = Array.from(targetParent.children);
+  const sourceSnapshot = Array.from(sourceParent.childNodes);
+  const targetSnapshot = Array.from(targetParent.childNodes);
   const nodes = operation.elements
     .map((ref) => dom.resolveElement(ref.runtimeId))
     .filter((el): el is Element => el !== null && el.parentElement === sourceParent);
   for (const node of nodes) targetParent.appendChild(node);
 
-  return (): void => {
-    restoreSnapshot(sourceParent, sourceSnapshot);
-    restoreSnapshot(targetParent, targetSnapshot);
-  };
+  return (): void =>
+    restoreParentSnapshots(sourceParent, sourceSnapshot, targetParent, targetSnapshot);
 }
 
 export function applyStructuralMovePreview(

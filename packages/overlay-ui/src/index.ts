@@ -45,7 +45,9 @@ export {
 export {
   type ElementsFromRectOptions,
   elementsFromRect,
+  type HitTestRoot,
   hitTest,
+  hitTestStack,
   isInsideClosedShadowRoot,
 } from "./hit-testing.js";
 export {
@@ -68,7 +70,11 @@ export {
   createMultiSelectOverlay,
   type MultiSelectOverlay,
 } from "./multi-select-overlay.js";
-export { createPositionObserver, type PositionObserver } from "./observers.js";
+export {
+  createPositionObserver,
+  getScrollableAncestors,
+  type PositionObserver,
+} from "./observers.js";
 export {
   createOverlayElement,
   type OverlayElement,

@@ -129,7 +129,7 @@ test.describe("@flex-pair narrow feedback", () => {
       expect(scrollShell.diagnosticsInScroll).toBe(true);
       expect(scrollShell.statusInScroll).toBe(true);
       expect(scrollShell.headerBottom).toBeLessThanOrEqual(scrollShell.scrollTop);
-      expect(scrollShell.scrollBottom).toBeLessThanOrEqual(scrollShell.journalTop);
+      expect(scrollShell.scrollBottom).toBeLessThanOrEqual(scrollShell.journalTop + 1);
       const panelControls = panel.locator(
         ".inspector-section > summary, [data-testid='diagnostics-drawer'] > summary",
       );

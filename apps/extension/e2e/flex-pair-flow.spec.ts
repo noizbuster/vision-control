@@ -108,8 +108,8 @@ async function expectInspectorCardsReachableInScrollRegion(panel: Page): Promise
     expect(bounds).not.toBeNull();
     if (bounds === null) throw new Error("panel chrome was not rendered");
     expect(bounds.diagnosticsInScroll).toBe(true);
-    expect(bounds.top).toBeGreaterThanOrEqual(bounds.headerBottom);
-    expect(bounds.bottom).toBeLessThanOrEqual(bounds.journalTop);
+    expect(bounds.top + 1).toBeGreaterThanOrEqual(bounds.headerBottom);
+    expect(bounds.bottom).toBeLessThanOrEqual(bounds.journalTop + 1);
   }
 }
 

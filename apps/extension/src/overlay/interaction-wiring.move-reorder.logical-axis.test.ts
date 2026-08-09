@@ -51,8 +51,8 @@ describe("interaction wiring logical-axis Move reorder", () => {
     harness.controllers.onSelectionChange(requireSelectionContext(first));
 
     dispatchPointer(first, "pointerdown", { clientX: 165, clientY: 20, pointerId: 31 });
-    dispatchPointer(document, "pointermove", { clientX: 10, clientY: 20, pointerId: 31 });
-    dispatchPointer(document, "pointerup", { clientX: 10, clientY: 20, pointerId: 31 });
+    dispatchPointer(document, "pointermove", { clientX: 1, clientY: 20, pointerId: 31 });
+    dispatchPointer(document, "pointerup", { clientX: 1, clientY: 20, pointerId: 31 });
 
     const operation = harness.controllers.getRecordedOperations()[0];
     expect(operation?.kind).toBe("reorder-child");
@@ -67,8 +67,8 @@ describe("interaction wiring logical-axis Move reorder", () => {
     harness.controllers.onSelectionChange(requireSelectionContext(first));
 
     dispatchPointer(first, "pointerdown", { clientX: 165, clientY: 20, pointerId: 32 });
-    dispatchPointer(document, "pointermove", { clientX: 10, clientY: 20, pointerId: 32 });
-    dispatchPointer(document, "pointerup", { clientX: 10, clientY: 20, pointerId: 32 });
+    dispatchPointer(document, "pointermove", { clientX: 1, clientY: 20, pointerId: 32 });
+    dispatchPointer(document, "pointerup", { clientX: 1, clientY: 20, pointerId: 32 });
 
     const operation = harness.controllers.getRecordedOperations()[0];
     expect(operation?.kind).toBe("reorder-child");
@@ -92,8 +92,8 @@ describe("interaction wiring logical-axis Move reorder", () => {
     harness.controllers.onSelectionChange(requireSelectionContext(first));
 
     dispatchPointer(first, "pointerdown", { clientX: 20, clientY: 20, pointerId: 33 });
-    dispatchPointer(document, "pointermove", { clientX: 20, clientY: 190, pointerId: 33 });
-    dispatchPointer(document, "pointerup", { clientX: 20, clientY: 190, pointerId: 33 });
+    dispatchPointer(document, "pointermove", { clientX: 20, clientY: 189, pointerId: 33 });
+    dispatchPointer(document, "pointerup", { clientX: 20, clientY: 189, pointerId: 33 });
 
     const operation = harness.controllers.getRecordedOperations()[0];
     expect(operation?.kind).toBe("reorder-child");
@@ -118,8 +118,8 @@ describe("interaction wiring logical-axis Move reorder", () => {
     harness.controllers.onSelectionChange(requireSelectionContext(first));
 
     dispatchPointer(first, "pointerdown", { clientX: 20, clientY: 165, pointerId: 36 });
-    dispatchPointer(document, "pointermove", { clientX: 20, clientY: 10, pointerId: 36 });
-    dispatchPointer(document, "pointerup", { clientX: 20, clientY: 10, pointerId: 36 });
+    dispatchPointer(document, "pointermove", { clientX: 20, clientY: 1, pointerId: 36 });
+    dispatchPointer(document, "pointerup", { clientX: 20, clientY: 1, pointerId: 36 });
 
     const operation = harness.controllers.getRecordedOperations()[0];
     expect(operation?.kind).toBe("reorder-child");
@@ -128,7 +128,7 @@ describe("interaction wiring logical-axis Move reorder", () => {
     expect([...parent.children]).toEqual([second, third, first]);
   });
 
-  it("rejects nonzero CSS order without recording a structural or position operation", () => {
+  it("rejects a mixed CSS-order boundary without recording a structural or position operation", () => {
     const { parent, first, second, third } = makeHorizontalReverseFixture("row", "ltr");
     second.style.order = "1";
     harness.controllers.onSelectionChange(requireSelectionContext(first));
@@ -141,7 +141,7 @@ describe("interaction wiring logical-axis Move reorder", () => {
     expect(operations).toHaveLength(0);
     expect([...parent.children]).toEqual([first, second, third]);
     expect(harness.diagnostics).toContainEqual(
-      expect.objectContaining({ kind: "css-order-warning" }),
+      expect.objectContaining({ code: "css-order-unrepresentable" }),
     );
     assertNoPositionElement(operations);
   });

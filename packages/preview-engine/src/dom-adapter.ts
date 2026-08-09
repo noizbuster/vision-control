@@ -26,6 +26,9 @@ export interface PreviewRect {
   readonly height: number;
 }
 
+/** Releases a temporary runtime-id binding. Safe to call more than once. */
+export type UnbindFn = () => void;
+
 /**
  * Contract for all DOM operations the preview engine needs. The browser
  * factory ({@link createBrowserPreviewDomAdapter}) is the canonical impl;
@@ -34,8 +37,10 @@ export interface PreviewRect {
 export interface PreviewDomAdapter {
   /** Resolve a runtime id to its DOM element. Returns null if unregistered. */
   readonly resolveElement: (runtimeId: string) => Element | null;
-  /** Register a runtime id with its DOM element (also tags it for CSS selectors). */
+  /** Register a persistent runtime id and tag it for CSS preview selectors. */
   readonly registerElement: (runtimeId: string, element: Element) => void;
+  /** Bind a runtime id without mutating DOM attributes. */
+  readonly bindElement: (runtimeId: string, element: Element) => UnbindFn;
   /** Create a <style> element for preview CSS rules. */
   readonly createStyleElement: () => HTMLStyleElement;
   /** Append a node to the document <head>. */
@@ -53,51 +58,66 @@ export interface PreviewDomAdapter {
  * internal `Map<runtimeId, Element>` that the caller populates via
  * `registerElement` (typically from the content script's runtime assignments).
  */
-export function createBrowserPreviewDomAdapter(): PreviewDomAdapter {
-  const elements = new Map<string, Element>();
+type BindingEntry = {
+  readonly element: Element;
+  readonly token: symbol;
+  active: boolean;
+  readonly previous: BindingEntry | null;
+};
 
-  const resolveElement = (runtimeId: string): Element | null => {
-    return elements.get(runtimeId) ?? document.querySelector(buildPreviewSelector(runtimeId));
-  };
+export function createBrowserPreviewDomAdapter(): PreviewDomAdapter {
+  const elements = new Map<string, BindingEntry>();
+
+  const resolveElement = (runtimeId: string): Element | null =>
+    elements.get(runtimeId)?.element ?? document.querySelector(buildPreviewSelector(runtimeId));
 
   const registerElement = (runtimeId: string, element: Element): void => {
-    elements.set(runtimeId, element);
+    elements.set(runtimeId, {
+      element,
+      token: Symbol(runtimeId),
+      active: true,
+      previous: null,
+    });
     element.setAttribute(PREVIEW_ID_ATTR, runtimeId);
   };
 
-  const createStyleElement = (): HTMLStyleElement => {
-    return document.createElement("style");
-  };
-
-  const appendToHead = (node: Node): void => {
-    document.head.appendChild(node);
-  };
-
-  const getComputedStyle = (element: Element): CSSStyleDeclaration => {
-    return window.getComputedStyle(element);
-  };
-
-  const getRect = (element: Element): PreviewRect => {
-    const domRect = element.getBoundingClientRect();
-    return {
-      x: domRect.left,
-      y: domRect.top,
-      width: domRect.width,
-      height: domRect.height,
+  const bindElement = (runtimeId: string, element: Element): UnbindFn => {
+    const entry: BindingEntry = {
+      element,
+      token: Symbol(runtimeId),
+      active: true,
+      previous: elements.get(runtimeId) ?? null,
     };
-  };
+    elements.set(runtimeId, entry);
 
-  const createMutationObserver = (callback: MutationCallback): MutationObserver => {
-    return new MutationObserver(callback);
+    return (): void => {
+      if (!entry.active) return;
+      entry.active = false;
+      if (elements.get(runtimeId)?.token !== entry.token) return;
+
+      let previous = entry.previous;
+      while (previous !== null && !previous.active) previous = previous.previous;
+      if (previous === null) elements.delete(runtimeId);
+      else elements.set(runtimeId, previous);
+    };
   };
 
   return {
     resolveElement,
     registerElement,
-    createStyleElement,
-    appendToHead,
-    getComputedStyle,
-    getRect,
-    createMutationObserver,
+    bindElement,
+    createStyleElement: () => document.createElement("style"),
+    appendToHead: (node) => document.head.appendChild(node),
+    getComputedStyle: (element) => window.getComputedStyle(element),
+    getRect: (element) => {
+      const domRect = element.getBoundingClientRect();
+      return {
+        x: domRect.left,
+        y: domRect.top,
+        width: domRect.width,
+        height: domRect.height,
+      };
+    },
+    createMutationObserver: (callback) => new MutationObserver(callback),
   };
 }

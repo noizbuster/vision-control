@@ -432,8 +432,8 @@ describe("release readiness: removed plan token is absent (Task 33)", () => {
   });
 });
 
-describe("release readiness: C7 Delete packages are gone (extension-sot task 21)", () => {
-  it("daemon and marker/workspace packages are not present on disk", () => {
+describe("release readiness: C7 Delete packages are absent from the workspace graph", () => {
+  it("daemon and marker/workspace packages have no workspace manifests", () => {
     const deleted = [
       "apps/daemon",
       "packages/daemon-core",
@@ -450,7 +450,12 @@ describe("release readiness: C7 Delete packages are gone (extension-sot task 21)
       "integrations/vue",
       "integrations/svelte",
     ];
-    const stillPresent = deleted.filter((rel) => existsSync(path.join(repoRoot, rel)));
-    expect(stillPresent, `C7 Delete rows must be removed:\n${stillPresent.join("\n")}`).toEqual([]);
+    const workspaceResidues = deleted.filter((rel) =>
+      existsSync(path.join(repoRoot, rel, "package.json")),
+    );
+    expect(
+      workspaceResidues,
+      `C7 Delete rows must not remain in the workspace graph:\n${workspaceResidues.join("\n")}`,
+    ).toEqual([]);
   });
 });

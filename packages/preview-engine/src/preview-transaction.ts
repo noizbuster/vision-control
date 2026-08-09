@@ -85,12 +85,23 @@ export function createPreviewTransaction(
   const rollback = (): void => {
     assertState("rollback", "applying", "applied");
     state = "rolling-back";
-    for (let i = rollbacks.length - 1; i >= 0; i -= 1) {
-      const fn = rollbacks[i];
-      if (fn !== undefined) fn();
+    let firstFailure: unknown;
+    let hasFailure = false;
+    for (let index = rollbacks.length - 1; index >= 0; index -= 1) {
+      const rollbackFn = rollbacks[index];
+      if (rollbackFn === undefined) continue;
+      try {
+        rollbackFn();
+      } catch (error) {
+        if (!hasFailure) {
+          hasFailure = true;
+          firstFailure = error;
+        }
+      }
     }
     rollbacks.length = 0;
     state = "rolled-back";
+    if (hasFailure) throw firstFailure;
   };
 
   const commit = (): void => {

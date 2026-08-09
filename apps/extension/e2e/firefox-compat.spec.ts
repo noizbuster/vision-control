@@ -53,9 +53,7 @@ function sorted(values: readonly string[]): readonly string[] {
 
 test.describe("@firefox-compat manifest validation", () => {
   test.beforeAll(() => {
-    if (!existsSync(MANIFEST_PATH)) {
-      execSync("npx wxt build -b firefox", { cwd: EXT_DIR, stdio: "inherit" });
-    }
+    execSync("npx wxt build -b firefox", { cwd: EXT_DIR, stdio: "inherit" });
   });
 
   test("the Firefox build produced a valid manifest", () => {

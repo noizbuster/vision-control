@@ -64,20 +64,22 @@ export function createInteractionOperationRecorder(
   options.bus.send("background", createJournalRequestMessage());
 
   const record = (operation: Operation): void => {
+    const entry = createJournalEntry({
+      id: createOperationId(),
+      changeSetId,
+      transactionId: createOperationId(),
+      sequence,
+      operation,
+    });
+    const nextJournal = appendEntry(journal, entry);
+    const nextSequence = sequence + 1;
+
     options.onOperationApplied?.(operation);
-    recorded.push(operation);
-    journal = appendEntry(
-      journal,
-      createJournalEntry({
-        id: createOperationId(),
-        changeSetId,
-        transactionId: createOperationId(),
-        sequence,
-        operation,
-      }),
-    );
-    sequence += 1;
     options.bus.send("background", createInteractionOperationMessage(operation));
+
+    recorded.push(operation);
+    journal = nextJournal;
+    sequence = nextSequence;
   };
 
   return {

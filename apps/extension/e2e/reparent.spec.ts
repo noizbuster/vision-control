@@ -311,7 +311,7 @@ test.describe("@reparent browser", () => {
   );
 
   extTest(
-    "Move inserts before a nested cross-parent sibling at the displayed boundary",
+    "Move reparents inside an eligible nested leaf and renders its boundary",
     async ({ page }) => {
       await serveFixture(page, MOVE_LEAF_INSERTION_FIXTURE);
       const cardRect = await pageElementRect(page, "#card");
@@ -319,8 +319,6 @@ test.describe("@reparent browser", () => {
       await extExpect(page.locator("#card")).toHaveAttribute("data-vc-preview-id", /.+/);
       await setInteractionMode(page, "Move");
 
-      const firstRect = await pageElementRect(page, "#first");
-      const middleRect = await pageElementRect(page, "#middle");
       const cardLabelRect = await pageElementRect(page, "#card-label");
       const middleLabelRect = await pageElementRect(page, "#middle-label");
       await page.mouse.move(
@@ -356,7 +354,7 @@ test.describe("@reparent browser", () => {
       if (insertionLine === null) throw new Error("cross-parent insertion line was not rendered");
       extExpect(insertionLine.display).toBe("block");
       extExpect(insertionLine.orientation).toBe("horizontal");
-      const expectedBoundary = (firstRect.y + firstRect.height + middleRect.y) / 2;
+      const expectedBoundary = middleLabelRect.y + 8;
       extExpect(Math.abs(insertionLine.y + 1 - expectedBoundary)).toBeLessThanOrEqual(2);
 
       await page.mouse.up();
@@ -364,11 +362,23 @@ test.describe("@reparent browser", () => {
 
       await extExpect
         .poll(() =>
-          page
-            .locator("#target")
-            .evaluate((target) => Array.from(target.children).map((child) => child.id)),
+          page.evaluate(() => ({
+            targetChildren: Array.from(document.querySelector("#target")?.children ?? []).map(
+              (child) => child.id,
+            ),
+            middleChildren: Array.from(document.querySelector("#middle")?.children ?? []).map(
+              (child) => child.id,
+            ),
+            leafChildren: Array.from(document.querySelector("#middle-label")?.children ?? []).map(
+              (child) => child.id,
+            ),
+          })),
         )
-        .toEqual(["first", "card", "middle", "last"]);
+        .toEqual({
+          targetChildren: ["first", "middle", "last"],
+          middleChildren: ["middle-label", "middle-meta"],
+          leafChildren: ["card"],
+        });
       await extExpect
         .poll(() =>
           page.evaluate(() =>

@@ -37,6 +37,9 @@ describe("interaction wiring lifecycle", () => {
   const highlight = (): HTMLElement | null =>
     harness.overlay.root.shadowRoot.querySelector<HTMLElement>(".vc-drop-target-highlight");
 
+  const dragGhost = (): HTMLElement | null =>
+    harness.overlay.root.shadowRoot.querySelector<HTMLElement>(".vc-drag-ghost");
+
   it("clears a stale target and rejects release outside a candidate", () => {
     const [source, , child] = makeCrossParent();
     vi.spyOn(harness.previewManager, "applyOperation");
@@ -48,14 +51,63 @@ describe("interaction wiring lifecycle", () => {
     expect(indicator.style.display).toBe("block");
 
     dispatchPointer(document, "pointermove", { clientX: 20, clientY: 20, pointerId: 17 });
-    expect(highlight()?.style.display).toBe("none");
-    expect(indicator.style.display).toBe("none");
+    expect(highlight()?.style.display).toBe("block");
+    expect(indicator.style.display).toBe("block");
     dispatchPointer(document, "pointerup", { clientX: 20, clientY: 20, pointerId: 17 });
 
     expect(child.parentElement).toBe(source);
     expect(harness.previewManager.applyOperation).not.toHaveBeenCalled();
     expect(harness.controllers.getRecordedOperations()).toHaveLength(0);
     expect(interactionOperationMessages(harness.bus)).toHaveLength(0);
+  });
+
+  it("renders a drag ghost only after threshold crossing and clears it on cancellation", () => {
+    const [, , child] = makeCrossParent();
+    dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 27 });
+    expect(dragGhost()?.style.display).toBe("none");
+
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 50, pointerId: 27 });
+    expect(dragGhost()?.style).toMatchObject({
+      display: "block",
+      left: "230px",
+      top: "40px",
+      width: "60px",
+      height: "30px",
+    });
+
+    dispatchPointer(document, "pointercancel", { clientX: 240, clientY: 50, pointerId: 27 });
+    expect(dragGhost()?.style.display).toBe("none");
+  });
+
+  it("cancels when external DOM mutation detaches the selected source", () => {
+    const [source, target, child] = makeCrossParent();
+    dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 28 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 50, pointerId: 28 });
+    target.appendChild(child);
+
+    dispatchPointer(document, "pointerup", { clientX: 240, clientY: 50, pointerId: 28 });
+
+    expect(child.parentElement).toBe(target);
+    expect(harness.controllers.getRecordedOperations()).toHaveLength(0);
+    expect(harness.diagnostics).toContainEqual(expect.objectContaining({ code: "source-changed" }));
+    expect(highlight()?.style.display).toBe("none");
+    expect(source.children).toHaveLength(0);
+  });
+
+  it("fails closed when pointer capture cannot be established", () => {
+    const [, , child] = makeCrossParent();
+    vi.spyOn(child, "setPointerCapture").mockImplementation(() => {
+      throw new DOMException("capture denied");
+    });
+
+    dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 29 });
+    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 50, pointerId: 29 });
+
+    expect(harness.controllers.getRecordedOperations()).toHaveLength(0);
+    expect(harness.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "pointer-capture-failed" }),
+    );
+    expect(dragGhost()?.style.display).toBe("none");
   });
 
   it("cancels reparent and resumes reorder on the next drag", () => {

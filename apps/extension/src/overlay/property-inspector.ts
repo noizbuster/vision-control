@@ -380,7 +380,11 @@ export function createPropertyInspector(options: PropertyInspectorOptions): Prop
     parent.appendChild(section);
   };
 
-  const renderColorRow = (parent: HTMLElement, control: StyleControlId, labelText: string): void => {
+  const renderColorRow = (
+    parent: HTMLElement,
+    control: StyleControlId,
+    labelText: string,
+  ): void => {
     const computed = previousValues.get(control) ?? "";
     const row = doc.createElement("div");
     row.className = "vc-inspector__row";

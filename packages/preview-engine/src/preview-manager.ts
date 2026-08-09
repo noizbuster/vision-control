@@ -54,6 +54,8 @@ interface TrackedEntry {
   readonly rollback: RollbackFn;
   readonly observer: ReconciliationObserver | null;
   readonly simulated: SimulatedPreview | null;
+  readonly onRollback: (() => void) | null;
+  consumed: boolean;
 }
 
 interface DispatchResult {
@@ -67,13 +69,17 @@ export interface PreviewManagerOptions {
   readonly ghostRenderer?: GhostRenderer;
 }
 
+export interface PreviewApplyOptions {
+  readonly onRollback?: () => void;
+}
+
 export interface PreviewManager {
   readonly stylesheet: StylesheetManager;
   readonly diagnostics: readonly SpecificityConflictDiagnostic[];
   readonly hasSimulatedPreviews: boolean;
   readonly activeCount: number;
   beginTransaction: () => PreviewTransaction;
-  applyOperation: (operation: Operation) => RollbackFn;
+  applyOperation: (operation: Operation, options?: PreviewApplyOptions) => RollbackFn;
   applyTransform: (runtimeId: string, translateX: number, translateY: number) => RollbackFn;
   clearAll: () => void;
 }
@@ -88,6 +94,31 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
   const removeEntry = (entry: TrackedEntry): void => {
     const idx = entries.indexOf(entry);
     if (idx >= 0) entries.splice(idx, 1);
+  };
+
+  const rollbackTrackedEntry = (entry: TrackedEntry): void => {
+    if (entry.consumed) return;
+    entry.consumed = true;
+    let firstFailure: unknown;
+    let hasFailure = false;
+    const attempt = (callback: (() => void) | null): void => {
+      if (callback === null) return;
+      try {
+        callback();
+      } catch (error) {
+        if (!hasFailure) {
+          hasFailure = true;
+          firstFailure = error;
+        }
+      }
+    };
+
+    attempt(entry.observer === null ? null : () => entry.observer?.stop());
+    attempt(entry.simulated === null ? null : () => entry.simulated?.deactivate());
+    attempt(entry.rollback);
+    attempt(entry.onRollback);
+    removeEntry(entry);
+    if (hasFailure) throw firstFailure;
   };
 
   const dispatchStyleEdit = (op: Extract<Operation, { kind: "style-edit" }>): DispatchResult => {
@@ -137,32 +168,38 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
   const dispatchStructural = (op: StructuralOperation): DispatchResult => {
     const innerRollback = applyStructuralPreview(dom, op);
     const targetId = structuralObserverTargetId(op);
-    const element = targetId !== null ? dom.resolveElement(targetId) : null;
-
+    const element = targetId === null ? null : dom.resolveElement(targetId);
     let observer: ReconciliationObserver | null = null;
     let simulated: SimulatedPreview | null = null;
 
-    if (element !== null && ghostRenderer !== null) {
-      simulated = createSimulatedPreview(op, ghostRenderer);
-      observer = createReconciliationObserver({
-        dom,
-        target: element,
-        onRevert: (): void => {
-          if (simulated !== null && !simulated.isActive()) {
-            simulated.activate(dom.getRect(element));
-          }
-        },
-      });
-      observer.start();
+    try {
+      if (element !== null && ghostRenderer !== null) {
+        simulated = createSimulatedPreview(op, ghostRenderer);
+        observer = createReconciliationObserver({
+          dom,
+          target: element,
+          onRevert: (): void => {
+            if (simulated !== null && !simulated.isActive()) {
+              simulated.activate(dom.getRect(element));
+            }
+          },
+        });
+        observer.start();
+      }
+    } catch (error) {
+      try {
+        observer?.stop();
+      } finally {
+        try {
+          simulated?.deactivate();
+        } finally {
+          innerRollback();
+        }
+      }
+      throw error;
     }
 
-    const rollback: RollbackFn = (): void => {
-      observer?.stop();
-      simulated?.deactivate();
-      innerRollback();
-    };
-
-    return { rollback, observer, simulated };
+    return { rollback: innerRollback, observer, simulated };
   };
 
   const noopDispatch = (): DispatchResult => ({
@@ -302,23 +339,21 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
     }
   };
 
-  const trackEntry = (result: DispatchResult): TrackedEntry => {
+  const trackEntry = (result: DispatchResult, options?: PreviewApplyOptions): TrackedEntry => {
     const entry: TrackedEntry = {
       rollback: result.rollback,
       observer: result.observer,
       simulated: result.simulated,
+      onRollback: options?.onRollback ?? null,
+      consumed: false,
     };
     entries.push(entry);
     return entry;
   };
 
-  const applyOperation = (operation: Operation): RollbackFn => {
-    const result = dispatch(operation);
-    const entry = trackEntry(result);
-    return (): void => {
-      result.rollback();
-      removeEntry(entry);
-    };
+  const applyOperation = (operation: Operation, options?: PreviewApplyOptions): RollbackFn => {
+    const entry = trackEntry(dispatch(operation), options);
+    return (): void => rollbackTrackedEntry(entry);
   };
 
   const applyTransform = (
@@ -330,30 +365,37 @@ export function createPreviewManager(options: PreviewManagerOptions): PreviewMan
   };
 
   const clearAll = (): void => {
-    for (let i = entries.length - 1; i >= 0; i -= 1) {
-      const entry = entries[i];
-      if (entry === undefined) continue;
-      entry.observer?.stop();
-      entry.simulated?.deactivate();
-      entry.rollback();
+    let firstFailure: unknown;
+    let hasFailure = false;
+    for (const entry of entries.slice().reverse()) {
+      try {
+        rollbackTrackedEntry(entry);
+      } catch (error) {
+        if (!hasFailure) {
+          hasFailure = true;
+          firstFailure = error;
+        }
+      }
     }
-    entries.length = 0;
-    stylesheet.clear();
+    try {
+      stylesheet.clear();
+    } catch (error) {
+      if (!hasFailure) {
+        hasFailure = true;
+        firstFailure = error;
+      }
+    }
     diagnosticsList.length = 0;
+    if (hasFailure) throw firstFailure;
   };
 
-  const beginTransaction = (): PreviewTransaction => {
-    return createPreviewTransaction(createOperationId(), {
+  const beginTransaction = (): PreviewTransaction =>
+    createPreviewTransaction(createOperationId(), {
       dispatch: (operation: Operation): RollbackFn => {
-        const result = dispatch(operation);
-        const entry = trackEntry(result);
-        return (): void => {
-          result.rollback();
-          removeEntry(entry);
-        };
+        const entry = trackEntry(dispatch(operation));
+        return (): void => rollbackTrackedEntry(entry);
       },
     });
-  };
 
   return {
     stylesheet,

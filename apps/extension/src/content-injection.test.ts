@@ -81,9 +81,9 @@ describe("injectContentScriptIfNeeded", () => {
   it("never calls executeScript because static content scripts cover http(s)", () => {
     const registry = new TabInjectionRegistry();
 
-    expect(
-      injectContentScriptIfNeeded(42, "http://subshell:10601/", ["subshell"], registry),
-    ).toBe(false);
+    expect(injectContentScriptIfNeeded(42, "http://subshell:10601/", ["subshell"], registry)).toBe(
+      false,
+    );
     expect(injectContentScriptIfNeeded(1, "http://localhost:3000/", [], registry)).toBe(false);
     expect(injectContentScriptIfNeeded(1, "https://app.example.com/", [], registry)).toBe(false);
     expect(scripting.executeScript).not.toHaveBeenCalled();

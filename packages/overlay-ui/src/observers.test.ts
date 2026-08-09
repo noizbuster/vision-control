@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createPositionObserver } from "./index.js";
+import { createPositionObserver, getScrollableAncestors } from "./index.js";
 
 const mockObserver = (): object => ({
   disconnect: vi.fn(),
@@ -44,5 +44,19 @@ describe("position observer", () => {
 
     expect(onChange).toHaveBeenCalledOnce();
     observer.disconnect();
+  });
+});
+
+describe("getScrollableAncestors", () => {
+  it("keeps parent-to-window order by default and includes a scrollable self on request", () => {
+    const parent = document.createElement("div");
+    const target = document.createElement("div");
+    parent.style.overflow = "auto";
+    target.style.overflow = "scroll";
+    parent.appendChild(target);
+    document.body.appendChild(parent);
+
+    expect(getScrollableAncestors(target)).toEqual([parent, window]);
+    expect(getScrollableAncestors(target, { includeSelf: true })).toEqual([target, parent, window]);
   });
 });

@@ -24,28 +24,40 @@ import { isOverlayElement } from "./overlay-root.js";
  *   content (or nothing) is present.
  */
 export function hitTest(point: Point, overlayHost: HTMLElement): Element | null {
-  const elements = elementsFromPoint(point);
-  for (const element of elements) {
-    if (!isOverlayElement(element, overlayHost)) {
-      return element;
-    }
-  }
-  return null;
+  return hitTestStack(point, overlayHost, overlayHost.ownerDocument)[0] ?? null;
 }
 
-/**
- * Return the stacked elements at a point.
- *
- * Falls back to `document.elementFromPoint` when `elementsFromPoint` is not
- * available (some test environments).
- */
-function elementsFromPoint(point: Point): readonly Element[] {
-  if (typeof document.elementsFromPoint === "function") {
-    return document.elementsFromPoint(point.x, point.y);
-  }
+export type HitTestRoot = Document | ShadowRoot;
 
-  const single = document.elementFromPoint(point.x, point.y);
-  return single === null ? [] : [single];
+type PointHitTestRoot = {
+  readonly elementsFromPoint?: (x: number, y: number) => readonly Element[];
+  readonly elementFromPoint?: (x: number, y: number) => Element | null;
+};
+
+/**
+ * Returns the filtered hit stack in native hit-test order for one document or
+ * open shadow-root scope.
+ */
+export function hitTestStack(
+  point: Point,
+  overlayHost: HTMLElement,
+  root: HitTestRoot,
+): readonly Element[] {
+  const pointRoot = root as unknown as PointHitTestRoot;
+  const raw =
+    typeof pointRoot.elementsFromPoint === "function"
+      ? pointRoot.elementsFromPoint(point.x, point.y)
+      : typeof pointRoot.elementFromPoint === "function"
+        ? [pointRoot.elementFromPoint(point.x, point.y)].filter(
+            (element): element is Element => element !== null,
+          )
+        : [];
+  return raw.filter(
+    (element) =>
+      element.getRootNode() === root &&
+      !isOverlayElement(element, overlayHost) &&
+      !isInsideClosedShadowRoot(element),
+  );
 }
 
 /**
@@ -64,6 +76,8 @@ export function isInsideClosedShadowRoot(element: Element): boolean {
 export interface ElementsFromRectOptions {
   /** Spacing between sample points in pixels. Default 16. */
   readonly sampleStep?: number;
+  /** Root scope for every sampled stack. Defaults to the overlay host document. */
+  readonly root?: HitTestRoot;
 }
 
 /**
@@ -94,17 +108,16 @@ export function elementsFromRect(
 ): readonly Element[] {
   if (rect.width <= 0 || rect.height <= 0) return [];
 
+  const root = options.root ?? overlayHost.ownerDocument;
   const step = options.sampleStep ?? DEFAULT_SAMPLE_STEP;
   const points = sampleRectGrid(rect, step);
   const seen = new Set<Element>();
   const result: Element[] = [];
 
   for (const point of points) {
-    for (const element of elementsFromPoint(point)) {
+    for (const element of hitTestStack(point, overlayHost, root)) {
       if (seen.has(element)) continue;
       seen.add(element);
-      if (isOverlayElement(element, overlayHost)) continue;
-      if (isInsideClosedShadowRoot(element)) continue;
       result.push(element);
     }
   }

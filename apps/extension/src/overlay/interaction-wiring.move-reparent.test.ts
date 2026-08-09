@@ -73,7 +73,7 @@ describe("interaction wiring move reparent", () => {
     assertNoPositionElement(operations);
   });
 
-  it("inserts before a cross-parent leaf at the held indicator", () => {
+  it("reparents into the center of a cross-parent leaf", () => {
     const source = document.createElement("section");
     const target = document.createElement("section");
     target.style.cssText = "display:flex;flex-direction:column";
@@ -97,12 +97,10 @@ describe("interaction wiring move reparent", () => {
     dispatchPointer(document, "pointermove", { clientX: 240, clientY: 80, pointerId: 24 });
 
     const indicator = visibleDropIndicator(harness.overlay.overlayContainer);
-    expect(indicator.style).toMatchObject({
-      left: "200px",
-      top: "64px",
-      width: "160px",
-      height: "2px",
-    });
+    expect(indicator.style.left).toBe("210px");
+    expect(indicator.style.top).toBe("79px");
+    expect(indicator.style.width).toBe("140px");
+    expect(indicator.style.height).toBe("2px");
     expect(indicator.getAttribute("data-orientation")).toBe("horizontal");
     expect([...target.children]).toEqual([first, middle, last]);
 
@@ -110,8 +108,8 @@ describe("interaction wiring move reparent", () => {
 
     const operation = harness.controllers.getRecordedOperations()[0];
     expect(operation?.kind).toBe("reparent-element");
-    if (operation?.kind === "reparent-element") expect(operation.targetIndex).toBe(1);
-    expect([...target.children]).toEqual([first, child, middle, last]);
+    if (operation?.kind === "reparent-element") expect(operation.targetIndex).toBe(0);
+    expect(child.parentElement).toBe(middle);
     expect(indicator.style.display).toBe("none");
   });
 
@@ -196,12 +194,13 @@ describe("interaction wiring move reparent", () => {
     expect([...target.children]).toEqual([child, sibling]);
   });
 
-  it("rejects a nonzero-order flex target without preview or journal output", () => {
+  it("rejects a Move across a mixed CSS-order group without preview or journal output", () => {
     const source = document.createElement("section");
     const target = document.createElement("section");
     target.style.cssText = "display:flex;flex-direction:row";
     const child = document.createElement("div");
-    const first = document.createElement("div");
+    child.style.order = "1";
+    const first = document.createElement("ul");
     const ordered = document.createElement("div");
     ordered.style.order = "1";
     source.appendChild(child);
@@ -217,15 +216,15 @@ describe("interaction wiring move reparent", () => {
     vi.spyOn(harness.previewManager, "applyOperation");
 
     dispatchPointer(child, "pointerdown", { clientX: 20, clientY: 20, pointerId: 35 });
-    dispatchPointer(document, "pointermove", { clientX: 240, clientY: 30, pointerId: 35 });
-    dispatchPointer(document, "pointerup", { clientX: 240, clientY: 30, pointerId: 35 });
+    dispatchPointer(document, "pointermove", { clientX: 215, clientY: 30, pointerId: 35 });
+    dispatchPointer(document, "pointerup", { clientX: 215, clientY: 30, pointerId: 35 });
 
     const operations = harness.controllers.getRecordedOperations();
     expect(operations).toHaveLength(0);
     expect(harness.controllers.getJournal().entries).toHaveLength(0);
     expect(harness.previewManager.applyOperation).not.toHaveBeenCalled();
     expect(harness.diagnostics).toContainEqual(
-      expect.objectContaining({ kind: "css-order-warning" }),
+      expect.objectContaining({ code: "css-order-unrepresentable" }),
     );
     assertNoPositionElement(operations);
   });

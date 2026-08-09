@@ -5,18 +5,12 @@ import type {
   Operation,
 } from "@vision-control/change-ir";
 import type { MultiSelectGroup } from "@vision-control/editor-core";
-import type { Rect } from "@vision-control/geometry";
-import type {
-  ReorderLayoutContext,
-  ReorderState,
-  ReorderTarget,
-} from "@vision-control/interaction-machine";
+import type { ReorderLayoutContext } from "@vision-control/interaction-machine";
 import {
   classifySemanticIntent,
   isNormalFlowRole,
   type LayoutRole,
 } from "@vision-control/layout-engine";
-import { createDropIndicator, type DropIndicatorApi } from "@vision-control/overlay-ui";
 import {
   createBrowserPreviewDomAdapter,
   createPreviewManager,
@@ -37,12 +31,7 @@ import {
   layoutRoleForElement,
   type MovePlacementDiagnostic,
   measureReorderContainer,
-  rectFor,
 } from "./reorder-dom-context.js";
-import {
-  createReorderPointerGesture,
-  type ReorderPointerGesture,
-} from "./reorder-pointer-gesture.js";
 
 export type {
   GridReorderRequest,
@@ -64,14 +53,13 @@ export class ReorderController {
   private readonly onMoveRejection: (diagnostic: MovePlacementDiagnostic) => void;
   private readonly previewManager: PreviewManager;
   private readonly dom: PreviewDomAdapter;
-  private readonly dropIndicator: DropIndicatorApi;
-  private readonly gesture: ReorderPointerGesture;
   private readonly commands: ReorderCommandActions;
   private selectedElement: Element | null = null;
   private parentElement: Element | null = null;
   private selectedRuntimeId: string | null = null;
   private parentRuntimeId: string | null = null;
   private readonly boundKeyDown: (event: KeyboardEvent) => void;
+  private attached = false;
 
   constructor(options: ReorderControllerOptions) {
     this.recordOperation = options.recordOperation;
@@ -79,19 +67,6 @@ export class ReorderController {
     this.onMoveRejection = options.onMoveRejection ?? (() => {});
     this.dom = createBrowserPreviewDomAdapter();
     this.previewManager = options.previewManager ?? createPreviewManager({ dom: this.dom });
-    this.dropIndicator = createDropIndicator(options.overlayContainer);
-    this.gesture = createReorderPointerGesture({
-      document,
-      resolveStart: (event) => this.resolvePointerStart(event),
-      readContext: () => this.layoutContext(),
-      onStateChange: (state) => this.updateDropIndicator(state),
-      onRelease: (result) => {
-        if (result.operation !== null) {
-          this.previewManager.applyOperation(result.operation);
-          this.recordOperation(result.operation);
-        }
-      },
-    });
     this.commands = createReorderCommandActions({
       recordOperation: this.recordOperation,
       onDiagnostic: this.onDiagnostic,
@@ -129,20 +104,19 @@ export class ReorderController {
   }
 
   attach(): void {
-    if (this.gesture.isActive()) return;
-    this.gesture.attach();
+    if (this.attached) return;
+    this.attached = true;
     document.addEventListener("keydown", this.boundKeyDown, true);
   }
 
   detach(): void {
-    if (!this.gesture.isActive()) return;
-    this.gesture.detach();
+    if (!this.attached) return;
+    this.attached = false;
     document.removeEventListener("keydown", this.boundKeyDown, true);
-    this.dropIndicator.hideDropIndicator();
   }
 
   isActive(): boolean {
-    return this.gesture.isActive();
+    return this.attached;
   }
 
   private ensureRuntimeIds(): boolean {
@@ -199,48 +173,6 @@ export class ReorderController {
       children: result.measurement.children,
       layoutRole: result.measurement.layoutRole,
       flow: result.measurement.flow,
-    };
-  }
-
-  private updateDropIndicator(state: ReorderState | null): void {
-    if (state?.kind !== "dragging" || this.parentElement === null) {
-      this.dropIndicator.hideDropIndicator();
-      return;
-    }
-    const parentRect = rectFor(this.parentElement);
-    const { axis, position } = state.insertion.indicator;
-    const rect: Rect =
-      axis === "x"
-        ? { x: position - 1, y: parentRect.y, width: 2, height: parentRect.height }
-        : { x: parentRect.x, y: position - 1, width: parentRect.width, height: 2 };
-    this.dropIndicator.showDropIndicator(rect, axis === "x" ? "vertical" : "horizontal");
-  }
-
-  private resolvePointerStart(event: PointerEvent): ReorderTarget | null {
-    if (
-      this.selectedElement === null ||
-      !(event.target instanceof Element) ||
-      !this.selectedElement.contains(event.target)
-    )
-      return null;
-    this.parentElement = this.selectedElement.parentElement;
-    if (!this.ensureRuntimeIds()) return null;
-    const context = this.layoutContext();
-    if (context === null || !this.checkContext(context.layoutRole)) return null;
-    const fromIndex = this.selectedIndex();
-    if (fromIndex < 0 || this.selectedRuntimeId === null || this.parentRuntimeId === null)
-      return null;
-    return {
-      element: {
-        runtimeId: this.selectedRuntimeId,
-        tagName: this.selectedElement.tagName.toLowerCase(),
-      },
-      parent: {
-        runtimeId: this.parentRuntimeId,
-        tagName: this.parentElement?.tagName.toLowerCase() ?? "",
-      },
-      fromIndex,
-      startPoint: { x: event.clientX, y: event.clientY },
     };
   }
 

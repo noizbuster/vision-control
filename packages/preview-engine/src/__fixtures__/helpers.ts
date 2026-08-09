@@ -700,11 +700,36 @@ export function createTestDomAdapter(
   computedStyleValue?: string,
 ): PreviewDomAdapter {
   const elements = new Map<string, Element>();
+  type Binding = {
+    readonly element: Element;
+    readonly token: symbol;
+    active: boolean;
+    readonly previous: Binding | null;
+  };
+  const bindings = new Map<string, Binding>();
   return {
-    resolveElement: (id) => elements.get(id) ?? null,
+    resolveElement: (id) => bindings.get(id)?.element ?? elements.get(id) ?? null,
     registerElement: (id, el) => {
       elements.set(id, el);
       el.setAttribute("data-vc-preview-id", id);
+    },
+    bindElement: (id, el) => {
+      const entry: Binding = {
+        element: el,
+        token: Symbol(id),
+        active: true,
+        previous: bindings.get(id) ?? null,
+      };
+      bindings.set(id, entry);
+      return () => {
+        if (!entry.active) return;
+        entry.active = false;
+        if (bindings.get(id)?.token !== entry.token) return;
+        let previous = entry.previous;
+        while (previous !== null && !previous.active) previous = previous.previous;
+        if (previous === null) bindings.delete(id);
+        else bindings.set(id, previous);
+      };
     },
     createStyleElement: () => document.createElement("style"),
     appendToHead: (node) => document.head.appendChild(node),

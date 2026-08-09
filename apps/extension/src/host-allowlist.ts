@@ -90,8 +90,7 @@ export function isLoopbackUrl(url: string | undefined): boolean {
     return false;
   }
   return (
-    (parsed.protocol === "http:" || parsed.protocol === "https:") &&
-    isLoopbackHost(parsed.hostname)
+    (parsed.protocol === "http:" || parsed.protocol === "https:") && isLoopbackHost(parsed.hostname)
   );
 }
 

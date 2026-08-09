@@ -67,10 +67,12 @@ export {
   PREVIEW_STYLE_ATTR,
   type PreviewDomAdapter,
   type PreviewRect,
+  type UnbindFn,
 } from "./dom-adapter.js";
 export { PACKAGE_NAME } from "./package-name.js";
 export {
   createPreviewManager,
+  type PreviewApplyOptions,
   type PreviewManager,
   type PreviewManagerOptions,
 } from "./preview-manager.js";

@@ -14,7 +14,6 @@ import {
 } from "@vision-control/preview-engine";
 import { expect, vi } from "vitest";
 
-import type { ReorderDiagnostic } from "../components/interaction/ReorderController.js";
 import type { ResizeDiagnostic } from "../components/interaction/ResizeController.js";
 import type { BusMessage, BusMessageHandler, BusRoute } from "../messaging/index.js";
 import { captureSelectionContext, type SelectionContext } from "./interaction-selection-capture.js";
@@ -22,6 +21,7 @@ import {
   createInteractionControllers,
   type InteractionBus,
   type InteractionControllers,
+  type InteractionDiagnostic,
 } from "./interaction-wiring.js";
 
 export interface SentMessage {
@@ -45,7 +45,7 @@ export interface InteractionHarness {
   readonly previewManager: PreviewManager;
   readonly overlay: OverlayFixture;
   readonly controllers: InteractionControllers;
-  readonly diagnostics: (ReorderDiagnostic | ResizeDiagnostic)[];
+  readonly diagnostics: (InteractionDiagnostic | ResizeDiagnostic)[];
   readonly setOperationObserver: (observer: ((operation: Operation) => void) | null) => void;
   readonly dispose: () => void;
 }
@@ -73,6 +73,51 @@ export function installInteractionDom(): void {
   document.documentElement.innerHTML = "<head></head><body></body>";
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   vi.stubGlobal("IntersectionObserver", IntersectionObserverStub);
+
+  Object.defineProperty(document, "elementsFromPoint", {
+    configurable: true,
+    value: (x: number, y: number): Element[] =>
+      Array.from(document.querySelectorAll("*"))
+        .filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return (
+            rect.width > 0 &&
+            rect.height > 0 &&
+            x >= rect.left &&
+            x <= rect.right &&
+            y >= rect.top &&
+            y <= rect.bottom
+          );
+        })
+        .reverse(),
+  });
+
+  const capturedPointers = new WeakMap<Element, Set<number>>();
+  Object.defineProperties(HTMLElement.prototype, {
+    setPointerCapture: {
+      configurable: true,
+      writable: true,
+      value(pointerId: number): void {
+        const captured = capturedPointers.get(this) ?? new Set<number>();
+        captured.add(pointerId);
+        capturedPointers.set(this, captured);
+      },
+    },
+    hasPointerCapture: {
+      configurable: true,
+      writable: true,
+      value(pointerId: number): boolean {
+        return capturedPointers.get(this)?.has(pointerId) === true;
+      },
+    },
+    releasePointerCapture: {
+      configurable: true,
+      writable: true,
+      value(pointerId: number): void {
+        capturedPointers.get(this)?.delete(pointerId);
+      },
+    },
+  });
 }
 
 export function createFakeBus(): FakeInteractionBus {
@@ -116,10 +161,11 @@ export function createOverlayFixture(): OverlayFixture {
 export function createInteractionHarness(): InteractionHarness {
   installInteractionDom();
   const bus = createFakeBus();
-  const previewManager = createPreviewManager({ dom: createBrowserPreviewDomAdapter() });
+  const previewDom = createBrowserPreviewDomAdapter();
+  const previewManager = createPreviewManager({ dom: previewDom });
   const overlay = createOverlayFixture();
   let operationObserver: ((operation: Operation) => void) | null = null;
-  const diagnostics: (ReorderDiagnostic | ResizeDiagnostic)[] = [];
+  const diagnostics: (InteractionDiagnostic | ResizeDiagnostic)[] = [];
   const controllers = createInteractionControllers({
     overlayElement: overlay.overlayElement,
     overlayContainer: overlay.overlayContainer,
@@ -128,6 +174,7 @@ export function createInteractionHarness(): InteractionHarness {
     onOperationApplied: (operation) => operationObserver?.(operation),
     onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
     onResizeDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+    bindPreviewElement: previewDom.bindElement,
   });
   return {
     bus,
@@ -159,7 +206,15 @@ export function requireSelectionContext(element: Element): SelectionContext {
 }
 
 export function dispatchPointer(target: EventTarget, type: string, init: PointerEventInit): void {
-  target.dispatchEvent(new PointerEvent(type, { ...init, bubbles: true, cancelable: true }));
+  target.dispatchEvent(
+    new PointerEvent(type, {
+      isPrimary: true,
+      button: 0,
+      ...init,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 }
 
 export function prepareResizeHandle(
@@ -196,8 +251,5 @@ export function visibleDropIndicator(container: HTMLElement): HTMLElement {
 }
 
 export function reparentDropIndicator(container: HTMLElement): HTMLElement {
-  const indicators = container.querySelectorAll<HTMLElement>(".vc-drop-indicator");
-  const indicator = indicators.item(indicators.length - 1);
-  if (indicator === null) throw new Error("reparent drop indicator was not mounted");
-  return indicator;
+  return visibleDropIndicator(container);
 }

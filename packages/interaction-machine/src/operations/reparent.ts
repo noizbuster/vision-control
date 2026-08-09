@@ -105,6 +105,26 @@ export interface ReparentSession {
   readonly rejectionReason: string | null;
 }
 
+export const buildReparentOperation = (
+  element: ReparentElementDescriptor,
+  sourceParent: ReparentElementDescriptor,
+  sourceIndex: number,
+  targetParent: ReparentElementDescriptor,
+  targetIndex: number,
+): ReparentElementOperation => ({
+  id: createOperationId(),
+  timestamp: Date.now(),
+  runtime: false,
+  origin: "canvas-drag",
+  confidence: 1,
+  kind: "reparent-element",
+  element: element.ref,
+  sourceParent: sourceParent.ref,
+  sourceIndex,
+  targetParent: targetParent.ref,
+  targetIndex,
+});
+
 const pointInRect = (x: number, y: number, rect: Rect): boolean =>
   x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
 
@@ -249,20 +269,16 @@ export const endReparent = (session: ReparentSession): ReparentResult => {
     };
   }
 
-  const operation: ReparentElementOperation = {
-    id: createOperationId(),
-    timestamp: Date.now(),
-    runtime: false,
-    origin: "canvas-drag",
-    confidence: 1,
-    kind: "reparent-element",
-    element: session.element.ref,
-    sourceParent: session.sourceParent.ref,
-    sourceIndex: session.sourceIndex,
-    targetParent: target.parent,
-    targetIndex: target.index,
-  };
-
+  const operation = buildReparentOperation(
+    session.element,
+    session.sourceParent,
+    session.sourceIndex,
+    {
+      ref: target.parent,
+      tagName: target.tagName,
+    },
+    target.index,
+  );
   return { status: "committed", operation };
 };
 

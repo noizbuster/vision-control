@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FLEX_NEIGHBOR_ID,
   FLEX_PRIMARY_ID,
   makeFlexPairOperation,
 } from "./flex-resize.test-fixtures.js";
+import { createPreviewTransaction } from "./index.js";
 import {
   registerDiv,
   resetDispatchTestDom,
@@ -102,5 +103,27 @@ describe("paired preview transaction", () => {
     expect(manager.activeCount).toBe(0);
     expect(manager.stylesheet.ruleCount()).toBe(0);
     expect(document.head.textContent).toBe("");
+  });
+
+  it("continues reverse cleanup after a rollback callback throws", () => {
+    const first = vi.fn(() => {
+      throw new Error("first rollback failed");
+    });
+    const second = vi.fn();
+    let dispatchCount = 0;
+    const transaction = createPreviewTransaction("tx-failure", {
+      dispatch: () => {
+        dispatchCount += 1;
+        return dispatchCount === 1 ? first : second;
+      },
+    });
+    transaction.begin();
+    transaction.apply(makeFlexPairOperation());
+    transaction.apply(makeFlexPairOperation({ primaryAfterBasis: "260px" }));
+
+    expect(() => transaction.rollback()).toThrow("first rollback failed");
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(transaction.state).toBe("rolled-back");
   });
 });

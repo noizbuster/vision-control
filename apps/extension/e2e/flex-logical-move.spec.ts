@@ -172,7 +172,7 @@ test.describe("@flex-pair logical Move", () => {
     });
   }
 
-  test("rejects wrapped same-parent Move without order or position fallback", async ({ page }) => {
+  test("reorders within the selected wrapped flex line without CSS fallback", async ({ page }) => {
     await serveFixture(page, moveFixture(WRAPPED_CASE), "flex-move-wrapped-row");
     const panel = await openExtensionPanel(page);
     await panel.waitForSelector("[data-testid='panel-shell']");
@@ -196,33 +196,11 @@ test.describe("@flex-pair logical Move", () => {
       errors,
     });
     await page.mouse.up();
+    await expect.poll(() => childOrder(page, "#move-parent")).toEqual(["b", "a", "c"]);
     const releasedOrder = await childOrder(page, "#move-parent");
-    expect(releasedOrder).toEqual(["a", "b", "c"]);
     expect(await cssState(page)).toEqual(beforeCss);
-    await expect(panel.locator(".journal-entry")).toHaveCount(0);
-    const rejection = panel.getByTestId("move-rejection-status");
-    await expect(rejection).toHaveAttribute("role", "alert");
-    await expect(rejection).toContainText("Move rejected");
-    await expect(rejection).toContainText(
-      "Flex Move does not support wrapped multi-line containers.",
-    );
-    const rejectionBounds = await rejection.evaluate((element) => {
-      const header = document.querySelector(".app__header");
-      const journal = document.querySelector("[data-testid='journal-strip']");
-      if (!(header instanceof HTMLElement) || !(journal instanceof HTMLElement)) return null;
-      const rect = element.getBoundingClientRect();
-      return {
-        top: rect.top,
-        bottom: rect.bottom,
-        headerBottom: header.getBoundingClientRect().bottom,
-        journalTop: journal.getBoundingClientRect().top,
-      };
-    });
-    expect(rejectionBounds).not.toBeNull();
-    if (rejectionBounds !== null) {
-      expect(rejectionBounds.top).toBeGreaterThanOrEqual(rejectionBounds.headerBottom);
-      expect(rejectionBounds.bottom).toBeLessThanOrEqual(rejectionBounds.journalTop);
-    }
+    await expect(panel.locator(".journal-entry")).toHaveCount(1);
+    await expect(panel.getByTestId("move-rejection-status")).toHaveCount(0);
     await captureFlexLogicalMoveState({
       page,
       panel,
@@ -241,7 +219,7 @@ test.describe("@flex-pair logical Move", () => {
     await panel.close();
   });
 
-  test("inserts a cross-parent item at the logical sibling boundary", async ({ page }) => {
+  test("reparents into the nearest valid nested container", async ({ page }) => {
     await serveFixture(page, REPARENT_FIXTURE, "flex-move-reparent");
     const panel = await openExtensionPanel(page);
     await panel.waitForSelector("[data-testid='panel-shell']");
@@ -266,9 +244,28 @@ test.describe("@flex-pair logical Move", () => {
     });
     await page.mouse.up();
     await expect
-      .poll(() => childOrder(page, "#target"))
-      .toEqual(["first", "card", "middle", "last"]);
-    await expect(page.locator("#source > #card")).toHaveCount(0);
+      .poll(() =>
+        page.evaluate(() => ({
+          sourceHasCard: document.querySelector("#source > #card") !== null,
+          cardParent: document.getElementById("card")?.parentElement?.id ?? null,
+          targetChildren: Array.from(document.querySelector("#target")?.children ?? []).map(
+            (child) => child.id,
+          ),
+          middleChildren: Array.from(document.querySelector("#middle")?.children ?? []).map(
+            (child) => child.id,
+          ),
+          leafChildren: Array.from(document.querySelector("#middle-label")?.children ?? []).map(
+            (child) => child.id,
+          ),
+        })),
+      )
+      .toEqual({
+        sourceHasCard: false,
+        targetChildren: ["first", "middle", "last"],
+        middleChildren: ["card", "middle-label"],
+        leafChildren: [],
+        cardParent: "middle",
+      });
     expect(await cssState(page)).toEqual(beforeCss);
     const releasedOrder = await childOrder(page, "#target");
     await captureFlexLogicalMoveState({

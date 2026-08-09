@@ -196,6 +196,7 @@ export function createOverlayRuntime(options: OverlayRuntimeOptions): OverlayRun
       previewManager,
       bus,
       document: doc,
+      bindPreviewElement: previewDom.bindElement,
       onOperationApplied: () => inspector.sync(),
     });
   }

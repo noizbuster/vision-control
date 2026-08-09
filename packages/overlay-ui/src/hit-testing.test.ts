@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { attachOverlayRoot, elementsFromRect, hitTest, isInsideClosedShadowRoot } from "./index.js";
+import {
+  attachOverlayRoot,
+  elementsFromRect,
+  hitTest,
+  hitTestStack,
+  isInsideClosedShadowRoot,
+} from "./index.js";
 
 describe("hit testing", () => {
   afterEach(() => {
@@ -32,6 +38,27 @@ describe("hit testing", () => {
     document.elementsFromPoint = () => [overlay.host, overlayChild];
 
     expect(hitTest({ x: 0, y: 0 }, overlay.host)).toBeNull();
+    overlay.unmount();
+  });
+
+  it("preserves native stack order while filtering overlay and closed-root entries", () => {
+    const overlay = attachOverlayRoot();
+    const first = document.createElement("div");
+    const second = document.createElement("div");
+    const host = document.createElement("div");
+    const closedRoot = host.attachShadow({ mode: "closed" });
+    const closedChild = document.createElement("span");
+    closedRoot.appendChild(closedChild);
+    document.body.append(first, second, host);
+
+    document.elementsFromPoint = (() => [
+      overlay.host,
+      first,
+      closedChild,
+      second,
+    ]) as typeof document.elementsFromPoint;
+
+    expect(hitTestStack({ x: 1, y: 1 }, overlay.host, document)).toEqual([first, second]);
     overlay.unmount();
   });
 });

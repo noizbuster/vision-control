@@ -88,7 +88,10 @@ export interface ReorderResult {
   readonly state: ReorderState;
 }
 
-const buildOperation = (target: ReorderTarget, toIndex: number): ReorderChildOperation => ({
+export const buildReorderOperation = (
+  target: ReorderTarget,
+  toIndex: number,
+): ReorderChildOperation => ({
   id: createOperationId(),
   kind: "reorder-child",
   runtime: false,
@@ -208,7 +211,7 @@ export const endReorder = (state: ReorderState): ReorderResult => {
     };
   }
 
-  const operation = buildOperation(state.target, state.toIndex);
+  const operation = buildReorderOperation(state.target, state.toIndex);
   return {
     operation,
     state: {

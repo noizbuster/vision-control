@@ -72,7 +72,7 @@ export function createPositionObserver(callbacks: PositionObserverCallbacks): Po
       capture: true,
     });
 
-    const ancestors = collectScrollAncestors(element);
+    const ancestors = getScrollableAncestors(element);
     for (const ancestor of ancestors) {
       const listener = (): void => notifyChange();
       ancestor.addEventListener("scroll", listener, { passive: true });
@@ -117,13 +117,18 @@ export function createPositionObserver(callbacks: PositionObserverCallbacks): Po
 }
 
 /**
- * Walk up from `element` and collect every scrollable ancestor, plus the owner
- * window. Document capture scroll is attached separately above.
+ * Walks composed ancestors and returns scrollable elements, then the owner
+ * window only when the path reaches the owning document. Closed shadow roots
+ * deliberately stop the walk at their local boundary.
  */
-function collectScrollAncestors(element: Element): readonly EventTarget[] {
-  const ancestors: EventTarget[] = [];
+export function getScrollableAncestors(
+  element: Element,
+  options: { readonly includeSelf?: boolean } = {},
+): readonly (Element | Window)[] {
+  const ancestors: Array<Element | Window> = [];
   const ownerWindow = element.ownerDocument.defaultView ?? window;
-  let current: Element | null = element.parentElement;
+  let current: Element | null = options.includeSelf === true ? element : element.parentElement;
+  let reachedDocument = false;
 
   while (current !== null) {
     const style = ownerWindow.getComputedStyle(current);
@@ -134,10 +139,22 @@ function collectScrollAncestors(element: Element): readonly EventTarget[] {
     ) {
       ancestors.push(current);
     }
-    current = current.parentElement;
+
+    if (current.parentElement !== null) {
+      current = current.parentElement;
+      continue;
+    }
+    const root = current.getRootNode();
+    if (root instanceof ShadowRoot) {
+      if (root.mode === "closed") break;
+      current = root.host;
+      continue;
+    }
+    reachedDocument = root instanceof Document;
+    break;
   }
 
-  ancestors.push(ownerWindow);
+  if (reachedDocument) ancestors.push(ownerWindow);
   return ancestors;
 }
 

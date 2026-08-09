@@ -46,7 +46,24 @@ export {
   transitionMultiSelect,
 } from "./multi-select-transitions.js";
 export {
+  beginMove,
+  cancelMove,
+  commitMove,
+  endMove,
+  type MoveCancelReason,
+  type MoveCandidate,
+  type MoveDiagnostic,
+  type MoveDiagnosticCode,
+  type MoveEvaluation,
+  type MoveOperation,
+  type MoveResult,
+  type MoveSource,
+  type MoveState,
+  updateMove,
+} from "./operations/move.js";
+export {
   beginReorder,
+  buildReorderOperation,
   commitReorder,
   endReorder,
   type ReorderLayoutContext,
@@ -72,6 +89,7 @@ export type {
 } from "./operations/reparent.js";
 export {
   beginReparent,
+  buildReparentOperation,
   cancelReparent,
   endReparent,
   evaluateDropTarget,

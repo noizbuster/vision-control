@@ -19,8 +19,11 @@ const buildForbiddenTokens = (): readonly string[] => [
   "session" + "Storage",
 ];
 
-const stripComments = (source: string): string =>
-  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+const stripNonExecutableText = (source: string): string =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "")
+    .replace(/(["'`])(?:\\.|(?!\1)[^\\])*\1/g, "");
 
 const collectSourceFiles = (srcDir: string): string[] => {
   const out: string[] = [];
@@ -54,7 +57,7 @@ describe("interaction-machine is DOM-free", () => {
   it("no non-test source file references a browser-only global", () => {
     const offenders: string[] = [];
     for (const file of files) {
-      const code = stripComments(readFileSync(file, "utf8"));
+      const code = stripNonExecutableText(readFileSync(file, "utf8"));
       for (const token of tokens) {
         const re = new RegExp(`\\b${token}\\b`);
         if (re.test(code)) offenders.push(`${path.relative(srcDir, file)}: ${token}`);

@@ -10,8 +10,8 @@ import {
 import type { GapGesture } from "./auto-layout-gap-gesture.js";
 import { AUTO_LAYOUT_OVERLAY_CSS } from "./auto-layout-overlay-css.js";
 import {
-  appendAutoLayoutControls,
   type ApplyAutoLayoutCommand,
+  appendAutoLayoutControls,
 } from "./auto-layout-overlay-panel.js";
 import { getOrAssignPreviewRuntimeId } from "./interaction-selection-capture.js";
 

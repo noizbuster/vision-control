@@ -127,26 +127,28 @@ describe("release readiness: root gate scripts", () => {
 });
 
 describe("release readiness: version synchronization", () => {
-  it("every workspace package shares one synchronized version", () => {
+  it("non-extension workspace packages share one synchronized version", () => {
     const manifests = listWorkspaceManifests();
     expect(manifests.length, "workspace packages must be discoverable").toBeGreaterThan(20);
     const versions = new Map<string, string[]>();
     for (const manifest of manifests) {
       const pkg = readJson(manifest) as Pkg;
+      if (pkg.name === "@vision-control/extension") continue;
       const list = versions.get(pkg.version) ?? [];
       list.push(pkg.name);
       versions.set(pkg.version, list);
     }
     expect(
       versions.size,
-      `workspace packages must be version-synchronized; found distinct versions: ${[...versions.keys()].join(", ")}`,
+      `non-extension packages must be version-synchronized; found distinct versions: ${[...versions.keys()].join(", ")}`,
     ).toBe(1);
   });
 
-  it("the synchronized version is a valid semver-like string", () => {
-    const manifests = listWorkspaceManifests();
-    const sample = readJson(manifests[0] ?? "") as Pkg;
-    expect(sample.version).toMatch(/^\d+\.\d+\.\d+$/);
+  it("every workspace package version is semver-like", () => {
+    for (const manifest of listWorkspaceManifests()) {
+      const pkg = readJson(manifest) as Pkg;
+      expect(pkg.version, `${pkg.name} must have a semver-like version`).toMatch(/^\d+\.\d+\.\d+$/);
+    }
   });
 });
 

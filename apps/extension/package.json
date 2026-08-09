@@ -1,6 +1,6 @@
 {
   "name": "@vision-control/extension",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Chromium extension for Vision Control (WXT + React).",
